@@ -1,0 +1,67 @@
+# Backend Dependencies for eCitizen Voice Assistant
+# Python 3.9+ required
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Pydantic for data validation
+pydantic==2.10.3
+pydantic-settings==2.1.0
+
+# Google AI Services
+google-generativeai==0.3.2
+google-cloud-dialogflow==2.27.0
+google-auth==2.26.2
+
+# Voice Processing
+SpeechRecognition==3.10.1
+pyttsx3==2.90
+pyaudio==0.2.14
+
+# Africa's Talking SMS Integration
+africastalking==1.2.5
+
+# HTTP Client
+httpx==0.26.0
+aiohttp==3.9.1
+
+# Database (SQLite for development, PostgreSQL for production)
+sqlalchemy==2.0.25
+aiosqlite==0.19.0
+# psycopg2-binary==2.9.9  # Uncomment for PostgreSQL
+
+# Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Logging and Monitoring
+structlog==24.1.0
+
+# Rate Limiting
+slowapi==0.1.9
+
+# CORS
+starlette==0.35.1
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+httpx==0.26.0
+
+# Development
+black==24.1.0
+isort==5.13.2
+flake8==7.0.0
+
+# Audio Processing (optional, for advanced voice features)
+# numpy==1.26.3
+# scipy==1.12.0
+# librosa==0.10.1
+
+# Production Server
+gunicorn==21.2.0
