@@ -9,6 +9,8 @@ import Footer from './components/Footer';
 import HomePage from './components/HomePage';
 import ServicesPage from './components/ServicesPage';
 import BookingPage from './components/BookingPage';
+import AfricanAvatarGenerator from './components/AfricanAvatarGenerator';
+import AvatarStudioShowcase from './components/AvatarStudioShowcase';
 import './styles/App.css';
 
 function App() {
@@ -24,6 +26,8 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/services" element={<ServicesPage />} />
                   <Route path="/booking/:serviceType?" element={<BookingPage />} />
+                  <Route path="/avatar-studio" element={<AvatarStudioShowcase />} />
+                  <Route path="/avatar-generator" element={<AfricanAvatarGenerator />} />
                 </Routes>
               </main>
               <Footer />
