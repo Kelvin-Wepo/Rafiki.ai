@@ -99,6 +99,7 @@ class SadTalkerService:
         self,
         audio_path: str,
         avatar_id: str = "habari",
+        image_path: Optional[str] = None,
         preprocess: str = "crop",
         still_mode: bool = False,
         expression_scale: float = 1.0
@@ -109,6 +110,7 @@ class SadTalkerService:
         Args:
             audio_path: Path to the audio file
             avatar_id: ID of the avatar to use
+            image_path: Optional custom image path (overrides avatar_id)
             preprocess: Preprocessing mode ('crop', 'resize', 'full')
             still_mode: If True, only animate mouth (no head movement)
             expression_scale: Scale of facial expressions (0.0-2.0)
@@ -117,10 +119,13 @@ class SadTalkerService:
             Tuple of (video_path, error_message)
         """
         try:
-            # Get avatar image path
-            avatar_path = self._get_avatar_path(avatar_id)
-            if not avatar_path:
-                return None, f"Avatar '{avatar_id}' not found"
+            # Get avatar image path - use custom image if provided
+            if image_path:
+                avatar_path = image_path
+            else:
+                avatar_path = self._get_avatar_path(avatar_id)
+                if not avatar_path:
+                    return None, f"Avatar '{avatar_id}' not found"
             
             if self.mode == "api":
                 return await self._generate_via_api(
