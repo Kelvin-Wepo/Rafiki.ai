@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { useElevenLabs } from '../context/ElevenLabsContext';
-import TalkingAvatar from './TalkingAvatar';
+import RealTalkingAvatar from './RealTalkingAvatar';
 import voiceBookingService from '../services/voiceBookingService';
 import toast from 'react-hot-toast';
 import './VoiceInterface.css';
 
 function VoiceInterface({ disabled = false }) {
   const [bookingStatus, setBookingStatus] = useState(null);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [generatingVideo, setGeneratingVideo] = useState(false);
+  const audioChunksRef = useRef([]);
+  const mediaRecorderRef = useRef(null);
   const { settings, announce } = useAccessibility();
   const {
     isConnected,
@@ -20,6 +25,7 @@ function VoiceInterface({ disabled = false }) {
   } = useElevenLabs();
 
   const t = (en, sw) => settings.language === 'sw' ? sw : en;
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
   // Process voice input for booking automation
   const processForBooking = useCallback((userText) => {
@@ -37,6 +43,45 @@ function VoiceInterface({ disabled = false }) {
     return result;
   }, [settings.language]);
 
+  // Generate talking avatar video from response audio
+  const generateAvatarVideo = useCallback(async (audioBlob) => {
+    if (!audioBlob) return;
+
+    setGeneratingVideo(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'response.wav');
+      formData.append('language', settings.language);
+
+      const response = await fetch(
+        `${API_URL}/api/avatar/generate-talking-video`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.statusText}`);
+      }
+
+      const videoBlob = await response.blob();
+      const videoObjectUrl = URL.createObjectURL(videoBlob);
+      setVideoUrl(videoObjectUrl);
+
+      // Also create audio URL for sync
+      const audioObjectUrl = URL.createObjectURL(audioBlob);
+      setAudioUrl(audioObjectUrl);
+
+      announce(t('Avatar video ready', 'Video ya avatar imeandaliwa'));
+    } catch (error) {
+      console.error('Error generating avatar video:', error);
+      toast.error(t('Failed to generate avatar video', 'Imeshindwa kutengeneza video ya avatar'));
+    } finally {
+      setGeneratingVideo(false);
+    }
+  }, [settings.language, announce, t, API_URL]);
+
   // Sync language with ElevenLabs
   useEffect(() => {
     setLanguage(settings.language);
@@ -49,6 +94,22 @@ function VoiceInterface({ disabled = false }) {
       processForBooking(transcript);
     }
   }, [transcript, processForBooking]);
+
+  // Generate video when response arrives
+  useEffect(() => {
+    if (response && status === 'speaking') {
+      // Try to get audio blob from response
+      // This would ideally come from ElevenLabs context
+      // For now, we'll trigger video generation when response is available
+      // In a real implementation, this would capture the audio being played
+      
+      // If ElevenLabs provides audio blob, use it
+      if (window.__elevenLabsAudioBlob) {
+        generateAvatarVideo(window.__elevenLabsAudioBlob);
+        window.__elevenLabsAudioBlob = null;
+      }
+    }
+  }, [response, status, generateAvatarVideo]);
 
   const toggle = useCallback(async () => {
     if (isConnected) {
@@ -78,10 +139,16 @@ function VoiceInterface({ disabled = false }) {
 
   return (
     <div className="voice-interface">
-      <TalkingAvatar
+      <RealTalkingAvatar
         isListening={status === 'listening' || status === 'connected'}
-        isSpeaking={status === 'speaking'}
+        isSpeaking={status === 'speaking' || generatingVideo}
+        videoUrl={videoUrl}
+        audioUrl={audioUrl}
         size="large"
+        onVideoEnd={() => {
+          setVideoUrl(null);
+          setAudioUrl(null);
+        }}
       />
 
       {/* Booking Progress */}

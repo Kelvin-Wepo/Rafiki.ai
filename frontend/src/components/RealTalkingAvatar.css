@@ -1,0 +1,371 @@
+/**
+ * Real Talking Avatar Styling
+ * Beautiful avatar display with video support and animations
+ */
+
+.real-talking-avatar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+}
+
+/* Size variants */
+.real-talking-avatar-container.avatar-small .avatar-display-wrapper {
+  width: 100px;
+  height: 100px;
+}
+
+.real-talking-avatar-container.avatar-medium .avatar-display-wrapper {
+  width: 150px;
+  height: 150px;
+}
+
+.real-talking-avatar-container.avatar-large .avatar-display-wrapper {
+  width: 220px;
+  height: 220px;
+}
+
+/* Avatar Display Wrapper */
+.avatar-display-wrapper {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2),
+              0 0 0 2px rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.avatar-display-wrapper.speaking {
+  box-shadow: 0 10px 40px rgba(16, 185, 129, 0.3),
+              0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.avatar-display-wrapper.listening {
+  box-shadow: 0 10px 40px rgba(59, 130, 246, 0.3),
+              0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.avatar-display-wrapper.thinking {
+  box-shadow: 0 10px 40px rgba(245, 158, 11, 0.3),
+              0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+/* Image Container (static avatar) */
+.image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+/* Video Container */
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.avatar-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}
+
+/* Video Loading State */
+.video-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+  z-index: 10;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #10b981;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.video-loading p {
+  color: #666;
+  font-size: 0.875rem;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Video Error State */
+.video-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: rgba(239, 68, 68, 0.95);
+  color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  z-index: 10;
+}
+
+.video-error p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.video-error p + p {
+  margin-top: 0.25rem;
+  opacity: 0.8;
+  font-size: 0.75rem;
+}
+
+/* Status Ring */
+.status-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.status-ring.speaking {
+  border-color: #10b981;
+  animation: pulse-ring 1.5s ease-in-out infinite;
+}
+
+.status-ring.listening {
+  border-color: #3b82f6;
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.status-ring.thinking {
+  border-color: #f59e0b;
+  animation: rotate-ring 2s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% {
+    box-shadow: inset 0 0 0 0 currentColor;
+  }
+  50% {
+    box-shadow: inset 0 0 0 6px currentColor;
+  }
+}
+
+@keyframes rotate-ring {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pulse Rings (expanding circles) */
+.pulse-rings {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+}
+
+.ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: expand-ring 2s ease-out infinite;
+}
+
+.speaking .ring {
+  color: #10b981;
+}
+
+.listening .ring {
+  color: #3b82f6;
+}
+
+.thinking .ring {
+  color: #f59e0b;
+}
+
+.ring-1 {
+  animation-delay: 0s;
+}
+
+.ring-2 {
+  animation-delay: 0.5s;
+}
+
+.ring-3 {
+  animation-delay: 1s;
+}
+
+/* Ring sizes based on avatar size */
+.avatar-small .ring {
+  width: 140px;
+  height: 140px;
+  margin-left: -70px;
+  margin-top: -70px;
+}
+
+.avatar-medium .ring {
+  width: 210px;
+  height: 210px;
+  margin-left: -105px;
+  margin-top: -105px;
+}
+
+.avatar-large .ring {
+  width: 310px;
+  height: 310px;
+  margin-left: -155px;
+  margin-top: -155px;
+}
+
+@keyframes expand-ring {
+  0% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.4);
+  }
+}
+
+/* Status Text */
+.avatar-status {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  text-align: center;
+  min-height: 1.5rem;
+  animation: fade-in 0.3s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .status-ring,
+  .ring,
+  .avatar-display-wrapper {
+    animation: none;
+  }
+  
+  .avatar-display-wrapper {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* High Contrast Mode Support */
+[data-high-contrast="true"] .avatar-display-wrapper {
+  border: 4px solid currentColor;
+}
+
+[data-high-contrast="true"] .avatar-status {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .avatar-display-wrapper {
+    background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+  }
+  
+  .avatar-status {
+    color: #e5e7eb;
+  }
+  
+  .video-loading p {
+    color: #999;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .real-talking-avatar-container {
+    gap: 0.75rem;
+  }
+  
+  .avatar-status {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .real-talking-avatar-container.avatar-large .avatar-display-wrapper {
+    width: 180px;
+    height: 180px;
+  }
+  
+  .real-talking-avatar-container.avatar-large .ring {
+    width: 260px;
+    height: 260px;
+    margin-left: -130px;
+    margin-top: -130px;
+  }
+  
+  .avatar-status {
+    font-size: 0.85rem;
+  }
+}

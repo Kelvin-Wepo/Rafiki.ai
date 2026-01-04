@@ -54,6 +54,40 @@ async def list_avatars():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/image")
+async def get_avatar_image():
+    """
+    Serve the Rafiki avatar image
+    
+    Returns:
+        PNG image file of the Rafiki avatar
+    """
+    try:
+        avatar_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "assets",
+            "avatars",
+            "rafiki_avatar.png"
+        )
+        
+        if not os.path.exists(avatar_path):
+            logger.warning(f"Avatar image not found at {avatar_path}")
+            raise HTTPException(status_code=404, detail="Avatar image not found")
+        
+        return FileResponse(
+            avatar_path,
+            media_type="image/png",
+            filename="rafiki_avatar.png"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving avatar image: {e}")
+        raise HTTPException(status_code=500, detail=f"Error serving avatar: {str(e)}")
+
+
 @router.post("/generate")
 async def generate_video(
     audio: UploadFile = File(...),
