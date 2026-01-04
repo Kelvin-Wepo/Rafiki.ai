@@ -92,6 +92,7 @@ class ElevenLabsService:
         self.settings = get_settings()
         self.api_key = self.settings.ELEVENLABS_API_KEY
         self.agent_id = self.settings.ELEVENLABS_AGENT_ID
+        self.branch_id = getattr(self.settings, 'ELEVENLABS_BRANCH_ID', None)
         self._client = None
         
         # Set default voice - preferring Noah (warm Kenyan male voice)

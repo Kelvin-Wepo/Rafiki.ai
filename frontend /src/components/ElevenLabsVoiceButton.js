@@ -63,7 +63,7 @@ function ElevenLabsVoiceButton({ disabled = false }) {
     } else {
       // Start conversation
       setStatus('connecting');
-      announce('Connecting to Habari...');
+      announce('Connecting to Rafiki...');
       
       const success = await elevenLabsService.startConversation();
       if (!success) {

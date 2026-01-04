@@ -5,7 +5,8 @@
 
 import React from 'react';
 
-const AGENT_ID = 'agent_7901kbqbewwcf1avres326fjahdb';
+const AGENT_ID = 'agent_8201ke4b56ysfce8kaz9ymxjxrvx';
+const BRANCH_ID = 'agtbrch_0501ke4b57pzf70va7bqn3jd86a0';
 
 function ElevenLabsWidget() {
   return (
@@ -22,7 +23,7 @@ function ElevenLabsWidget() {
     >
       {/* Direct link to ElevenLabs Talk-To page */}
       <a
-        href={`https://elevenlabs.io/app/talk-to?agent_id=${AGENT_ID}`}
+        href={`https://elevenlabs.io/app/talk-to?agent_id=${AGENT_ID}&branch_id=${BRANCH_ID}`}
         target="_blank"
         rel="noopener noreferrer"
         style={{

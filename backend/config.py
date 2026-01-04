@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     
     # ElevenLabs Conversational AI
     ELEVENLABS_API_KEY: str = ""
-    ELEVENLABS_AGENT_ID: str = "agent_7901kbqbewwcf1avres326fjahdb"
+    ELEVENLABS_AGENT_ID: str = "agent_8201ke4b56ysfce8kaz9ymxjxrvx"
+    ELEVENLABS_BRANCH_ID: str = "agtbrch_0501ke4b57pzf70va7bqn3jd86a0"
     ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice (default)
     
     # Dialogflow Settings
