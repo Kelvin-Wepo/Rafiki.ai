@@ -328,6 +328,119 @@ class ElevenLabsService:
                 "error": str(e)
             }
     
+    async def text_to_speech_file(
+        self,
+        text: str,
+        language: str = "en",
+        voice_name: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Convert text to speech and save to a temporary file.
+        Used by SadTalker service for avatar animation.
+        Falls back to pyttsx3 if ElevenLabs is unavailable.
+        
+        Args:
+            text: Text to convert to speech
+            language: Language code
+            voice_name: Optional voice name
+            
+        Returns:
+            Path to the generated audio file, or None on error
+        """
+        try:
+            import tempfile
+            
+            # Try ElevenLabs first
+            result = await self.text_to_speech(
+                text=text,
+                voice_name=voice_name,
+                output_format="mp3_44100_128"
+            )
+            
+            if result.get("success"):
+                # Decode audio and save to file
+                audio_data = base64.b64decode(result["audio_data"])
+                
+                # Create temp file
+                temp_file = tempfile.NamedTemporaryFile(
+                    suffix=".mp3",
+                    delete=False
+                )
+                temp_file.write(audio_data)
+                temp_file.close()
+                
+                logger.info(f"Generated TTS audio file (ElevenLabs): {temp_file.name}")
+                return temp_file.name
+            
+            # ElevenLabs failed - try pyttsx3 fallback
+            logger.warning(f"ElevenLabs TTS failed: {result.get('error')}. Trying pyttsx3 fallback...")
+            return await self._pyttsx3_fallback(text)
+            
+        except Exception as e:
+            logger.error(f"TTS file generation error: {e}")
+            # Try fallback on any exception
+            try:
+                return await self._pyttsx3_fallback(text)
+            except Exception as fallback_error:
+                logger.error(f"pyttsx3 fallback also failed: {fallback_error}")
+                return None
+    
+    async def _pyttsx3_fallback(self, text: str) -> Optional[str]:
+        """
+        Generate TTS audio using espeak as a fallback.
+        
+        Args:
+            text: Text to convert to speech
+            
+        Returns:
+            Path to the generated WAV file, or None on error
+        """
+        try:
+            import tempfile
+            import subprocess
+            import shutil
+            
+            # Create temp file for output
+            temp_file = tempfile.NamedTemporaryFile(
+                suffix=".wav",
+                delete=False
+            )
+            temp_file.close()
+            
+            # Check if espeak is available
+            espeak_path = shutil.which('espeak') or shutil.which('espeak-ng')
+            if not espeak_path:
+                logger.error("espeak not installed. Install with: sudo apt install espeak")
+                return None
+            
+            # Generate audio using espeak
+            result = subprocess.run(
+                [espeak_path, '-w', temp_file.name, '-s', '150', text],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"espeak failed: {result.stderr}")
+                return None
+            
+            # Verify file was created
+            import os
+            if os.path.getsize(temp_file.name) < 100:
+                logger.error("espeak generated empty or too small audio file")
+                return None
+            
+            logger.info(f"Generated TTS audio file (espeak fallback): {temp_file.name}")
+            return temp_file.name
+            
+        except subprocess.TimeoutExpired:
+            logger.error("espeak timed out")
+            return None
+        except Exception as e:
+            logger.error(f"espeak fallback error: {e}")
+            return None
+    
     async def get_voices(self) -> Dict[str, Any]:
         """
         Get available ElevenLabs voices with Kenyan voice preferences.
