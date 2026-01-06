@@ -17,9 +17,9 @@ from fastapi.responses import FileResponse, JSONResponse
 import tempfile
 from typing import Optional
 
-from backend.services.sadtalker_service import SadTalkerService
-from backend.services.image_preprocessing_service import ImagePreprocessingService
-from backend.services.elevenlabs_service import ElevenLabsService
+from services.sadtalker_service import SadTalkerService
+from services.image_preprocessing_service import ImagePreprocessingService
+from services.elevenlabs_service import ElevenLabsService
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ async def animate_avatar(
 @router.post("/text-to-video")
 async def text_to_video(
     text: str = Form(...),
-    avatar_id: str = Form(default="habari"),
+    avatar_id: str = Form(default="rafiki_avatar"),
     language: str = Form(default="en"),
     use_elevenlabs: bool = Form(default=True),
     background_tasks: BackgroundTasks = None
@@ -127,7 +127,7 @@ async def text_to_video(
         background_tasks: FastAPI background tasks
 
     Returns:
-        Video file or error message
+        Video file, audio file (if SadTalker unavailable), or error message
     """
     try:
         # Validate text
@@ -150,6 +150,19 @@ async def text_to_video(
         )
 
         if error:
+            # SadTalker failed - try to return audio instead
+            logger.warning(f"SadTalker failed: {error}, falling back to audio-only")
+            
+            if voice_service:
+                audio_path = await voice_service.text_to_speech_file(text, voice_name="rachel")
+                if audio_path:
+                    return FileResponse(
+                        path=audio_path,
+                        media_type="audio/mpeg",
+                        filename=f"avatar_{avatar_id}_audio.mp3",
+                        headers={"X-Fallback-Mode": "audio-only", "X-Error": error}
+                    )
+            
             raise HTTPException(status_code=500, detail=f"Video generation failed: {error}")
 
         return FileResponse(
@@ -324,9 +337,65 @@ async def clear_cache():
 @router.get("/health")
 async def health_check():
     """Health check for avatar animation service"""
+    import httpx
+    
+    # Check SadTalker API availability
+    sadtalker_available = False
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(f"{sadtalker_service.api_url}/")
+            sadtalker_available = response.status_code == 200
+    except:
+        pass
+    
     return {
         'status': 'healthy',
         'service': 'avatar-animation',
         'mode': sadtalker_service.mode,
+        'sadtalker_available': sadtalker_available,
+        'avatars': sadtalker_service.get_available_avatars(),
         'cache_stats': sadtalker_service.get_cache_stats()
     }
+
+
+@router.post("/text-to-speech")
+async def text_to_speech(
+    text: str = Form(...),
+    voice_name: str = Form(default="rachel"),
+):
+    """
+    Generate speech audio from text using ElevenLabs TTS.
+    
+    Args:
+        text: Text to convert to speech
+        voice_name: Voice to use (noah, aria, sage, rachel)
+        
+    Returns:
+        Audio file (MP3)
+    """
+    try:
+        if not text or len(text) > 2000:
+            raise HTTPException(
+                status_code=400,
+                detail="Text must be between 1 and 2000 characters"
+            )
+        
+        audio_path = await elevenlabs_service.text_to_speech_file(
+            text=text,
+            voice_name=voice_name
+        )
+        
+        if not audio_path:
+            raise HTTPException(status_code=500, detail="TTS generation failed")
+        
+        return FileResponse(
+            path=audio_path,
+            media_type="audio/mpeg",
+            filename="speech.mp3"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"TTS error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
