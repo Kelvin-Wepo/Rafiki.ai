@@ -32,7 +32,7 @@ CACHE_DIR = Path(__file__).parent.parent / "assets" / "avatar_cache"
 CHECKPOINT_DIR = os.getenv("SADTALKER_CHECKPOINT_DIR", "./checkpoints")
 
 # Default African woman avatar image
-DEFAULT_AVATAR = "african_woman.png"
+DEFAULT_AVATAR = "rafiki_avatar.png"
 
 # Animation settings
 DEFAULT_SETTINGS = {
