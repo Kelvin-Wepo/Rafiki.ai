@@ -1,95 +1,71 @@
-# eCitizen Voice Assistant 🇰🇪
+# Rafiki.ai - eCitizen Voice Assistant
 
- 
+A voice-powered AI assistant for Kenya's eCitizen government services platform. Features natural language understanding, talking avatar animation, and accessible design for all users.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.9+-green.svg)
-![React](https://img.shields.io/badge/react-18.0+-blue.svg)
+## Features
 
-## 🎯 Features
+- Voice-based interaction with speech recognition and text-to-speech
+- AI-powered natural language understanding using Google Gemini
+- Talking avatar with lip-sync animation (SadTalker integration)
+- SMS notifications via Africa's Talking
+- Accessible UI with WCAG 2.1 AA compliance
+- Support for multiple government services (Passport, ID, Driving License, etc.)
 
-- **Voice Interaction**: Full voice-based navigation using speech recognition and text-to-speech
-- **AI-Powered**: Natural language understanding with Google Gemini API
-- **Conversation Management**: Contextual conversations using Dialogflow
-- **SMS Notifications**: Appointment confirmations via Africa's Talking
-- **Accessible UI**: High-contrast mode, large buttons, ARIA labels, keyboard navigation
-- **Multi-Service Support**: Passport, ID, Driving License, Good Conduct certificates
-- **🎬 Talking Avatar**: AI-powered animated avatar using SadTalker & Imagen for realistic conversations
-- **😊 Avatar Customization**: Personalized avatar with skin tone, hair, clothing, and expression options
-- **🎤 Real-time Audio-to-Video**: Convert audio to lip-synced talking head videos
-
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   React App     │────▶│   FastAPI       │────▶│   Google        │
-│   (Frontend)    │     │   (Backend)     │     │   Gemini AI     │
-│                 │     │                 │     │                 │
-│ • Voice Input   │     │ • Voice Process │     │ • NLU           │
-│ • Accessible UI │     │ • Session Mgmt  │     │ • Intent        │
-│ • Chat Interface│     │ • Booking Logic │     │ • Response Gen  │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                               │
-                               ▼
-                        ┌─────────────────┐
-                        │  Africa's       │
-                        │  Talking SMS    │
-                        │                 │
-                        │ • Confirmations │
-                        │ • Reminders     │
-                        └─────────────────┘
+Frontend (React/TypeScript)     Backend (FastAPI)           External Services
+-------------------------       -----------------           -----------------
+- Vite dev server               - REST API                  - Google Gemini AI
+- Avatar components             - Session management        - ElevenLabs TTS
+- useSadTalker hook             - TTS with fallback         - Africa's Talking SMS
+- Audio visualization           - SadTalker integration     - SadTalker API
 ```
 
-## 📋 Prerequisites
+## Prerequisites
 
-- Python 3.9 or higher
-- Node.js 18 or higher
-- npm or yarn
-- Google Cloud account (for Gemini API and Dialogflow)
-- Africa's Talking account (for SMS)
+- Python 3.9+
+- Node.js 18+
+- espeak (for TTS fallback on Linux)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/ecitizen-voice-assistant.git
-cd ecitizen-voice-assistant
+git clone https://github.com/Kelvin-Wepo/Rafiki.ai.git
+cd Rafiki.ai
 ```
 
 ### 2. Backend Setup
 
 ```bash
-# Navigate to backend directory
 cd backend
 
 # Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv venv
+source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Copy environment template
+# Copy and configure environment variables
 cp ../.env.example ../.env
-
 # Edit .env with your API keys
-nano ../.env
 ```
 
 ### 3. Configure Environment Variables
 
-Edit the `.env` file with your actual credentials:
+Create a `.env` file in the project root:
 
 ```env
 # Google Gemini API
 GEMINI_API_KEY=your-gemini-api-key
 
-# Dialogflow
-DIALOGFLOW_PROJECT_ID=your-project-id
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+# ElevenLabs TTS (optional - falls back to espeak)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
 
-# Africa's Talking
+# Africa's Talking SMS
 AFRICASTALKING_USERNAME=sandbox
 AFRICASTALKING_API_KEY=your-api-key
 ```
@@ -97,140 +73,121 @@ AFRICASTALKING_API_KEY=your-api-key
 ### 4. Start Backend Server
 
 ```bash
-# From the backend directory
+cd backend
+source venv/bin/activate
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 5. Frontend Setup
 
 ```bash
-# Navigate to frontend directory
-cd ../frontend
-
-# Install dependencies
+cd frontend
 npm install
-
-# Start development server
-npm start
+npm run dev
 ```
 
 The application will be available at:
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
-## 🎬 Avatar System (Rafiki)
-
-The Rafiki AI assistant features a realistic talking avatar system using SadTalker and Imagen:
-
-### Features
-
-- **Realistic Animation**: AI-powered lip-sync from audio using SadTalker
-- **Image Generation**: Create avatars using Imagen 3 with customization
-- **Real-time Processing**: Generate talking videos from audio or text
-- **Caching**: Automatic caching of animations for faster response
-- **GPU Acceleration**: CUDA support for 4-6x faster generation
-- **Web Integration**: React component with full video player controls
-- **Customization**: Configurable expression scale, head movement, preprocessing
-
-### Avatar Generation Workflow
+## Project Structure
 
 ```
-┌──────────────────┐
-│ Generate Avatar  │
-│ with Imagen 3    │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Preprocess Image │
-│ • Face Detection │
-│ • Alignment      │
-│ • Optimization   │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Get Audio Input  │
-│ • ElevenLabs TTS │
-│ • User recording │
-│ • Pre-recorded   │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Generate Video   │
-│ SadTalker        │
-│ Animation        │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Display on Web   │
-│ RafikiAvatar     │
-│ Component        │
-└──────────────────┘
+Rafiki.ai/
+├── backend/
+│   ├── main.py                 # FastAPI entry point
+│   ├── config.py               # Configuration management
+│   ├── requirements.txt        # Python dependencies
+│   ├── assets/
+│   │   └── avatars/            # Avatar images
+│   ├── routes/
+│   │   ├── avatar_animation.py # Avatar video generation
+│   │   ├── booking.py          # Appointment booking
+│   │   ├── elevenlabs.py       # ElevenLabs TTS routes
+│   │   ├── services.py         # Government services
+│   │   ├── session.py          # Session management
+│   │   └── voice.py            # Voice processing
+│   ├── services/
+│   │   ├── elevenlabs_service.py   # TTS with espeak fallback
+│   │   ├── gemini_service.py       # Google Gemini AI
+│   │   ├── sadtalker_service.py    # Avatar animation
+│   │   ├── sms_service.py          # Africa's Talking SMS
+│   │   └── voice_service.py        # Speech recognition
+│   └── utils/
+│       ├── logger.py           # Logging configuration
+│       ├── rate_limiter.py     # API rate limiting
+│       └── session_manager.py  # Session handling
+│
+├── frontend/
+│   ├── package.json            # Node.js dependencies
+│   ├── vite.config.ts          # Vite configuration
+│   └── src/
+│       ├── App.tsx             # Main React component
+│       ├── components/
+│       │   ├── RafikiIntegrationDemo.tsx  # Demo page
+│       │   └── avatar/
+│       │       ├── RafikiSadTalkerAvatar.tsx  # SadTalker video player
+│       │       ├── RafikiImageAvatar.tsx      # SVG animated fallback
+│       │       └── index.ts                   # Component exports
+│       ├── hooks/
+│       │   ├── useSadTalker.ts    # Backend communication
+│       │   ├── useBlinking.ts     # Natural blinking
+│       │   ├── useEmotions.ts     # Emotion management
+│       │   └── index.ts           # Hook exports
+│       └── types/
+│           └── avatar.types.ts    # TypeScript definitions
+│
+├── .env.example                # Environment template
+└── README.md                   # This file
 ```
 
-### Quick Start - Avatar System
+## Avatar System
 
-```bash
-# 1. Clone SadTalker repository
-git clone https://github.com/OpenTalker/SadTalker.git
+The Rafiki avatar supports two modes:
 
-# 2. Download pre-trained models
-cd SadTalker
-python scripts/download_checkpoint.py
+### Video Mode (SadTalker)
+When SadTalker API is available, generates lip-synced video from text or audio.
 
-# 3. Install avatar dependencies
-cd ../backend
-pip install -r requirements.txt
-
-# 4. Set environment variables
-export SADTALKER_MODE=local
-export SADTALKER_DEVICE=cuda  # or 'cpu'
-
-# 5. Start backend
-python -m uvicorn main:app --reload
-
-# 6. Use API to generate videos
-curl -X POST http://localhost:8000/api/avatar/animate \
-  -F "audio_file=@audio.wav" \
-  -F "avatar_id=habari"
-```
+### Fallback Mode (SVG Animation)
+When SadTalker is unavailable, displays an animated SVG avatar with:
+- Natural blinking
+- Eye tracking (follows cursor)
+- Emotion expressions
+- Audio-synced waveform visualization
 
 ### API Endpoints
 
-#### Generate Avatar from Audio
+#### Generate Video from Text
+```
+POST /api/avatar/text-to-video
+Content-Type: multipart/form-data
+
+Parameters:
+  text: string           # Text to speak
+  avatar_id: string      # Avatar ID (default: rafiki_avatar)
+  language: string       # Language code (default: en)
+  use_elevenlabs: bool   # Use ElevenLabs TTS (default: true)
+
+Response: MP4 video or MP3 audio (fallback)
+```
+
+#### Generate Video from Audio
 ```
 POST /api/avatar/animate
 Content-Type: multipart/form-data
 
 Parameters:
-  audio_file: File       # WAV, MP3, OGG
-  avatar_id: string      # Avatar ID (default: 'habari')
-  preprocess: string     # 'crop', 'resize', 'full'
-  still_mode: boolean    # Only animate mouth
-  expression_scale: float # 0.0-2.0 (default: 1.0)
-
-Response: MP4 video file
-```
-
-#### Generate from Text
-```
-POST /api/avatar/text-to-video
-Content-Type: application/x-www-form-urlencoded
-
-Parameters:
-  text: string           # Text to speak
+  audio_file: File       # WAV, MP3, or OGG
   avatar_id: string      # Avatar ID
-  language: string       # Language code (default: 'en')
-  use_elevenlabs: boolean # Use ElevenLabs TTS
+  preprocess: string     # crop, resize, or full
+  still_mode: boolean    # Only animate mouth
+  expression_scale: float # 0.0-2.0
 
-Response: MP4 video file
+Response: MP4 video
 ```
 
-#### Get Available Avatars
+#### List Avatars
 ```
 GET /api/avatar/avatars
 
@@ -238,317 +195,115 @@ Response:
 {
   "success": true,
   "avatars": [
-    {
-      "id": "habari",
-      "name": "Habari",
-      "path": "/assets/avatars/habari.png"
-    }
+    {"id": "rafiki_avatar", "name": "Rafiki Avatar", "path": "..."}
   ]
 }
 ```
 
-#### Preprocess Image
+#### Health Check
 ```
-POST /api/avatar/preprocess-image
-Content-Type: multipart/form-data
+GET /api/avatar/health
 
-Parameters:
-  image_file: File      # Avatar image
-  output_format: string # 'jpeg' or 'png'
-  quality: integer      # 1-100 (for JPEG)
-
-Response: Processed image file
-```
-
-#### Manage Settings
-```
-GET /api/avatar/settings           # Get current settings
-POST /api/avatar/settings          # Update settings
-GET /api/avatar/cache/stats        # Cache statistics
-POST /api/avatar/cache/clear       # Clear cache
-GET /api/avatar/health             # Health check
+Response:
+{
+  "status": "healthy",
+  "sadtalker_available": false,
+  "avatars": [...]
+}
 ```
 
-### React Component Usage
+## Frontend Usage
 
-```jsx
-import RafikiAvatar from './components/RafikiAvatar';
+```tsx
+import { RafikiSadTalkerAvatar } from './components/avatar';
+import { useSadTalker } from './hooks';
 
-function ChatBot() {
-  const [audioFile, setAudioFile] = useState(null);
+function App() {
+  const {
+    generateFromText,
+    currentVideoUrl,
+    currentAudioUrl,
+    isFallbackMode,
+    isGenerating
+  } = useSadTalker({
+    backendUrl: 'http://localhost:8000',
+    avatarId: 'rafiki_avatar'
+  });
 
   return (
-    <div className="chatbot">
-      <RafikiAvatar
-        audioStream={audioFile}
-        avatarId="habari"
-        onLoadingChange={(isLoading) => console.log(isLoading)}
-        onError={(error) => console.error(error)}
-        autoPlay={true}
-        showControls={true}
-      />
-
-      <input
-        type="file"
-        accept="audio/*"
-        onChange={(e) => setAudioFile(e.target.files[0])}
-      />
-    </div>
+    <RafikiSadTalkerAvatar
+      videoUrl={currentVideoUrl}
+      audioUrl={currentAudioUrl}
+      isFallbackMode={isFallbackMode}
+      isGenerating={isGenerating}
+      status="idle"
+    />
   );
 }
 ```
 
-### Avatar Customization
+## TTS Fallback
 
-The avatar supports the following customizations:
+The backend automatically falls back to espeak when ElevenLabs is unavailable:
 
-```javascript
-const avatarConfig = {
-  name: 'Rafiki',
-  skin_tone: 'dark',              // light, medium, dark
-  hair_style: 'natural',          // natural, braids, twists, straight
-  clothing: 'professional_suit',  // professional_suit, traditional, casual, formal
-  personality: 'warm_friendly',   // warm_friendly, professional, patient, encouraging
-  background: 'office',           // office, traditional, neutral, government
-  language: 'en-KE'               // en-KE, en-US, en-GB, sw-KE
-};
+1. Tries ElevenLabs API first
+2. On 401/404 errors, falls back to local espeak
+3. Returns WAV audio that works with the frontend
+
+Install espeak on Ubuntu/Debian:
+```bash
+sudo apt install espeak
 ```
 
-### Performance Settings
+## Accessibility
 
-Configure animation quality and speed:
+- Voice control for navigation
+- Screen reader support with ARIA labels
+- High contrast mode
+- Keyboard navigation
+- Adjustable text sizes
 
-```python
-# Fast (CPU-friendly)
-service.update_settings(
-    still_mode=True,           # No head movement
-    preprocess='crop',         # Minimal processing
-    expression_scale=0.8,      # Subtle expressions
-    pose_style=0               # Neutral pose
-)
-
-# Balanced
-service.update_settings(
-    still_mode=False,
-    preprocess='full',
-    expression_scale=1.0,
-    pose_style=2
-)
-
-# High-quality (GPU recommended)
-service.update_settings(
-    still_mode=False,
-    preprocess='full',
-    expression_scale=1.2,
-    pose_style=4
-)
-```
-
-### Troubleshooting Avatar Issues
-
-**Common Issues and Solutions**:
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| "No face detected" | Image quality or face too small | Regenerate with centered, clear face |
-| Poor lip sync | Low audio quality | Use high-quality audio (16kHz+) |
-| Slow generation | Using CPU | Use GPU: `SADTALKER_DEVICE=cuda` |
-| Unnatural movements | Poor settings | Adjust `expression_scale` or `pose_style` |
-| CUDA out of memory | Large video | Process shorter audio clips |
-
-For detailed troubleshooting, see [SADTALKER_SETUP.md](./SADTALKER_SETUP.md).
-
-## 📁 Project Structure
-
-```
-5TECH/
-├── backend/
-│   ├── main.py              # FastAPI application entry point
-│   ├── config.py            # Configuration management
-│   ├── requirements.txt     # Python dependencies
-│   ├── models/
-│   │   └── schemas.py       # Pydantic data models
-│   ├── routes/
-│   │   ├── voice.py         # Voice processing endpoints
-│   │   ├── booking.py       # Appointment booking endpoints
-│   │   ├── services.py      # Government services endpoints
-│   │   ├── session.py       # Session management endpoints
-│   │   ├── avatar_animation.py  # Avatar animation endpoints
-│   │   └── avatar.py        # Avatar customization endpoints
-│   ├── services/
-│   │   ├── gemini_service.py        # Google Gemini AI integration
-│   │   ├── dialogflow_service.py    # Dialogflow integration
-│   │   ├── sms_service.py           # Africa's Talking SMS
-│   │   ├── booking_service.py       # Booking logic
-│   │   ├── voice_service.py         # Speech recognition/TTS
-│   │   ├── sadtalker_service.py     # SadTalker avatar animation
-│   │   ├── image_preprocessing_service.py # Image preprocessing
-│   │   └── elevenlabs_service.py    # ElevenLabs TTS
-│   └── utils/
-│       ├── logger.py        # Logging configuration
-│       ├── session_manager.py # Session handling
-│       └── rate_limiter.py  # API rate limiting
-│
-├── frontend/
-│   ├── package.json         # Node.js dependencies
-│   ├── public/
-│   └── src/
-│       ├── components/
-│       │   ├── RafikiAvatar.js       # Avatar video player
-│       │   ├── RafikiAvatar.css      # Avatar styling
-│       │   ├── AfricanAvatarGenerator.js
-│       │   ├── AvatarStudioShowcase.js
-│       │   └── chatbot/
-│       │       └── talking-avatar.tsx
-│       ├── App.js
-│       └── index.js
-│
-├── SADTALKER_SETUP.md              # Detailed avatar setup guide
-├── FRONTEND_UI_GUIDE.md            # Frontend UI documentation
-├── API_DOCS.md                     # API documentation
-└── README.md                        # This file
-```
-│   │   └── index.html       # HTML template
-│   └── src/
-│       ├── App.js           # Main React component
-│       ├── components/      # UI components
-│       │   ├── Header.js
-│       │   ├── VoiceButton.js
-│       │   ├── ChatInterface.js
-│       │   └── ...
-│       ├── context/         # React context providers
-│       │   ├── AccessibilityContext.js
-│       │   └── SessionContext.js
-│       ├── hooks/           # Custom React hooks
-│       │   ├── useSpeechRecognition.js
-│       │   └── useTextToSpeech.js
-│       ├── services/        # API services
-│       │   └── api.js
-│       └── styles/          # CSS files
-│
-├── .env.example             # Environment template
-├── API_DOCS.md              # API documentation
-└── README.md                # This file
-```
-
-## ♿ Accessibility Features
-
-This application is designed with WCAG 2.1 AA compliance in mind:
-
-- **Voice Control**: Full voice-based navigation
-- **Screen Reader Support**: Comprehensive ARIA labels
-- **High Contrast Mode**: Toggle high-contrast colors
-- **Text Sizing**: Adjustable font sizes
-- **Keyboard Navigation**: Full keyboard accessibility
-- **Reduced Motion**: Option to minimize animations
-- **Focus Management**: Clear focus indicators
-- **Skip Links**: Skip to main content
-
-### Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Tab` | Navigate forward |
-| `Shift + Tab` | Navigate backward |
-| `Enter` / `Space` | Activate button |
-| `Escape` | Close dialog |
-| `Alt + V` | Toggle voice input |
-| `Alt + H` | Toggle high contrast |
-| `Alt + +` | Increase text size |
-| `Alt + -` | Decrease text size |
+| Tab | Navigate forward |
+| Shift + Tab | Navigate backward |
+| Enter / Space | Activate button |
+| Escape | Close dialog |
 
-## 🔌 API Documentation
+## Development
 
-See [API_DOCS.md](./API_DOCS.md) for complete API documentation.
-
-### Quick API Examples
+### Running Tests
 
 ```bash
-# Create a session
-curl -X POST http://localhost:8000/api/v1/session/create
-
-# Send a chat message
-curl -X POST http://localhost:8000/api/v1/chat/message \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "your-session-id", "message": "I want to apply for a passport"}'
-
-# Get available services
-curl http://localhost:8000/api/v1/services
-```
-
-## 🧪 Testing
-
-### Backend Tests
-
-```bash
+# Backend tests
 cd backend
-pytest tests/ -v
-```
+python test_integration.py
 
-### Frontend Tests
-
-```bash
+# Frontend type checking
 cd frontend
-npm test
+npm run lint
 ```
 
-## 🚢 Deployment
+### Environment Variables
 
-### Docker
+| Variable | Description | Required |
+|----------|-------------|----------|
+| GEMINI_API_KEY | Google Gemini API key | Yes |
+| ELEVENLABS_API_KEY | ElevenLabs TTS key | No (fallback to espeak) |
+| AFRICASTALKING_USERNAME | SMS username | For SMS features |
+| AFRICASTALKING_API_KEY | SMS API key | For SMS features |
+| SADTALKER_API_URL | SadTalker API URL | No (default: localhost:7860) |
 
-```bash
-# Build and run with Docker Compose
-docker-compose up -d
-```
+## License
 
-### Manual Deployment
+MIT License - see LICENSE file for details.
 
-1. Set up a production database (PostgreSQL recommended)
-2. Configure production environment variables
-3. Use gunicorn for the backend:
-   ```bash
-   gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
-   ```
-4. Build and serve the frontend:
-   ```bash
-   npm run build
-   # Serve with nginx or similar
-   ```
-
-## 📱 Supported Services
-
-- 🛂 **Passport**: Application and renewal
-- 🪪 **National ID**: New application and replacement
-- 🚗 **Driving License**: Application, renewal, and duplicates
-- 📜 **Good Conduct Certificate**: Police clearance
-- 🏢 **Business Registration**: Company and business names
-- 🗺️ **Land Search**: Title deed verification
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
 5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Kenya ICT Authority for eCitizen services
-- Google Cloud for Gemini AI and Dialogflow
-- Africa's Talking for SMS infrastructure
-- The accessibility community for guidance on inclusive design
-
-## 📞 Support
-
-- **Email**: support@ecitizen-assistant.co.ke
-- **Documentation**: https://docs.ecitizen-assistant.co.ke
-- **Issues**: https://github.com/yourusername/ecitizen-voice-assistant/issues
-
----
-
-# Rafiki.ai
