@@ -470,8 +470,148 @@ console.log(response.response);
 
 ---
 
+## Avatar Animation Endpoints
+
+The avatar animation system provides talking head videos with lip-sync, supporting multiple personalities for different interaction contexts.
+
+### Get Current Personality
+```http
+GET /api/avatar/personality
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "personality": "friendly",
+  "available_personalities": ["friendly", "professional", "excited", "calm"]
+}
+```
+
+### Set Avatar Personality
+```http
+POST /api/avatar/personality
+Content-Type: multipart/form-data
+```
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| personality | string | One of: friendly, professional, excited, calm |
+
+**Response:**
+```json
+{
+  "success": true,
+  "personality": "excited",
+  "message": "Avatar personality set to 'excited'"
+}
+```
+
+**Personality Descriptions:**
+- `friendly`: Default, moderate expressions, natural head movement (expression_scale: 1.2)
+- `professional`: Subdued expressions, minimal movement (expression_scale: 0.8)
+- `excited`: Exaggerated expressions, active movement (expression_scale: 1.5)
+- `calm`: Subtle expressions, stable pose (expression_scale: 0.6)
+
+### Generate Video from Text
+```http
+POST /api/avatar/text-to-video
+Content-Type: multipart/form-data
+```
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| text | string | Text to speak (max 2000 chars) |
+| avatar_id | string | Avatar identifier (default: rafiki_avatar) |
+| language | string | Language code (default: en) |
+| use_elevenlabs | boolean | Use ElevenLabs TTS (default: true) |
+| personality | string | Avatar personality (default: friendly) |
+
+**Response:**
+- Success: Video file (video/mp4)
+- Fallback: Audio file (audio/mpeg) with header `X-Fallback-Mode: audio-only`
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/avatar/text-to-video \
+  -F "text=Welcome! How can I help you today?" \
+  -F "avatar_id=rafiki_avatar" \
+  -F "personality=friendly" \
+  -F "use_elevenlabs=true"
+```
+
+### Animate from Audio
+```http
+POST /api/avatar/animate
+Content-Type: multipart/form-data
+```
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| audio_file | file | Audio file (WAV, MP3, OGG, max 50MB) |
+| avatar_id | string | Avatar identifier (default: habari) |
+| preprocess | string | Preprocessing mode: crop, resize, full (default: crop) |
+| still_mode | boolean | Only animate mouth, no head movement (default: false) |
+| expression_scale | float | Expression intensity 0.0-2.0 (default: 1.0) |
+
+**Response:**
+- Video file (video/mp4)
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/avatar/animate \
+  -F "audio_file=@message.wav" \
+  -F "avatar_id=rafiki_avatar" \
+  -F "still_mode=false" \
+  -F "expression_scale=1.2"
+```
+
+### Get Available Avatars
+```http
+GET /api/avatar/list
+```
+
+**Response:**
+```json
+{
+  "avatars": [
+    {
+      "id": "rafiki_avatar",
+      "name": "Rafiki Avatar",
+      "path": "/backend/assets/avatars/rafiki_avatar.png"
+    },
+    {
+      "id": "habari",
+      "name": "Habari (Default)",
+      "path": null
+    }
+  ]
+}
+```
+
+### Health Check
+```http
+GET /api/avatar/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "sadtalker_available": false,
+  "mode": "api",
+  "api_url": "http://localhost:7860"
+}
+```
+
+---
+
 ## Support
 
 For API support, contact:
 - Email: api-support@ecitizen.go.ke
 - Documentation: https://docs.ecitizen.go.ke/api
+

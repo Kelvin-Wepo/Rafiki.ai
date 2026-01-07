@@ -114,16 +114,18 @@ async def text_to_video(
     avatar_id: str = Form(default="rafiki_avatar"),
     language: str = Form(default="en"),
     use_elevenlabs: bool = Form(default=True),
+    personality: str = Form(default="friendly"),
     background_tasks: BackgroundTasks = None
 ):
     """
-    Generate talking avatar video from text
+    Generate talking avatar video from text with personality
 
     Args:
         text: Text to speak
         avatar_id: ID of avatar to animate
         language: Language for TTS
         use_elevenlabs: Use ElevenLabs for TTS (better quality)
+        personality: Avatar personality ('friendly', 'professional', 'excited', 'calm')
         background_tasks: FastAPI background tasks
 
     Returns:
@@ -137,17 +139,27 @@ async def text_to_video(
                 detail="Text must be between 1 and 2000 characters"
             )
 
-        logger.info(f"Generating video for text: {text[:50]}...")
+        logger.info(f"Generating video with {personality} personality for text: {text[:50]}...")
 
         # Generate audio using appropriate service
         voice_service = elevenlabs_service if use_elevenlabs else None
 
-        video_path, error = await sadtalker_service.text_to_video(
-            text=text,
-            avatar_id=avatar_id,
-            voice_service=voice_service,
-            language=language
-        )
+        # Use personality-aware generation if personality specified
+        if personality and personality != "friendly":
+            video_path, error = await sadtalker_service.generate_with_personality(
+                text=text,
+                personality=personality,
+                avatar_id=avatar_id,
+                voice_service=voice_service,
+                language=language
+            )
+        else:
+            video_path, error = await sadtalker_service.text_to_video(
+                text=text,
+                avatar_id=avatar_id,
+                voice_service=voice_service,
+                language=language
+            )
 
         if error:
             # SadTalker failed - try to return audio instead
@@ -245,6 +257,51 @@ async def preprocess_image(
         raise
     except Exception as e:
         logger.error(f"Image preprocessing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/personality")
+async def get_personality():
+    """Get current avatar personality"""
+    try:
+        personality = sadtalker_service.get_personality()
+        return {
+            'success': True,
+            'personality': personality,
+            'available_personalities': list(sadtalker_service.PERSONALITY_PRESETS.keys())
+        }
+    except Exception as e:
+        logger.error(f"Error getting personality: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/personality")
+async def set_personality(personality: str = Form(...)):
+    """
+    Set avatar personality/mood
+    
+    Args:
+        personality: One of 'friendly', 'professional', 'excited', 'calm'
+    
+    Returns:
+        Success status and current personality
+    """
+    try:
+        if sadtalker_service.set_personality(personality):
+            return {
+                'success': True,
+                'personality': personality,
+                'message': f"Avatar personality set to '{personality}'"
+            }
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid personality. Choose from: {list(sadtalker_service.PERSONALITY_PRESETS.keys())}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting personality: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

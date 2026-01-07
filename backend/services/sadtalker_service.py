@@ -30,21 +30,65 @@ SADTALKER_MODE = os.getenv("SADTALKER_MODE", "api")  # "api", "local", or "cloud
 AVATAR_DIR = Path(__file__).parent.parent / "assets" / "avatars"
 CACHE_DIR = Path(__file__).parent.parent / "assets" / "avatar_cache"
 CHECKPOINT_DIR = os.getenv("SADTALKER_CHECKPOINT_DIR", "./checkpoints")
+SADTALKER_PATH = Path(__file__).parent.parent.parent / "SadTalker"
 
 # Default African woman avatar image
 DEFAULT_AVATAR = "rafiki_avatar.png"
+
+# Reference video paths for natural animations
+REF_VIDEO_DIR = SADTALKER_PATH / "examples" / "ref_video"
+DEFAULT_REF_EYEBLINK = str(REF_VIDEO_DIR / "WDA_AlexandriaOcasioCortez_000.mp4") if REF_VIDEO_DIR.exists() else None
 
 # Animation settings
 DEFAULT_SETTINGS = {
     'still_mode': False,
     'preprocess': 'full',
     'expression_scale': 1.0,
-    'pose_style': 0
+    'pose_style': 0,
+    'enhancer': 'gfpgan',  # Use gfpgan for face enhancement by default
+    'background_enhancer': None,  # 'realesrgan' for full video enhancement
+    'ref_eyeblink': DEFAULT_REF_EYEBLINK,  # Reference video for natural eye blinking
+    'ref_pose': None  # Reference video for pose
+}
+
+# Personality presets for different moods and interaction styles
+PERSONALITY_PRESETS = {
+    'friendly': {
+        'expression_scale': 1.2,
+        'still_mode': False,
+        'preprocess': 'full',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+    },
+    'professional': {
+        'expression_scale': 0.8,
+        'still_mode': True,
+        'preprocess': 'crop',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+    },
+    'excited': {
+        'expression_scale': 1.5,
+        'still_mode': False,
+        'preprocess': 'full',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+    },
+    'calm': {
+        'expression_scale': 0.6,
+        'still_mode': True,
+        'preprocess': 'crop',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+    }
 }
 
 
 class SadTalkerService:
-    """Service for generating talking head videos using SadTalker"""
+    """Service for generating talking head videos using SadTalker with personality features"""
+    
+    # Expose personality presets as class attribute
+    PERSONALITY_PRESETS = PERSONALITY_PRESETS
     
     def __init__(self):
         self.api_url = SADTALKER_API_URL
@@ -53,6 +97,7 @@ class SadTalkerService:
         self.cache_dir = CACHE_DIR
         self.checkpoint_dir = CHECKPOINT_DIR
         self.settings = DEFAULT_SETTINGS.copy()
+        self.current_personality = 'friendly'  # Default personality
         self._ensure_directories()
         self._client = None
     
@@ -67,6 +112,27 @@ class SadTalkerService:
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=300.0)
         return self._client
+    
+    def set_personality(self, personality: str) -> bool:
+        """
+        Set avatar personality/mood
+        
+        Args:
+            personality: One of 'friendly', 'professional', 'excited', 'calm'
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if personality in PERSONALITY_PRESETS:
+            self.current_personality = personality
+            self.settings.update(PERSONALITY_PRESETS[personality])
+            logger.info(f"Avatar personality set to: {personality}")
+            return True
+        return False
+    
+    def get_personality(self) -> str:
+        """Get current personality setting"""
+        return self.current_personality
     
     def get_available_avatars(self) -> List[Dict[str, str]]:
         """Get list of available avatar images"""
@@ -100,25 +166,49 @@ class SadTalkerService:
         audio_path: str,
         avatar_id: str = "habari",
         image_path: Optional[str] = None,
-        preprocess: str = "crop",
-        still_mode: bool = False,
-        expression_scale: float = 1.0
+        preprocess: Optional[str] = None,
+        still_mode: Optional[bool] = None,
+        expression_scale: Optional[float] = None,
+        enhancer: Optional[str] = None,
+        background_enhancer: Optional[str] = None,
+        ref_eyeblink: Optional[str] = None,
+        ref_pose: Optional[str] = None
     ) -> Tuple[Optional[str], Optional[str]]:
         """
-        Generate a lip-synced video from audio
+        Generate a lip-synced video from audio with personality and enhancements
         
         Args:
             audio_path: Path to the audio file
             avatar_id: ID of the avatar to use
             image_path: Optional custom image path (overrides avatar_id)
-            preprocess: Preprocessing mode ('crop', 'resize', 'full')
-            still_mode: If True, only animate mouth (no head movement)
-            expression_scale: Scale of facial expressions (0.0-2.0)
+            preprocess: Preprocessing mode ('crop', 'resize', 'full') - uses current personality if None
+            still_mode: If True, only animate mouth (no head movement) - uses current personality if None
+            expression_scale: Scale of facial expressions (0.0-2.0) - uses current personality if None
+            enhancer: Face enhancer ('gfpgan', 'RestoreFormer', None)
+            background_enhancer: Background enhancer ('realesrgan', None)
+            ref_eyeblink: Path to reference video for natural eye blinking
+            ref_pose: Path to reference video for natural head pose
         
         Returns:
             Tuple of (video_path, error_message)
         """
         try:
+            # Apply personality settings if parameters not explicitly provided
+            if preprocess is None:
+                preprocess = self.settings.get('preprocess', 'crop')
+            if still_mode is None:
+                still_mode = self.settings.get('still_mode', False)
+            if expression_scale is None:
+                expression_scale = self.settings.get('expression_scale', 1.0)
+            if enhancer is None:
+                enhancer = self.settings.get('enhancer')
+            if background_enhancer is None:
+                background_enhancer = self.settings.get('background_enhancer')
+            if ref_eyeblink is None:
+                ref_eyeblink = self.settings.get('ref_eyeblink')
+            if ref_pose is None:
+                ref_pose = self.settings.get('ref_pose')
+            
             # Get avatar image path - use custom image if provided
             if image_path:
                 avatar_path = image_path
@@ -129,11 +219,13 @@ class SadTalkerService:
             
             if self.mode == "api":
                 return await self._generate_via_api(
-                    audio_path, avatar_path, preprocess, still_mode, expression_scale
+                    audio_path, avatar_path, preprocess, still_mode, expression_scale,
+                    enhancer, background_enhancer, ref_eyeblink, ref_pose
                 )
             else:
                 return await self._generate_locally(
-                    audio_path, avatar_path, preprocess, still_mode, expression_scale
+                    audio_path, avatar_path, preprocess, still_mode, expression_scale,
+                    enhancer, background_enhancer, ref_eyeblink, ref_pose
                 )
                 
         except Exception as e:
@@ -165,9 +257,13 @@ class SadTalkerService:
         avatar_path: str,
         preprocess: str,
         still_mode: bool,
-        expression_scale: float
+        expression_scale: float,
+        enhancer: Optional[str] = None,
+        background_enhancer: Optional[str] = None,
+        ref_eyeblink: Optional[str] = None,
+        ref_pose: Optional[str] = None
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Generate video using SadTalker API (Gradio interface)"""
+        """Generate video using SadTalker API (Gradio interface) with enhancements"""
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 # Read files as base64
@@ -177,24 +273,41 @@ class SadTalkerService:
                 with open(audio_path, "rb") as f:
                     audio_b64 = base64.b64encode(f.read()).decode()
                 
-                # Call SadTalker API
+                # Prepare reference video data if provided
+                ref_eyeblink_b64 = None
+                if ref_eyeblink and Path(ref_eyeblink).exists():
+                    with open(ref_eyeblink, "rb") as f:
+                        ref_eyeblink_b64 = base64.b64encode(f.read()).decode()
+                
+                ref_pose_b64 = None
+                if ref_pose and Path(ref_pose).exists():
+                    with open(ref_pose, "rb") as f:
+                        ref_pose_b64 = base64.b64encode(f.read()).decode()
+                
+                # Call SadTalker API with full parameters
+                api_data = [
+                    f"data:image/png;base64,{avatar_b64}",  # Source image
+                    f"data:audio/wav;base64,{audio_b64}",   # Driven audio
+                    preprocess,
+                    still_mode,
+                    enhancer is not None,  # Use enhancer flag
+                    "crop",  # batch size
+                    0,  # size of image
+                    0,  # yaw (pose)
+                    0,  # pitch
+                    0,  # roll
+                    expression_scale
+                ]
+                
+                # Add optional reference videos if provided
+                if ref_eyeblink_b64:
+                    api_data.append(f"data:video/mp4;base64,{ref_eyeblink_b64}")
+                if ref_pose_b64:
+                    api_data.append(f"data:video/mp4;base64,{ref_pose_b64}")
+                
                 response = await client.post(
                     f"{self.api_url}/api/predict",
-                    json={
-                        "data": [
-                            f"data:image/png;base64,{avatar_b64}",  # Source image
-                            f"data:audio/wav;base64,{audio_b64}",   # Driven audio
-                            preprocess,
-                            still_mode,
-                            True,  # Use GFPGAN for face enhancement
-                            "crop",  # batch size
-                            0,  # size of image
-                            0,  # yaw (pose)
-                            0,  # pitch
-                            0,  # roll
-                            expression_scale
-                        ]
-                    }
+                    json={"data": api_data}
                 )
                 
                 if response.status_code == 200:
@@ -211,6 +324,7 @@ class SadTalkerService:
                         with open(output_path, "wb") as f:
                             f.write(base64.b64decode(video_b64))
                         
+                        logger.info(f"Generated video with {self.current_personality} personality")
                         return output_path, None
                     else:
                         return None, "No video generated"
@@ -230,9 +344,13 @@ class SadTalkerService:
         avatar_path: str,
         preprocess: str,
         still_mode: bool,
-        expression_scale: float
+        expression_scale: float,
+        enhancer: Optional[str] = None,
+        background_enhancer: Optional[str] = None,
+        ref_eyeblink: Optional[str] = None,
+        ref_pose: Optional[str] = None
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Generate video using local SadTalker installation"""
+        """Generate video using local SadTalker installation with enhancements"""
         try:
             # Check if SadTalker is installed
             sadtalker_path = os.getenv("SADTALKER_PATH", "/opt/SadTalker")
@@ -242,7 +360,7 @@ class SadTalkerService:
             output_dir = tempfile.mkdtemp()
             output_path = os.path.join(output_dir, "result.mp4")
             
-            # Build command
+            # Build command with full parameters
             cmd = [
                 "python",
                 os.path.join(sadtalker_path, "inference.py"),
@@ -256,7 +374,20 @@ class SadTalkerService:
             if still_mode:
                 cmd.append("--still")
             
+            # Add enhancers
+            if enhancer:
+                cmd.extend(["--enhancer", enhancer])
+            if background_enhancer:
+                cmd.extend(["--background_enhancer", background_enhancer])
+            
+            # Add reference videos for natural animations
+            if ref_eyeblink and Path(ref_eyeblink).exists():
+                cmd.extend(["--ref_eyeblink", ref_eyeblink])
+            if ref_pose and Path(ref_pose).exists():
+                cmd.extend(["--ref_pose", ref_pose])
+            
             # Run SadTalker
+            logger.info(f"Running SadTalker with {self.current_personality} personality")
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -270,6 +401,7 @@ class SadTalkerService:
                 # Find the generated video
                 for file in os.listdir(output_dir):
                     if file.endswith(".mp4"):
+                        logger.info(f"Successfully generated video with {self.current_personality} personality")
                         return os.path.join(output_dir, file), None
                 return None, "Video generation completed but file not found"
             else:
@@ -316,6 +448,39 @@ class SadTalkerService:
         except Exception as e:
             logger.error(f"Text to video error: {e}")
             return None, str(e)
+    
+    async def generate_with_personality(
+        self,
+        text: str,
+        personality: str,
+        avatar_id: str = "habari",
+        voice_service = None,
+        language: str = "en"
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Generate video with specific personality
+        
+        Args:
+            text: Text to speak
+            personality: One of 'friendly', 'professional', 'excited', 'calm'
+            avatar_id: Avatar to use
+            voice_service: Voice service for TTS
+            language: Language for TTS
+        
+        Returns:
+            Tuple of (video_path, error_message)
+        """
+        # Set personality temporarily
+        original_personality = self.current_personality
+        if not self.set_personality(personality):
+            logger.warning(f"Invalid personality '{personality}', using '{original_personality}'")
+        
+        try:
+            result = await self.text_to_video(text, avatar_id, voice_service, language)
+            return result
+        finally:
+            # Restore original personality
+            self.set_personality(original_personality)
     
     async def _generate_tts_audio(self, text: str, language: str = "en") -> Optional[str]:
         """Generate audio using system TTS"""
