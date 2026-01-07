@@ -118,3 +118,9 @@ service-account*.json
 *.bak
 *.tmp
 *.temp
+
+# ================================
+# SadTalker (Large AI model files)
+# ================================
+SadTalker/
+
