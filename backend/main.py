@@ -97,6 +97,7 @@ app = FastAPI(
     - National ID Application
     - Driving License
     - Certificate of Good Conduct
+    -Kenya Revenue Authority Services
     
     ### Accessibility
     This API is designed with accessibility in mind, providing:

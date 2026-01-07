@@ -58,28 +58,64 @@ PERSONALITY_PRESETS = {
         'still_mode': False,
         'preprocess': 'full',
         'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Warm and welcoming with moderate expressions'
     },
     'professional': {
         'expression_scale': 0.8,
         'still_mode': True,
         'preprocess': 'crop',
         'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Composed and formal with minimal head movement'
     },
     'excited': {
         'expression_scale': 1.5,
         'still_mode': False,
         'preprocess': 'full',
         'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Energetic and enthusiastic with vivid expressions'
     },
     'calm': {
         'expression_scale': 0.6,
         'still_mode': True,
         'preprocess': 'crop',
         'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Peaceful and soothing with gentle movements'
+    },
+    'energetic': {
+        'expression_scale': 1.8,
+        'still_mode': False,
+        'preprocess': 'full',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Highly animated with dynamic expressions and movement'
+    },
+    'empathetic': {
+        'expression_scale': 1.1,
+        'still_mode': False,
+        'preprocess': 'full',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Compassionate and understanding with soft expressions'
+    },
+    'humorous': {
+        'expression_scale': 1.4,
+        'still_mode': False,
+        'preprocess': 'full',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Playful and lighthearted with expressive animations'
+    },
+    'serious': {
+        'expression_scale': 0.7,
+        'still_mode': True,
+        'preprocess': 'crop',
+        'enhancer': 'gfpgan',
+        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'description': 'Focused and businesslike with controlled movements'
     }
 }
 
@@ -133,6 +169,34 @@ class SadTalkerService:
     def get_personality(self) -> str:
         """Get current personality setting"""
         return self.current_personality
+    
+    def get_all_personalities(self) -> Dict[str, Dict[str, Any]]:
+        """Get all available personalities with their descriptions"""
+        return {
+            name: {
+                'name': name,
+                'description': preset.get('description', ''),
+                'expression_scale': preset['expression_scale'],
+                'still_mode': preset['still_mode']
+            }
+            for name, preset in PERSONALITY_PRESETS.items()
+        }
+    
+    def get_personality_info(self, personality: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a specific personality"""
+        if personality in PERSONALITY_PRESETS:
+            preset = PERSONALITY_PRESETS[personality]
+            return {
+                'name': personality,
+                'description': preset.get('description', ''),
+                'settings': {
+                    'expression_scale': preset['expression_scale'],
+                    'still_mode': preset['still_mode'],
+                    'preprocess': preset['preprocess'],
+                    'enhancer': preset.get('enhancer')
+                }
+            }
+        return None
     
     def get_available_avatars(self) -> List[Dict[str, str]]:
         """Get list of available avatar images"""

@@ -609,6 +609,121 @@ GET /api/avatar/health
 
 ---
 
+## Avatar Personality System
+
+The avatar supports 8 distinct personalities that control expression intensity, movement, and animation style. Personalities can be set globally or used for individual generations.
+
+### Get All Personalities
+```http
+GET /api/avatar/personality
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "current_personality": "friendly",
+  "personalities": {
+    "friendly": {
+      "name": "friendly",
+      "description": "Warm and welcoming with moderate expressions",
+      "expression_scale": 1.2,
+      "still_mode": false
+    },
+    "professional": {
+      "name": "professional",
+      "description": "Composed and formal with minimal head movement",
+      "expression_scale": 0.8,
+      "still_mode": true
+    },
+    "excited": {
+      "name": "excited",
+      "description": "Energetic and enthusiastic with vivid expressions",
+      "expression_scale": 1.5,
+      "still_mode": false
+    },
+    "calm": {
+      "name": "calm",
+      "description": "Peaceful and soothing with gentle movements",
+      "expression_scale": 0.6,
+      "still_mode": true
+    },
+    "energetic": {
+      "name": "energetic",
+      "description": "Highly animated with dynamic expressions and movement",
+      "expression_scale": 1.8,
+      "still_mode": false
+    },
+    "empathetic": {
+      "name": "empathetic",
+      "description": "Compassionate and understanding with soft expressions",
+      "expression_scale": 1.1,
+      "still_mode": false
+    },
+    "humorous": {
+      "name": "humorous",
+      "description": "Playful and lighthearted with expressive animations",
+      "expression_scale": 1.4,
+      "still_mode": false
+    },
+    "serious": {
+      "name": "serious",
+      "description": "Focused and businesslike with controlled movements",
+      "expression_scale": 0.7,
+      "still_mode": true
+    }
+  }
+}
+```
+
+### Set Personality
+```http
+POST /api/avatar/personality
+Content-Type: multipart/form-data
+```
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| personality | string | Personality name (friendly, professional, excited, calm, energetic, empathetic, humorous, serious) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "personality": "excited",
+  "message": "Avatar personality set to 'excited'"
+}
+```
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/avatar/personality \
+  -F "personality=professional"
+```
+
+### Personality Usage
+
+Personalities can be applied in two ways:
+
+1. **Global Setting**: Use `/api/avatar/personality` to set the default personality for all subsequent generations
+2. **Per-Generation**: Pass `personality` parameter to `/api/avatar/text-to-video` for one-time use
+
+**Personality Characteristics:**
+
+| Personality | Expression Scale | Still Mode | Best For |
+|------------|-----------------|-----------|----------|
+| Friendly | 1.2 | No | Customer service, greetings |
+| Professional | 0.8 | Yes | Formal announcements, business |
+| Excited | 1.5 | No | Promotions, celebrations |
+| Calm | 0.6 | Yes | Instructions, meditation |
+| Energetic | 1.8 | No | High-energy content, sports |
+| Empathetic | 1.1 | No | Support, counseling |
+| Humorous | 1.4 | No | Entertainment, jokes |
+| Serious | 0.7 | Yes | Important news, warnings |
+
+---
+
 ## Support
 
 For API support, contact:

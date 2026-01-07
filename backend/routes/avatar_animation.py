@@ -262,13 +262,15 @@ async def preprocess_image(
 
 @router.get("/personality")
 async def get_personality():
-    """Get current avatar personality"""
+    """Get current avatar personality and all available personalities"""
     try:
-        personality = sadtalker_service.get_personality()
+        current = sadtalker_service.get_personality()
+        all_personalities = sadtalker_service.get_all_personalities()
+        
         return {
             'success': True,
-            'personality': personality,
-            'available_personalities': list(sadtalker_service.PERSONALITY_PRESETS.keys())
+            'current_personality': current,
+            'personalities': all_personalities
         }
     except Exception as e:
         logger.error(f"Error getting personality: {e}")

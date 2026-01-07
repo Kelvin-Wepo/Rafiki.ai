@@ -14,6 +14,7 @@ export { useEyeTracking } from './useEyeTracking';
 export { useEmotions, type Emotion, type FacialExpression } from './useEmotions';
 export { usePhonemeAnalyzer } from './usePhonemeAnalyzer';
 export { useSpeechSynthesis } from './useSpeechSynthesis';
+export { useIdleAnimation } from './useIdleAnimation';
 
 // SadTalker integration for realistic lip-sync
 export { 
