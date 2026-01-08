@@ -47,6 +47,7 @@ interface RafikiTalkingAvatarProps {
   onEmotionChange?: (emotion: Emotion) => void;
   // SadTalker video props
   videoUrl?: string | null;
+  audioUrl?: string | null;  // Audio fallback when video not available
   isVideoPlaying?: boolean;
   onVideoEnd?: () => void;
 }
@@ -158,11 +159,13 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
   followCursor = true,
   onEmotionChange,
   videoUrl,
+  audioUrl,
   isVideoPlaying = false,
   onVideoEnd
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [time, setTime] = useState(0);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
@@ -219,6 +222,20 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
       setShowVideo(false);
     }
   }, [videoUrl, state, isVideoPlaying]);
+
+  // Handle audio playback (fallback mode)
+  useEffect(() => {
+    if (audioUrl && audioRef.current && state === 'speaking') {
+      console.log('Playing audio fallback:', audioUrl);
+      audioRef.current.src = audioUrl;
+      audioRef.current.play().catch(err => {
+        console.error('Audio playback error:', err);
+      });
+    } else if (audioRef.current && !audioUrl) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+  }, [audioUrl, state]);
 
   // Handle video end
   const handleVideoEnded = useCallback(() => {
@@ -343,6 +360,13 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
           transition: 'opacity 0.3s ease-out',
           zIndex: showVideo ? 10 : -1
         }}
+      />
+
+      {/* Hidden audio element for fallback mode */}
+      <audio
+        ref={audioRef}
+        onEnded={onVideoEnd}
+        style={{ display: 'none' }}
       />
 
       {/* SVG Overlay Layer */}
