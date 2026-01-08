@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 SADTALKER_API_URL = os.getenv("SADTALKER_API_URL", "http://localhost:7860")  # Gradio default port
-SADTALKER_MODE = os.getenv("SADTALKER_MODE", "api")  # "api", "local", or "cloud"
+SADTALKER_MODE = os.getenv("SADTALKER_MODE", "direct")  # "direct", "api", "local", or "cloud"
 AVATAR_DIR = Path(__file__).parent.parent / "assets" / "avatars"
 CACHE_DIR = Path(__file__).parent.parent / "assets" / "avatar_cache"
 CHECKPOINT_DIR = os.getenv("SADTALKER_CHECKPOINT_DIR", "./checkpoints")
@@ -281,7 +281,13 @@ class SadTalkerService:
                 if not avatar_path:
                     return None, f"Avatar '{avatar_id}' not found"
             
-            if self.mode == "api":
+            # Try direct integration first (fastest)
+            if self.mode == "direct":
+                return await self._generate_direct(
+                    audio_path, avatar_path, preprocess, still_mode, expression_scale,
+                    enhancer, ref_eyeblink, ref_pose
+                )
+            elif self.mode == "api":
                 return await self._generate_via_api(
                     audio_path, avatar_path, preprocess, still_mode, expression_scale,
                     enhancer, background_enhancer, ref_eyeblink, ref_pose
@@ -314,6 +320,69 @@ class SadTalkerService:
             return str(default_path)
         
         return None
+    
+    async def _generate_direct(
+        self,
+        audio_path: str,
+        avatar_path: str,
+        preprocess: str,
+        still_mode: bool,
+        expression_scale: float,
+        enhancer: Optional[str] = None,
+        ref_eyeblink: Optional[str] = None,
+        ref_pose: Optional[str] = None
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Generate video using direct SadTalker integration (fastest method)"""
+        try:
+            # Check if SadTalker is available
+            if not SADTALKER_PATH.exists():
+                logger.warning(f"SadTalker not found at {SADTALKER_PATH}")
+                return None, "SadTalker not installed"
+            
+            # Import direct integration
+            try:
+                from .sadtalker_direct import generate_video_direct, check_sadtalker_available
+            except ImportError as e:
+                logger.error(f"Failed to import sadtalker_direct: {e}")
+                return None, "SadTalker direct integration not available"
+            
+            # Check if SadTalker is properly configured
+            if not check_sadtalker_available():
+                logger.warning("SadTalker is not properly configured")
+                return None, "SadTalker checkpoints missing. Run: cd SadTalker && bash scripts/download_models.sh"
+            
+            # Prepare output path
+            output_dir = tempfile.mkdtemp()
+            output_path = os.path.join(output_dir, "result.mp4")
+            
+            # Run generation in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            result_path, error = await loop.run_in_executor(
+                None,
+                generate_video_direct,
+                avatar_path,
+                audio_path,
+                output_path,
+                preprocess,
+                still_mode,
+                expression_scale,
+                enhancer == 'gfpgan' or enhancer is not None,
+                2,  # batch_size
+                256,  # size
+                0  # pose_style
+            )
+            
+            if result_path and os.path.exists(result_path):
+                logger.info(f"Generated video with direct SadTalker: {result_path}")
+                return result_path, None
+            else:
+                return None, error or "Failed to generate video"
+                
+        except Exception as e:
+            logger.error(f"Direct SadTalker generation error: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, str(e)
     
     async def _generate_via_api(
         self,
