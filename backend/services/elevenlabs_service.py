@@ -25,20 +25,22 @@ class ElevenLabsService:
     
     # Warm Kenyan voices available in ElevenLabs
     KENYAN_VOICES = {
-        # Primary warm female voices
+        # Primary warm male voice from user's account
         "noah": {
-            "voice_id": "n2svSAHTQ6OWjZIVJ4WL",  # Warm, friendly male voice
+            "voice_id": "iEwEUVNDPmshU0IJrWmj",  # Noah - Conversational and Friendly (from user's ElevenLabs account)
             "name": "Noah",
-            "description": "Warm, friendly Kenyan male voice - great for welcoming and patient guidance",
-            "language": "en-KE",
-            "accent": "Kenyan",
-            "tone": "warm, patient, conversational"
+            "description": "Warm, friendly conversational voice - great for welcoming and patient guidance",
+            "language": "en",
+            "languages": ["en", "sw"],  # Supports both English and Kiswahili
+            "accent": "Natural",
+            "tone": "warm, patient, conversational, chill"
         },
         "aria": {
             "voice_id": "XB0fDUnXU5powFXDhCwa",  # Warm female voice
             "name": "Aria",
             "description": "Warm, professional female voice with natural Kenyan accent",
             "language": "en-KE",
+            "languages": ["en", "sw"],
             "accent": "Kenyan",
             "tone": "warm, professional, accessible"
         },
@@ -47,6 +49,7 @@ class ElevenLabsService:
             "name": "Sage",
             "description": "Mature, warm voice perfect for patient guidance and support",
             "language": "en-KE",
+            "languages": ["en", "sw"],
             "accent": "Kenyan",
             "tone": "warm, patient, supportive"
         },
@@ -55,6 +58,7 @@ class ElevenLabsService:
             "name": "Rachel",
             "description": "Clear, warm voice suitable for government service guidance",
             "language": "en",
+            "languages": ["en", "sw"],  # Multilingual support
             "accent": "Neutral",
             "tone": "warm, clear, helpful"
         }
@@ -68,12 +72,12 @@ class ElevenLabsService:
         "use_speaker_boost": True  # Enhance voice clarity
     }
     
-    # Speech optimization for different content types
+    # Speech optimization for different content types and languages
     SPEECH_OPTIMIZATION = {
         "government_guidance": {
             "speech_rate": 0.95,  # Slightly slower for clarity
             "pause_duration_ms": 400,  # Natural pauses between sentences
-            "emphasis_words": ["KRA", "PIN", "iTax", "nil returns", "step"]
+            "emphasis_words": ["KRA", "PIN", "iTax", "nil returns", "step", "important"]
         },
         "conversational": {
             "speech_rate": 1.0,  # Normal speech rate
@@ -84,6 +88,17 @@ class ElevenLabsService:
             "speech_rate": 0.85,  # Slower for accessibility
             "pause_duration_ms": 500,  # Longer pauses for comprehension
             "emphasis_words": ["important", "next", "confirm", "click"]
+        },
+        # Kiswahili-specific optimization
+        "kiswahili_guidance": {
+            "speech_rate": 0.92,  # Slightly slower for Kiswahili clarity
+            "pause_duration_ms": 420,  # Natural Kiswahili pauses
+            "emphasis_words": ["KRA", "PIN", "iTax", "hatua", "muhimu", "tafadhali"]
+        },
+        "kiswahili_conversational": {
+            "speech_rate": 0.98,  # Near-normal for conversational Kiswahili
+            "pause_duration_ms": 320,  # Natural pauses
+            "emphasis_words": ["Rafiki", "asante", "karibu", "sawa", "ndiyo"]
         }
     }
     
@@ -95,8 +110,8 @@ class ElevenLabsService:
         self.branch_id = getattr(self.settings, 'ELEVENLABS_BRANCH_ID', None)
         self._client = None
         
-        # Set default voice - preferring Noah (warm Kenyan male voice)
-        self.default_voice_id = self.KENYAN_VOICES.get("noah", {}).get("voice_id") or self.settings.ELEVENLABS_VOICE_ID
+        # Set default voice - using Noah (Kenyan male voice for both EN and SW)
+        self.default_voice_id = self.KENYAN_VOICES["noah"]["voice_id"]
         self.current_voice_name = "Noah"
     
     @property
@@ -155,20 +170,29 @@ class ElevenLabsService:
             "voice": voice
         }
     
-    def optimize_text_for_speech(self, text: str, content_type: str = "conversational") -> str:
+    def optimize_text_for_speech(self, text: str, content_type: str = "conversational", language: str = "en") -> str:
         """
         Optimize text for natural speech delivery with proper pauses and emphasis.
+        Supports both English and Kiswahili with appropriate speech patterns.
         
         Args:
             text: Text to optimize
             content_type: Type of content (government_guidance, conversational, accessibility)
+            language: Language code ('en' for English, 'sw' for Kiswahili)
             
         Returns:
             Optimized text with speech markers
         """
+        # Adjust content_type for Kiswahili
+        if language == 'sw':
+            if content_type == "government_guidance":
+                content_type = "kiswahili_guidance"
+            elif content_type == "conversational":
+                content_type = "kiswahili_conversational"
+        
         # Ensure content_type is valid
         if content_type not in self.SPEECH_OPTIMIZATION:
-            content_type = "conversational"
+            content_type = "kiswahili_conversational" if language == 'sw' else "conversational"
         
         config = self.SPEECH_OPTIMIZATION[content_type]
         emphasis_words = config.get("emphasis_words", [])
@@ -253,37 +277,48 @@ class ElevenLabsService:
         model_id: str = "eleven_multilingual_v2",
         output_format: str = "mp3_44100_128",
         content_type: str = "conversational",
-        optimize_speech: bool = True
+        optimize_speech: bool = True,
+        language: str = "en"
     ) -> Dict[str, Any]:
         """
         Convert text to speech using ElevenLabs TTS API with Kenyan voice.
+        Supports both English and Kiswahili with natural pronunciation.
         
         Args:
             text: Text to convert to speech
             voice_id: ElevenLabs voice ID (optional)
             voice_name: Kenyan voice name (noah, aria, sage, rachel)
-            model_id: TTS model to use
+            model_id: TTS model to use (eleven_multilingual_v2 supports Kiswahili)
             output_format: Audio output format
             content_type: Type of content for speech optimization
             optimize_speech: Whether to optimize text for natural speech
+            language: Language code ('en' for English, 'sw' for Kiswahili)
             
         Returns:
             Dict with audio data (base64) or error
         """
         try:
             # Select voice: prefer voice_name for Kenyan voices
-            if voice_name and voice_name.lower() in self.KENYAN_VOICES:
-                result = self.select_kenyan_voice(voice_name)
-                if not result.get("success"):
-                    logger.warning(f"Could not select voice {voice_name}, using default")
-                target_voice = self.default_voice_id
-            else:
-                target_voice = voice_id or self.default_voice_id
+            target_voice = None
             
-            # Optimize text for natural speech
+            if voice_name and voice_name.lower() in self.KENYAN_VOICES:
+                # Get voice from KENYAN_VOICES dict
+                voice_config = self.KENYAN_VOICES[voice_name.lower()]
+                target_voice = voice_config["voice_id"]
+                voice_display_name = voice_config["name"]
+                logger.info(f"Selected Kenyan voice: {voice_display_name} for language: {language}")
+            elif voice_id:
+                # Use provided voice_id directly
+                target_voice = voice_id
+            else:
+                # Use default voice from settings (Rachel)
+                target_voice = self.default_voice_id
+                logger.info(f"Using default voice: {self.current_voice_name} for language: {language}")
+            
+            # Optimize text for natural speech with language support
             optimized_text = text
             if optimize_speech:
-                optimized_text = self.optimize_text_for_speech(text, content_type)
+                optimized_text = self.optimize_text_for_speech(text, content_type, language)
             
             # Prepare voice settings optimized for Kenyan accent clarity
             voice_settings = self.VOICE_SETTINGS_OPTIMIZED.copy()
@@ -302,7 +337,7 @@ class ElevenLabsService:
                 audio_data = base64.b64encode(response.content).decode("utf-8")
                 logger.info(
                     f"Generated TTS audio using {self.current_voice_name} voice. "
-                    f"Text: {len(text)} chars, Content type: {content_type}"
+                    f"Text: {len(text)} chars, Language: {language}, Content type: {content_type}"
                 )
                 return {
                     "success": True,
@@ -311,11 +346,16 @@ class ElevenLabsService:
                     "text_length": len(text),
                     "voice_name": self.current_voice_name,
                     "voice_id": target_voice,
-                    "speech_type": content_type
+                    "speech_type": content_type,
+                    "language": language
                 }
             else:
                 error_msg = f"TTS failed: {response.status_code}"
-                logger.error(error_msg)
+                try:
+                    error_detail = response.json()
+                    logger.error(f"{error_msg} - Detail: {error_detail}")
+                except:
+                    logger.error(f"{error_msg} - Voice ID: {target_voice}")
                 return {
                     "success": False,
                     "error": error_msg
@@ -341,8 +381,8 @@ class ElevenLabsService:
         
         Args:
             text: Text to convert to speech
-            language: Language code
-            voice_name: Optional voice name
+            language: Language code ('en' or 'sw')
+            voice_name: Optional voice name (defaults to 'noah' for Kenyan accent)
             
         Returns:
             Path to the generated audio file, or None on error
@@ -350,10 +390,15 @@ class ElevenLabsService:
         try:
             import tempfile
             
+            # Auto-select Noah (Kenyan accent) if no voice specified
+            if not voice_name:
+                voice_name = "noah"  # Default to Kenyan accent voice
+            
             # Try ElevenLabs first
             result = await self.text_to_speech(
                 text=text,
                 voice_name=voice_name,
+                language=language,
                 output_format="mp3_44100_128"
             )
             
