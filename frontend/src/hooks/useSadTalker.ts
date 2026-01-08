@@ -156,7 +156,8 @@ export function useSadTalker(options: SadTalkerOptions = {}) {
    */
   const generateFromText = useCallback(async (
     text: string,
-    _settings: AnimationSettings = {}
+    language: string = 'en',
+    _settings: Partial<AnimationSettings> = {}
   ): Promise<string | null> => {
     // Settings available for future use with SadTalker API
     // const { preprocess, stillMode, expressionScale } = _settings;
@@ -196,7 +197,7 @@ export function useSadTalker(options: SadTalkerOptions = {}) {
       const formData = new FormData();
       formData.append('text', text);
       formData.append('avatar_id', currentAvatarId.current);
-      formData.append('language', 'en');
+      formData.append('language', language);
       formData.append('use_elevenlabs', 'true');
       
       if (onProgress) onProgress(0.3, 'Generating speech and video...');
