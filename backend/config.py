@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     
     # Google Gemini API
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-2.0-flash-exp"
     
     # ElevenLabs Conversational AI
     ELEVENLABS_API_KEY: str = ""
