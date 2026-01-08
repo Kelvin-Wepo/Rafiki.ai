@@ -23,31 +23,49 @@ import type { AvatarState, AudioAnalysis } from './types';
 import './App.css';
 
 // Demo conversation messages
-const DEMO_MESSAGES = [
-  "Hello! I'm Rafiki, your government AI assistant. How can I help you today?",
-  "I can help you with public services, document applications, and general inquiries.",
-  "Let me look that up for you. One moment please.",
-  "Thank you for using our services. Is there anything else I can assist you with?",
-  "I apologize, but I couldn't process that request. Please try again."
-];
+const DEMO_MESSAGES = {
+  en: [
+    "Hello! I'm Rafiki, your government AI assistant. How can I help you today?",
+    "I can help you with public services, document applications, and general inquiries.",
+    "Let me look that up for you. One moment please.",
+    "Thank you for using our services. Is there anything else I can assist you with?",
+    "I apologize, but I couldn't process that request. Please try again."
+  ],
+  sw: [
+    "Habari! Mimi ni Rafiki, msaidizi wako wa serikali wa AI. Ninaweza kukusaidia vipi leo?",
+    "Ninaweza kukusaidia na huduma za umma, maombi ya hati, na maswali ya jumla.",
+    "Hebu nikutafutie hiyo. Tafadhali subiri kidogo.",
+    "Asante kwa kutumia huduma zetu. Je, kuna kitu kingine ninachoweza kukusaidia?",
+    "Samahani, sikuweza kushughulikia ombi hilo. Tafadhali jaribu tena."
+  ]
+};
 
 function App() {
   const [currentState, setCurrentState] = useState<AvatarState>('idle');
   const [currentEmotion, setCurrentEmotion] = useState<Emotion>('neutral');
   const [isRecording, setIsRecording] = useState(false);
   const [showEffects, setShowEffects] = useState({ particles: true, waveform: true });
-  const [demoText, setDemoText] = useState(DEMO_MESSAGES[0]);
+  const [language, setLanguage] = useState<'en' | 'sw'>('en');
+  const [demoText, setDemoText] = useState(DEMO_MESSAGES.en[0]);
   const [useSadTalkerMode, setUseSadTalkerMode] = useState(true);
+  const [hasAutoGreeted, setHasAutoGreeted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   
   const { audioData, startAnalyzing, stopAnalyzing } = useAudioAnalyzer();
   const { speak, stop: stopSpeaking, isSpeaking, audioData: speechAudioData, voices, selectedVoice, setVoice } = useSpeechSynthesis();
   
+  // Update demo text when language changes
+  useEffect(() => {
+    setDemoText(DEMO_MESSAGES[language][0]);
+  }, [language]);
+  
+  // SadTalker integration
   // SadTalker integration
   const {
     isGenerating: isSadTalkerGenerating,
     currentJob: sadTalkerJob,
     currentVideoUrl,
+    currentAudioUrl,
     isBackendAvailable,
     generateFromText,
     cancel: cancelSadTalker
@@ -107,13 +125,13 @@ function App() {
         // Generate lip-synced video with SadTalker
         setCurrentState('speaking');
         setCurrentEmotion('confident');
-        await generateFromText(demoText);
+        await generateFromText(demoText, language);
       } else {
         // Use browser TTS
         handleFallbackSpeak();
       }
     }, 2000);
-  }, [stopAnalyzing, useSadTalkerMode, isBackendAvailable, generateFromText, demoText, handleFallbackSpeak]);
+  }, [stopAnalyzing, useSadTalkerMode, isBackendAvailable, generateFromText, demoText, language, handleFallbackSpeak]);
 
   // Handle TTS/SadTalker button click
   const handleSpeak = useCallback(async () => {
@@ -133,7 +151,7 @@ function App() {
       try {
         setCurrentState('speaking');
         setCurrentEmotion('confident');
-        const videoUrl = await generateFromText(demoText);
+        const videoUrl = await generateFromText(demoText, language);
         if (!videoUrl) {
           // Fallback if generation failed
           handleFallbackSpeak();
@@ -147,7 +165,7 @@ function App() {
       handleFallbackSpeak();
     }
   }, [
-    stopSpeaking, isSpeaking, demoText,
+    stopSpeaking, isSpeaking, demoText, language,
     useSadTalkerMode, isBackendAvailable, generateFromText, cancelSadTalker, isSadTalkerGenerating,
     handleFallbackSpeak
   ]);
@@ -204,6 +222,33 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isRecording, handleStartListening, handleStopListening, handleStateChange]);
 
+  // Auto-greeting on page load
+  useEffect(() => {
+    if (!hasAutoGreeted && isBackendAvailable !== null) {
+      setHasAutoGreeted(true);
+      
+      // Wait a moment for everything to load, then greet
+      const timer = setTimeout(() => {
+        if (useSadTalkerMode && isBackendAvailable) {
+          setCurrentState('thinking');
+          setCurrentEmotion('thoughtful');
+          setTimeout(async () => {
+            setCurrentState('speaking');
+            setCurrentEmotion('confident');
+            await generateFromText(DEMO_MESSAGES[language][0]);
+          }, 1000);
+        } else {
+          // Fallback to browser TTS
+          setCurrentState('speaking');
+          setCurrentEmotion('confident');
+          speak(DEMO_MESSAGES[language][0]);
+        }
+      }, 2000); // 2 second delay after page load
+
+      return () => clearTimeout(timer);
+    }
+  }, [hasAutoGreeted, isBackendAvailable, useSadTalkerMode, generateFromText, speak]);
+
   return (
     <div className="app">
       {/* Header */}
@@ -232,6 +277,7 @@ function App() {
             emotion={currentEmotion}
             followCursor={true}
             videoUrl={currentVideoUrl}
+            audioUrl={currentAudioUrl}
             isVideoPlaying={!!currentVideoUrl && currentState === 'speaking'}
             onVideoEnd={handleVideoEnd}
           />
@@ -317,12 +363,27 @@ function App() {
           </div>
 
           <div className="tts-controls">
+            {/* Language selector */}
+            <div className="language-selector">
+              <label className="language-label">
+                <span>🌍 Language:</span>
+                <select 
+                  className="language-select"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as 'en' | 'sw')}
+                >
+                  <option value="en">🇬🇧 English</option>
+                  <option value="sw">🇰🇪 Kiswahili</option>
+                </select>
+              </label>
+            </div>
+
             <select 
               className="tts-message-select"
               value={demoText}
               onChange={(e) => setDemoText(e.target.value)}
             >
-              {DEMO_MESSAGES.map((msg, i) => (
+              {DEMO_MESSAGES[language].map((msg, i) => (
                 <option key={i} value={msg}>{msg.substring(0, 50)}...</option>
               ))}
             </select>

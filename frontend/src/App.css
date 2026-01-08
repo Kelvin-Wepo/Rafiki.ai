@@ -429,6 +429,47 @@ body {
   flex-wrap: wrap;
 }
 
+.language-selector {
+  width: 100%;
+  margin-bottom: var(--spacing-sm);
+}
+
+.language-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.language-label span {
+  font-weight: 600;
+}
+
+.language-select {
+  flex: 1;
+  padding: var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border: 2px solid var(--color-kenya-green);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.language-select:hover {
+  border-color: var(--color-kenya-red);
+}
+
+.language-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(65, 105, 225, 0.2);
+}
+
 .tts-message-select,
 .tts-voice-select {
   flex: 1;
