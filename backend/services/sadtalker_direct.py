@@ -67,8 +67,8 @@ def generate_video_direct(
     preprocess: str = 'crop',
     still_mode: bool = False,
     expression_scale: float = 1.0,
-    enhancer: bool = True,
-    batch_size: int = 2,
+    enhancer: bool = False,
+    batch_size: int = 1,  # Reduced to 1 for stability
     size: int = 256,
     pose_style: int = 0
 ) -> Tuple[Optional[str], Optional[str]]:
@@ -121,12 +121,15 @@ def generate_video_direct(
             print(f"   Source: {source_image}")
             print(f"   Audio: {driven_audio}")
             print(f"   Settings: preprocess={preprocess}, still={still_mode}, scale={expression_scale}")
+            print(f"   Size: {size}x{size}, Batch: {batch_size}, Enhancer: {enhancer}")
+            print(f"   ⏳ This may take 2-5 minutes on CPU...")
             
             result = subprocess.run(
                 [str(SADTALKER_VENV_PYTHON), str(runner_script), config_file],
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minutes timeout
+                timeout=600,  # 10 minutes timeout for CPU generation
+                env={**os.environ, 'PYTHONUNBUFFERED': '1'}  # Force unbuffered output
             )
             
             # Parse result
@@ -162,7 +165,11 @@ def generate_video_direct(
                 pass
         
     except subprocess.TimeoutExpired:
-        print(f"❌ SadTalker generation timed out (300s)")
+        print(f"❌ SadTalker generation timed out (600s)")
+        print(f"   💡 Tip: This is normal on CPU. Consider:")
+        print(f"      - Using audio-only mode (instant)")
+        print(f"      - Getting a GPU (50-100x faster)")
+        print(f"      - Pre-generating common phrases")
         return None, "Video generation timed out"
     except Exception as e:
         print(f"❌ SadTalker error: {e}")

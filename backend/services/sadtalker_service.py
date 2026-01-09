@@ -26,11 +26,19 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 SADTALKER_API_URL = os.getenv("SADTALKER_API_URL", "http://localhost:7860")  # Gradio default port
-SADTALKER_MODE = os.getenv("SADTALKER_MODE", "direct")  # "direct", "api", "local", or "cloud"
+SADTALKER_MODE = os.getenv("SADTALKER_MODE", "direct")  # "direct", "api", "local", "cloud", or "colab"
+COLAB_URL = os.getenv("COLAB_SADTALKER_URL")  # Google Colab ngrok URL
 AVATAR_DIR = Path(__file__).parent.parent / "assets" / "avatars"
 CACHE_DIR = Path(__file__).parent.parent / "assets" / "avatar_cache"
 CHECKPOINT_DIR = os.getenv("SADTALKER_CHECKPOINT_DIR", "./checkpoints")
 SADTALKER_PATH = Path(__file__).parent.parent.parent / "SadTalker"
+
+# Performance optimization settings
+MAX_AUDIO_LENGTH = 10.0  # Maximum audio length in seconds (for speed)
+USE_256_MODEL = True  # Use 256x256 model instead of 512x512 for speed
+ENABLE_CACHING = True  # Enable video caching for common phrases
+CACHE_EXPIRY_HOURS = 24  # Cache videos for 24 hours
+USE_COLAB_IF_AVAILABLE = True  # Automatically use Colab GPU if configured
 
 # Default African woman avatar image
 DEFAULT_AVATAR = "rafiki_avatar.png"
@@ -39,82 +47,92 @@ DEFAULT_AVATAR = "rafiki_avatar.png"
 REF_VIDEO_DIR = SADTALKER_PATH / "examples" / "ref_video"
 DEFAULT_REF_EYEBLINK = str(REF_VIDEO_DIR / "WDA_AlexandriaOcasioCortez_000.mp4") if REF_VIDEO_DIR.exists() else None
 
-# Animation settings
+# Animation settings optimized for speed
 DEFAULT_SETTINGS = {
     'still_mode': False,
-    'preprocess': 'full',
+    'preprocess': 'crop',  # 'crop' is faster than 'full'
     'expression_scale': 1.0,
     'pose_style': 0,
-    'enhancer': 'gfpgan',  # Use gfpgan for face enhancement by default
+    'enhancer': None,  # Disable enhancer for faster generation
     'background_enhancer': None,  # 'realesrgan' for full video enhancement
-    'ref_eyeblink': DEFAULT_REF_EYEBLINK,  # Reference video for natural eye blinking
-    'ref_pose': None  # Reference video for pose
+    'ref_eyeblink': None,  # Disable for speed
+    'ref_pose': None,  # Reference video for pose
+    'size': 256  # Use 256x256 model for 2-3x speed improvement
 }
 
 # Personality presets for different moods and interaction styles
+# Optimized for speed: crop preprocessing, no enhancer, no ref videos
 PERSONALITY_PRESETS = {
     'friendly': {
         'expression_scale': 1.2,
         'still_mode': False,
-        'preprocess': 'full',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'preprocess': 'crop',
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Warm and welcoming with moderate expressions'
     },
     'professional': {
         'expression_scale': 0.8,
         'still_mode': True,
         'preprocess': 'crop',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Composed and formal with minimal head movement'
     },
     'excited': {
         'expression_scale': 1.5,
         'still_mode': False,
-        'preprocess': 'full',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'preprocess': 'crop',
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Energetic and enthusiastic with vivid expressions'
     },
     'calm': {
         'expression_scale': 0.6,
         'still_mode': True,
         'preprocess': 'crop',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Peaceful and soothing with gentle movements'
     },
     'energetic': {
         'expression_scale': 1.8,
         'still_mode': False,
-        'preprocess': 'full',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'preprocess': 'crop',
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Highly animated with dynamic expressions and movement'
     },
     'empathetic': {
         'expression_scale': 1.1,
         'still_mode': False,
-        'preprocess': 'full',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'preprocess': 'crop',
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Compassionate and understanding with soft expressions'
     },
     'humorous': {
         'expression_scale': 1.4,
         'still_mode': False,
-        'preprocess': 'full',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'preprocess': 'crop',
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Playful and lighthearted with expressive animations'
     },
     'serious': {
         'expression_scale': 0.7,
         'still_mode': True,
         'preprocess': 'crop',
-        'enhancer': 'gfpgan',
-        'ref_eyeblink': DEFAULT_REF_EYEBLINK,
+        'enhancer': None,
+        'ref_eyeblink': None,
+        'size': 256,
         'description': 'Focused and businesslike with controlled movements'
     }
 }
@@ -136,11 +154,112 @@ class SadTalkerService:
         self.current_personality = 'friendly'  # Default personality
         self._ensure_directories()
         self._client = None
+        self._video_cache = {}  # In-memory cache for video paths
+        self._init_common_phrases()
+        self._colab_service = None  # Lazy load Colab service
+        
+        # Check if Colab is available and preferred
+        if USE_COLAB_IF_AVAILABLE and COLAB_URL:
+            logger.info(f"🌐 Colab GPU server configured: {COLAB_URL}")
+            self.mode = "colab"
     
     def _ensure_directories(self):
         """Ensure required directories exist"""
         self.avatar_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    def _init_common_phrases(self):
+        """Initialize common phrases for pre-generation"""
+        self.common_phrases = [
+            "Hello! I'm Rafiki, your government AI assistant. How can I help you today?",
+            "Habari! Mimi ni Rafiki, msaidizi wako wa serikali. Ninaweza kukusaidiaje leo?",
+            "Thank you for contacting us. How may I assist you?",
+            "I'm here to help with government services.",
+            "Would you like me to help you book an appointment?",
+            "Let me check that information for you.",
+            "Is there anything else I can help you with?",
+            "Thank you! Have a great day!",
+            "Asante! Kuwa na siku njema!"
+        ]
+    
+    def _get_cache_key(self, text: str, avatar_id: str, personality: str) -> str:
+        """Generate cache key for video"""
+        import hashlib
+        key_str = f"{text}_{avatar_id}_{personality}"
+        return hashlib.md5(key_str.encode()).hexdigest()
+    
+    def _get_cached_video(self, cache_key: str) -> Optional[str]:
+        """Get cached video path if exists and not expired"""
+        if not ENABLE_CACHING:
+            return None
+        
+        # Check in-memory cache first
+        if cache_key in self._video_cache:
+            video_path = self._video_cache[cache_key]
+            if Path(video_path).exists():
+                # Check if file is not too old
+                file_age_hours = (datetime.now().timestamp() - Path(video_path).stat().st_mtime) / 3600
+                if file_age_hours < CACHE_EXPIRY_HOURS:
+                    logger.info(f"Using cached video: {video_path}")
+                    return video_path
+        
+        # Check disk cache
+        cache_file = self.cache_dir / f"{cache_key}.mp4"
+        if cache_file.exists():
+            file_age_hours = (datetime.now().timestamp() - cache_file.stat().st_mtime) / 3600
+            if file_age_hours < CACHE_EXPIRY_HOURS:
+                self._video_cache[cache_key] = str(cache_file)
+                logger.info(f"Using cached video from disk: {cache_file}")
+                return str(cache_file)
+        
+        return None
+    
+    def _cache_video(self, cache_key: str, video_path: str) -> str:
+        """Cache video for future use"""
+        if not ENABLE_CACHING:
+            return video_path
+        
+        try:
+            cache_file = self.cache_dir / f"{cache_key}.mp4"
+            if not cache_file.exists():
+                shutil.copy2(video_path, cache_file)
+                logger.info(f"Cached video: {cache_file}")
+            self._video_cache[cache_key] = str(cache_file)
+            return str(cache_file)
+        except Exception as e:
+            logger.warning(f"Failed to cache video: {e}")
+            return video_path
+    
+    def _truncate_audio_if_needed(self, audio_path: str) -> str:
+        """Truncate audio to MAX_AUDIO_LENGTH if too long"""
+        try:
+            # Try to get audio duration
+            import subprocess
+            result = subprocess.run(
+                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1', audio_path],
+                capture_output=True, text=True, timeout=5
+            )
+            
+            if result.returncode == 0:
+                duration = float(result.stdout.strip())
+                
+                if duration > MAX_AUDIO_LENGTH:
+                    logger.info(f"Audio too long ({duration:.1f}s), truncating to {MAX_AUDIO_LENGTH}s")
+                    truncated_path = audio_path.replace('.wav', '_truncated.wav').replace('.mp3', '_truncated.mp3')
+                    
+                    subprocess.run(
+                        ['ffmpeg', '-i', audio_path, '-t', str(MAX_AUDIO_LENGTH),
+                         '-c', 'copy', truncated_path, '-y'],
+                        capture_output=True, timeout=30
+                    )
+                    
+                    if Path(truncated_path).exists():
+                        return truncated_path
+        except Exception as e:
+            logger.warning(f"Could not check/truncate audio length: {e}")
+        
+        return audio_path
     
     @property
     def client(self):
@@ -236,7 +355,8 @@ class SadTalkerService:
         enhancer: Optional[str] = None,
         background_enhancer: Optional[str] = None,
         ref_eyeblink: Optional[str] = None,
-        ref_pose: Optional[str] = None
+        ref_pose: Optional[str] = None,
+        cache_key: Optional[str] = None
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Generate a lip-synced video from audio with personality and enhancements
@@ -252,11 +372,21 @@ class SadTalkerService:
             background_enhancer: Background enhancer ('realesrgan', None)
             ref_eyeblink: Path to reference video for natural eye blinking
             ref_pose: Path to reference video for natural head pose
+            cache_key: Optional cache key for video caching
         
         Returns:
             Tuple of (video_path, error_message)
         """
         try:
+            # Check cache first if key provided
+            if cache_key:
+                cached_video = self._get_cached_video(cache_key)
+                if cached_video:
+                    return cached_video, None
+            
+            # Truncate audio if too long (for speed)
+            audio_path = self._truncate_audio_if_needed(audio_path)
+            
             # Apply personality settings if parameters not explicitly provided
             if preprocess is None:
                 preprocess = self.settings.get('preprocess', 'crop')
@@ -281,22 +411,33 @@ class SadTalkerService:
                 if not avatar_path:
                     return None, f"Avatar '{avatar_id}' not found"
             
-            # Try direct integration first (fastest)
-            if self.mode == "direct":
-                return await self._generate_direct(
+            # Try Colab GPU first if available (fastest with GPU)
+            if self.mode == "colab":
+                video_path, error = await self._generate_via_colab(
+                    audio_path, avatar_path, preprocess, still_mode, expression_scale
+                )
+            # Try direct integration (CPU)
+            elif self.mode == "direct":
+                video_path, error = await self._generate_direct(
                     audio_path, avatar_path, preprocess, still_mode, expression_scale,
                     enhancer, ref_eyeblink, ref_pose
                 )
             elif self.mode == "api":
-                return await self._generate_via_api(
+                video_path, error = await self._generate_via_api(
                     audio_path, avatar_path, preprocess, still_mode, expression_scale,
                     enhancer, background_enhancer, ref_eyeblink, ref_pose
                 )
             else:
-                return await self._generate_locally(
+                video_path, error = await self._generate_locally(
                     audio_path, avatar_path, preprocess, still_mode, expression_scale,
                     enhancer, background_enhancer, ref_eyeblink, ref_pose
                 )
+            
+            # Cache the video if generation was successful
+            if video_path and cache_key:
+                video_path = self._cache_video(cache_key, video_path)
+            
+            return video_path, error
                 
         except Exception as e:
             logger.error(f"SadTalker generation error: {e}")
@@ -321,6 +462,53 @@ class SadTalkerService:
         
         return None
     
+    async def _generate_via_colab(
+        self,
+        audio_path: str,
+        avatar_path: str,
+        preprocess: str,
+        still_mode: bool,
+        expression_scale: float
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Generate video using Google Colab GPU backend (fastest with GPU)"""
+        try:
+            # Lazy load Colab service
+            if self._colab_service is None:
+                from .colab_sadtalker_service import get_colab_service
+                self._colab_service = get_colab_service()
+            
+            if not self._colab_service.is_available():
+                logger.warning("Colab service not available, falling back to local")
+                return None, "Colab service not reachable"
+            
+            logger.info(f"🌐 Using Google Colab GPU for video generation")
+            
+            # Get size from settings
+            size = self.settings.get('size', 256)
+            
+            # Generate via Colab
+            video_path, error = await self._colab_service.generate_video(
+                source_image_path=avatar_path,
+                driven_audio_path=audio_path,
+                preprocess=preprocess,
+                still_mode=still_mode,
+                expression_scale=expression_scale,
+                size=size,
+                enhancer=False  # Disable for speed
+            )
+            
+            if video_path:
+                logger.info(f"✅ Video generated via Colab GPU: {video_path}")
+                return video_path, None
+            else:
+                return None, error or "Colab generation failed"
+                
+        except Exception as e:
+            logger.error(f"Colab generation error: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, str(e)
+    
     async def _generate_direct(
         self,
         audio_path: str,
@@ -332,7 +520,7 @@ class SadTalkerService:
         ref_eyeblink: Optional[str] = None,
         ref_pose: Optional[str] = None
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Generate video using direct SadTalker integration (fastest method)"""
+        """Generate video using direct SadTalker integration (CPU method)"""
         try:
             # Check if SadTalker is available
             if not SADTALKER_PATH.exists():
@@ -355,6 +543,9 @@ class SadTalkerService:
             output_dir = tempfile.mkdtemp()
             output_path = os.path.join(output_dir, "result.mp4")
             
+            # Get size from settings (256 for speed)
+            size = self.settings.get('size', 256)
+            
             # Run generation in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             result_path, error = await loop.run_in_executor(
@@ -366,9 +557,9 @@ class SadTalkerService:
                 preprocess,
                 still_mode,
                 expression_scale,
-                enhancer == 'gfpgan' or enhancer is not None,
-                2,  # batch_size
-                256,  # size
+                enhancer == 'gfpgan' if enhancer else False,
+                1,  # batch_size - reduced to 1 for CPU stability
+                size,  # size (256 for speed, 512 for quality)
                 0  # pose_style
             )
             
@@ -554,6 +745,7 @@ class SadTalkerService:
         """
         Generate a talking head video from text
         First converts text to speech, then generates video
+        Uses caching for common phrases for faster responses
         
         Args:
             text: Text to speak
@@ -565,6 +757,14 @@ class SadTalkerService:
             Tuple of (video_path, error_message)
         """
         try:
+            # Generate cache key
+            cache_key = self._get_cache_key(text, avatar_id, self.current_personality)
+            
+            # Check cache first
+            cached_video = self._get_cached_video(cache_key)
+            if cached_video:
+                return cached_video, None
+            
             # Generate audio from text
             if voice_service:
                 audio_path = await voice_service.text_to_speech_file(text, language)
@@ -575,8 +775,8 @@ class SadTalkerService:
             if not audio_path:
                 return None, "Failed to generate audio"
             
-            # Generate video from audio
-            return await self.generate_video(audio_path, avatar_id)
+            # Generate video from audio with caching
+            return await self.generate_video(audio_path, avatar_id, cache_key=cache_key)
             
         except Exception as e:
             logger.error(f"Text to video error: {e}")
@@ -592,6 +792,7 @@ class SadTalkerService:
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Generate video with specific personality
+        Uses caching for faster responses on common phrases
         
         Args:
             text: Text to speak
@@ -609,6 +810,14 @@ class SadTalkerService:
             logger.warning(f"Invalid personality '{personality}', using '{original_personality}'")
         
         try:
+            # Generate cache key with personality
+            cache_key = self._get_cache_key(text, avatar_id, personality)
+            
+            # Check cache first
+            cached_video = self._get_cached_video(cache_key)
+            if cached_video:
+                return cached_video, None
+            
             result = await self.text_to_video(text, avatar_id, voice_service, language)
             return result
         finally:
@@ -659,11 +868,70 @@ class SadTalkerService:
                 'cached_videos': len(cache_files),
                 'cache_dir': str(self.cache_dir),
                 'total_size_bytes': total_size,
-                'total_size_mb': round(total_size / (1024 * 1024), 2)
+                'total_size_mb': round(total_size / (1024 * 1024), 2),
+                'in_memory_entries': len(self._video_cache)
             }
         except Exception as e:
             logger.error(f"Error getting cache stats: {e}")
             return {}
+    
+    async def pregenerate_common_phrases(self, voice_service=None, avatar_id: str = "habari") -> Dict[str, Any]:
+        """
+        Pre-generate videos for common phrases to speed up responses
+        This should be run during startup or low-traffic periods
+        
+        Args:
+            voice_service: Voice service for TTS
+            avatar_id: Avatar to use
+        
+        Returns:
+            Dict with generation results
+        """
+        results = {
+            'generated': [],
+            'failed': [],
+            'cached': [],
+            'total': len(self.common_phrases)
+        }
+        
+        logger.info(f"Pre-generating {len(self.common_phrases)} common phrases...")
+        
+        for phrase in self.common_phrases:
+            try:
+                cache_key = self._get_cache_key(phrase, avatar_id, 'friendly')
+                
+                # Check if already cached
+                if self._get_cached_video(cache_key):
+                    results['cached'].append(phrase[:50] + '...' if len(phrase) > 50 else phrase)
+                    logger.info(f"Already cached: {phrase[:50]}...")
+                    continue
+                
+                # Generate video
+                video_path, error = await self.text_to_video(
+                    phrase, avatar_id, voice_service, language="en"
+                )
+                
+                if video_path:
+                    results['generated'].append(phrase[:50] + '...' if len(phrase) > 50 else phrase)
+                    logger.info(f"Generated: {phrase[:50]}...")
+                else:
+                    results['failed'].append({
+                        'phrase': phrase[:50] + '...' if len(phrase) > 50 else phrase,
+                        'error': error
+                    })
+                    logger.warning(f"Failed to generate: {phrase[:50]}... - {error}")
+                
+            except Exception as e:
+                results['failed'].append({
+                    'phrase': phrase[:50] + '...' if len(phrase) > 50 else phrase,
+                    'error': str(e)
+                })
+                logger.error(f"Error pre-generating phrase: {e}")
+        
+        logger.info(f"Pre-generation complete: {len(results['generated'])} generated, "
+                   f"{len(results['cached'])} cached, {len(results['failed'])} failed")
+        
+        return results
     
     def clear_cache(self) -> bool:
         """Clear animation cache"""
