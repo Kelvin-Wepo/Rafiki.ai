@@ -1,4 +1,4 @@
-# Backend Dependencies for eCitizen Voice Assistant
+# Backend Dependencies for Rafiki.ai government Voice Assistant
 # Python 3.9+ required
 
 # Web Framework

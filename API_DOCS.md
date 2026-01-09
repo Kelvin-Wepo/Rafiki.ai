@@ -2,7 +2,7 @@
 
 ## Overview
 
-The eCitizen Voice Assistant API provides endpoints for voice-enabled access to Kenyan government services. This API is designed with accessibility in mind, enabling visually impaired users to interact with eCitizen services through voice commands.
+The Rafiki Government Voice Assistant API provides endpoints for voice-enabled access to Kenyan government services. This API is designed with accessibility in mind, enabling visually impaired users to interact with eCitizen services through voice commands.
 
 **Base URL:** `http://localhost:8000/api/v1`
 
@@ -727,6 +727,6 @@ Personalities can be applied in two ways:
 ## Support
 
 For API support, contact:
-- Email: api-support@ecitizen.go.ke
-- Documentation: https://docs.ecitizen.go.ke/api
+- Email: api-support@rafiki.co.ke
+- Documentation: https://docs.rafiki.co.ke/api
 
