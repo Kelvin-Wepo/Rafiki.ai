@@ -118,18 +118,20 @@ async def text_to_video(
     background_tasks: BackgroundTasks = None
 ):
     """
-    Generate talking avatar video from text with personality
+    Generate talking avatar video or audio from text with personality
+
+    Tries SadTalker video generation first, falls back to audio if unavailable.
 
     Args:
         text: Text to speak
         avatar_id: ID of avatar to animate
-        language: Language for TTS
-        use_elevenlabs: Use ElevenLabs for TTS (better quality)
+        language: Language for TTS (en or sw)
+        use_elevenlabs: Use ElevenLabs for TTS (required)
         personality: Avatar personality ('friendly', 'professional', 'excited', 'calm')
         background_tasks: FastAPI background tasks
 
     Returns:
-        Video file, audio file (if SadTalker unavailable), or error message
+        Video file (MP4) if SadTalker succeeds, otherwise audio file (MP3) with Kenyan accent
     """
     try:
         # Validate text
@@ -144,43 +146,64 @@ async def text_to_video(
         # Generate audio using appropriate service
         voice_service = elevenlabs_service if use_elevenlabs else None
 
-        # Use personality-aware generation if personality specified
-        if personality and personality != "friendly":
-            video_path, error = await sadtalker_service.generate_with_personality(
-                text=text,
-                personality=personality,
-                avatar_id=avatar_id,
-                voice_service=voice_service,
-                language=language
-            )
-        else:
-            video_path, error = await sadtalker_service.text_to_video(
-                text=text,
-                avatar_id=avatar_id,
-                voice_service=voice_service,
-                language=language
-            )
+        # Try SadTalker video generation first
+        try:
+            # Use personality-aware generation if personality specified
+            if personality and personality != "friendly":
+                video_path, error = await sadtalker_service.generate_with_personality(
+                    text=text,
+                    personality=personality,
+                    avatar_id=avatar_id,
+                    voice_service=voice_service,
+                    language=language
+                )
+            else:
+                video_path, error = await sadtalker_service.text_to_video(
+                    text=text,
+                    avatar_id=avatar_id,
+                    voice_service=voice_service,
+                    language=language
+                )
 
-        if error:
-            # SadTalker failed - try to return audio instead
+            # If video generation succeeded, return it
+            if video_path and os.path.exists(video_path) and not error:
+                logger.info(f"✅ Video generated successfully: {video_path}")
+                return FileResponse(
+                    path=video_path,
+                    media_type="video/mp4",
+                    filename=f"avatar_{avatar_id}_response.mp4"
+                )
+            
+            # Video failed, fall through to audio fallback
             logger.warning(f"SadTalker failed: {error}, falling back to audio-only")
             
-            if voice_service:
-                audio_path = await voice_service.text_to_speech_file(text, voice_name="rachel")
-                if audio_path:
-                    return FileResponse(
-                        path=audio_path,
-                        media_type="audio/mpeg",
-                        filename=f"avatar_{avatar_id}_audio.mp3",
-                        headers={"X-Fallback-Mode": "audio-only", "X-Error": error}
-                    )
-            
-            raise HTTPException(status_code=500, detail=f"Video generation failed: {error}")
+        except Exception as e:
+            logger.error(f"SadTalker error: {e}, falling back to audio-only")
+        
+        # Audio fallback mode
+        if not voice_service:
+            raise HTTPException(status_code=400, detail="Both video and audio generation unavailable")
+        
+        voice_name = "noah"  # Default Kenyan accent
+        logger.info(f"Selected Kenyan voice: {voice_name.title()} for language: {language}")
+        audio_path = await voice_service.text_to_speech_file(text, voice_name=voice_name, language=language)
+        
+        if not audio_path or not os.path.exists(audio_path):
+            raise HTTPException(status_code=500, detail="Audio generation failed")
+        
+        logger.info(f"Generated TTS audio file (ElevenLabs): {audio_path}")
 
+        # Return audio file as fallback
         return FileResponse(
-            path=video_path,
-            media_type="video/mp4",
-            filename=f"avatar_{avatar_id}_response.mp4"
+            path=audio_path,
+            media_type="audio/mpeg",
+            filename=f"avatar_{avatar_id}_audio.mp3",
+            headers={
+                "X-Fallback-Mode": "audio-only",
+                "X-Language": language,
+                "X-Voice": voice_name,
+                "X-Personality": personality
+            }
         )
 
     except HTTPException:

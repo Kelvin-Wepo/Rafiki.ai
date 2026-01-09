@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Debug - Rafiki Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #fff;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #2a2a3e;
+            border-radius: 5px;
+        }
+        audio {
+            width: 100%;
+            margin: 20px 0;
+        }
+        .log {
+            background: #0a0a1e;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎤 Rafiki Audio Debug Tool</h1>
+    <p>Test audio generation and playback</p>
+
+    <div>
+        <button onclick="testEnglish()">Test English</button>
+        <button onclick="testSwahili()">Test Swahili</button>
+        <button onclick="stopAudio()">Stop</button>
+    </div>
+
+    <div id="status">
+        <strong>Status:</strong> <span id="statusText">Ready</span>
+    </div>
+
+    <audio id="audioPlayer" controls></audio>
+
+    <div id="logs"></div>
+
+    <script>
+        const API_URL = 'http://localhost:8000/api/avatar/text-to-video';
+        const audioPlayer = document.getElementById('audioPlayer');
+        const statusText = document.getElementById('statusText');
+        const logsDiv = document.getElementById('logs');
+
+        function log(message, isError = false) {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = 'log';
+            div.style.color = isError ? '#ff6b6b' : '#4ecdc4';
+            div.textContent = `[${timestamp}] ${message}`;
+            logsDiv.insertBefore(div, logsDiv.firstChild);
+            console.log(message);
+        }
+
+        async function generateAudio(text, language) {
+            try {
+                statusText.textContent = `Generating ${language} audio...`;
+                log(`Requesting: "${text}" in ${language}`);
+
+                const formData = new FormData();
+                formData.append('text', text);
+                formData.append('language', language);
+                formData.append('use_elevenlabs', 'true');
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const contentType = response.headers.get('Content-Type');
+                log(`Response: ${contentType}, ${response.headers.get('Content-Length')} bytes`);
+
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                audioPlayer.src = audioUrl;
+                statusText.textContent = 'Playing audio...';
+                log(`✅ Audio ready, playing now...`);
+
+                await audioPlayer.play();
+
+                audioPlayer.onended = () => {
+                    statusText.textContent = 'Audio finished';
+                    log('Audio playback completed');
+                };
+
+            } catch (error) {
+                statusText.textContent = `Error: ${error.message}`;
+                log(`❌ Error: ${error.message}`, true);
+            }
+        }
+
+        function testEnglish() {
+            const text = "Hello! I am Rafiki, your government AI assistant. How can I help you today?";
+            generateAudio(text, 'en');
+        }
+
+        function testSwahili() {
+            const text = "Habari! Mimi ni Rafiki, msaidizi wako wa serikali wa AI. Ninaweza kukusaidia vipi leo?";
+            generateAudio(text, 'sw');
+        }
+
+        function stopAudio() {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+            statusText.textContent = 'Stopped';
+            log('Audio stopped');
+        }
+
+        // Auto-test on load
+        log('🚀 Audio Debug Tool Ready');
+        log('Backend URL: ' + API_URL);
+    </script>
+</body>
+</html>
