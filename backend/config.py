@@ -151,7 +151,7 @@ GOVERNMENT_SERVICES = {
 # Assistant responses for accessibility
 ASSISTANT_RESPONSES = {
     "greeting": {
-        "morning": "Good morning! I am Wanjiku, your eCitizen booking assistant. I am here to help you access government services. How may I assist you today?",
+        "morning": "Good morning! I am RRafiki, your eCitizen booking assistant. I am here to help you access government services. How may I assist you today?",
         "afternoon": "Good afternoon! I am Wanjiku, your eCitizen booking assistant. I am here to help you access government services. How may I assist you today?",
         "evening": "Good evening! I am Wanjiku, your eCitizen booking assistant. I am here to help you access government services. How may I assist you today?"
     },
