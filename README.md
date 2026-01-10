@@ -2,18 +2,18 @@
 
 A voice-powered AI assistant for Kenya's eCitizen government services platform. Features natural language understanding, GPU-accelerated talking avatar animation, and accessible design for all users.
 
-## ✨ Features
+## Features
 
-- 🎤 Voice-based interaction with speech recognition and text-to-speech
-- 🤖 AI-powered natural language understanding using Google Gemini
-- 🎬 **Talking avatar with realistic lip-sync (SadTalker + Google Colab GPU)**
-- ⚡ **50-100x faster video generation with T4 GPU acceleration**
-- 📱 SMS notifications via Africa's Talking
-- ♿ Accessible UI with WCAG 2.1 AA compliance
-- 🏛️ Support for multiple government services (Passport, ID, Driving License, etc.)
-- 🐳 Docker support for clean deployment
+- Voice-based interaction with speech recognition and text-to-speech
+- AI-powered natural language understanding using Google Gemini
+- **Talking avatar with realistic lip-sync (SadTalker + Google Colab GPU)**
+- **50-100x faster video generation with T4 GPU acceleration**
+- SMS notifications via Africa's Talking
+- Accessible UI with WCAG 2.1 AA compliance
+- Support for multiple government services (Passport, ID, Driving License, etc.)
+- Docker support for clean deployment
 
-## 🚀 Architecture
+## Architecture
 
 ```
 Frontend (React/TypeScript)     Backend (FastAPI)           External Services
@@ -22,12 +22,12 @@ Frontend (React/TypeScript)     Backend (FastAPI)           External Services
 - Avatar components             - Session management        - ElevenLabs TTS
 - useSadTalker hook             - Video caching             - Africa's Talking SMS
 - Audio visualization           - Multi-backend support:    - Google Colab GPU
-- Emotion system                  * Colab GPU (fast) ⚡      - SadTalker API
-                                  * Local CPU (slow) 🐌
-                                  * Audio-only fallback 🔊
+- Emotion system                  * Colab GPU (fast)        - SadTalker API
+                                  * Local CPU (slow)
+                                  * Audio-only fallback
 ```
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Python 3.10+ (for backend and SadTalker)
 - Node.js 18+ (for frontend)
@@ -35,7 +35,7 @@ Frontend (React/TypeScript)     Backend (FastAPI)           External Services
 - Docker & Docker Compose (optional, for containerized deployment)
 - Google Colab account (optional, for GPU acceleration)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Option 1: Docker Setup (Recommended)
 
@@ -148,10 +148,10 @@ For 50-100x faster video generation, set up a free GPU backend:
 See [COLAB_SETUP_GUIDE.md](COLAB_SETUP_GUIDE.md) for detailed instructions.
 
 **Performance Comparison:**
-- 🐌 CPU (local): 2-10 minutes per video
-- ⚡ GPU (Colab): 5-15 seconds per video (50-100x faster!)
+- CPU (local): 2-10 minutes per video
+- GPU (Colab): 5-15 seconds per video (50-100x faster!)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Rafiki.ai/
@@ -227,23 +227,23 @@ Rafiki.ai/
 └── API_DOCS.md                 # API documentation
 ```
 
-## 🎬 Avatar System
+## Avatar System
 
 The Rafiki avatar uses a **multi-backend architecture** for optimal performance:
 
-### 1. Google Colab GPU (Fastest - Recommended) ⚡
+### 1. Google Colab GPU (Fastest - Recommended)
 - **Speed**: 5-15 seconds per video
 - **Quality**: High-quality lip-sync
 - **Cost**: Free (Google Colab)
 - **Setup**: See [COLAB_SETUP_GUIDE.md](COLAB_SETUP_GUIDE.md)
 
-### 2. Local CPU (Slow but Reliable) 🐌
+### 2. Local CPU (Slow but Reliable)
 - **Speed**: 2-10 minutes per video
 - **Quality**: Same as GPU
 - **Cost**: Free (local compute)
 - **Setup**: Automatic (requires SadTalker models)
 
-### 3. Audio-Only Fallback 🔊
+### 3. Audio-Only Fallback
 - **Speed**: Instant
 - **Quality**: Audio-only (no video)
 - **Cost**: Free
@@ -271,7 +271,7 @@ Pure image-based avatar with:
 - Particle effects
 - Voice waveform visualization
 
-### 🔌 API Endpoints
+### API Endpoints
 
 #### Generate Video from Text
 ```http
@@ -357,7 +357,7 @@ Response:
 }
 ```
 
-## 💻 Frontend Usage
+## Frontend Usage
 
 ### Basic Usage
 
@@ -407,7 +407,7 @@ function App() {
 - `speaking` - Video playback or animated mouth
 - `error` - Red glow, shaking effect
 
-## 🎤 TTS System
+## TTS System
 
 The backend uses a **fallback chain** for text-to-speech:
 
@@ -431,16 +431,16 @@ The system automatically falls back to espeak on:
 - 404 errors (voice not found)
 - Connection failures
 
-## ♿ Accessibility
+## Accessibility
 
-- 🎤 Voice control for navigation
-- 📢 Screen reader support with ARIA labels
-- 🎨 High contrast mode
-- ⌨️ Full keyboard navigation
-- 🔤 Adjustable text sizes
-- 🌐 Multi-language support (English, Swahili)
+- Voice control for navigation
+- Screen reader support with ARIA labels
+- High contrast mode
+- Full keyboard navigation
+- Adjustable text sizes
+- Multi-language support (English, Swahili)
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
@@ -450,7 +450,7 @@ The system automatically falls back to espeak on:
 | Escape | Close dialog |
 | Arrow keys | Navigate menus |
 
-## 🧪 Development
+## Development
 
 ### Running Tests
 
@@ -486,7 +486,7 @@ npm run type-check
 | `PORT` | Server port | No | `8000` |
 | `DEBUG` | Debug mode | No | `false` |
 
-## 🐳 Docker Deployment
+## Docker Deployment
 
 ### Quick Start
 
@@ -519,7 +519,7 @@ docker-compose up -d --build
 
 See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed documentation.
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -542,21 +542,14 @@ See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed documentation.
 - Check CORS settings in backend/config.py
 - Verify ports are not blocked
 
-## 📚 Documentation
+## Documentation
 
 - [API_DOCS.md](API_DOCS.md) - Complete API documentation
 - [DOCKER_SETUP.md](DOCKER_SETUP.md) - Docker deployment guide
 - [COLAB_SETUP_GUIDE.md](COLAB_SETUP_GUIDE.md) - GPU acceleration setup
 - [SADTALKER_TROUBLESHOOTING.md](SADTALKER_TROUBLESHOOTING.md) - Troubleshooting guide
 
-## 📚 Documentation
-
-- [API_DOCS.md](API_DOCS.md) - Complete API documentation
-- [DOCKER_SETUP.md](DOCKER_SETUP.md) - Docker deployment guide
-- [COLAB_SETUP_GUIDE.md](COLAB_SETUP_GUIDE.md) - GPU acceleration setup
-- [SADTALKER_TROUBLESHOOTING.md](SADTALKER_TROUBLESHOOTING.md) - Troubleshooting guide
-
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Here's how:
 
@@ -574,11 +567,11 @@ We welcome contributions! Here's how:
 - Update documentation
 - Keep commits atomic and descriptive
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [SadTalker](https://github.com/OpenTalker/SadTalker) - Talking head animation
 - [Google Gemini](https://ai.google.dev/) - AI language model
@@ -586,12 +579,12 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [FastAPI](https://fastapi.tiangolo.com/) - Backend framework
 - [React](https://react.dev/) - Frontend framework
 
-## 📞 Support
+## Support
 
-- 📧 Email: support@rafiki.ai
-- 🐛 Issues: [GitHub Issues](https://github.com/Kelvin-Wepo/Rafiki.ai/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/Kelvin-Wepo/Rafiki.ai/discussions)
+- Email: support@rafiki.ai
+- Issues: [GitHub Issues](https://github.com/Kelvin-Wepo/Rafiki.ai/issues)
+- Discussions: [GitHub Discussions](https://github.com/Kelvin-Wepo/Rafiki.ai/discussions)
 
 ---
 
-Made with ❤️ in Kenya 🇰🇪
+Made with love in Kenya
