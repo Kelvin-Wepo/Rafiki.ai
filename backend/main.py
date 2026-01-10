@@ -17,7 +17,6 @@ from config import get_settings
 from routes import voice_router, booking_router, services_router, session_router
 from routes.avatar import router as avatar_router
 from routes.elevenlabs import router as elevenlabs_router
-from routes.avatar_generation import router as avatar_generation_router
 from routes.avatar_animation import router as avatar_animation_router
 from utils.logger import setup_logging, get_logger
 from utils.session_manager import session_manager
@@ -181,7 +180,6 @@ app.include_router(services_router)
 app.include_router(session_router)
 app.include_router(avatar_router)
 app.include_router(elevenlabs_router)
-app.include_router(avatar_generation_router)
 app.include_router(avatar_animation_router)
 
 

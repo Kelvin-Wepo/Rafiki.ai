@@ -18,7 +18,6 @@ import tempfile
 from typing import Optional
 
 from services.sadtalker_service import SadTalkerService
-from services.image_preprocessing_service import ImagePreprocessingService
 from services.elevenlabs_service import ElevenLabsService
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,6 @@ router = APIRouter(prefix="/api/avatar", tags=["avatar-animation"])
 
 # Initialize services
 sadtalker_service = SadTalkerService()
-preprocess_service = ImagePreprocessingService()
 elevenlabs_service = ElevenLabsService()
 
 
