@@ -1,0 +1,65 @@
+services:
+  # Backend API Service
+  - type: web
+    name: rafiki-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash-exp
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        value: 21m00Tcm4TlvDq8ikWAM
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
+      - key: ELEVENLABS_BRANCH_ID
+        sync: false
+      - key: AFRICASTALKING_USERNAME
+        value: sandbox
+      - key: AFRICASTALKING_API_KEY
+        sync: false
+      - key: COLAB_SADTALKER_URL
+        sync: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        fromService:
+          type: web
+          name: rafiki-backend
+          property: port
+      - key: DEBUG
+        value: false
+      - key: CORS_ORIGINS
+        value: https://rafiki-frontend.onrender.com,http://localhost:5173
+    healthCheckPath: /health
+
+  # Frontend Service
+  - type: web
+    name: rafiki-frontend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: |
+      cd frontend
+      npm install
+      npm run build
+    startCommand: cd frontend && npm run preview -- --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: 18.19.0
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: rafiki-backend
+          envVarKey: RENDER_EXTERNAL_URL
+    staticPublishPath: frontend/dist

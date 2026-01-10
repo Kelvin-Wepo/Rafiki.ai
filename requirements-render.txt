@@ -1,0 +1,7 @@
+# Render-specific Python dependencies
+# These are optimized for production deployment
+
+# Add any additional production-only dependencies here
+# For example:
+# redis==4.5.1  # If using Redis for caching
+# psycopg2-binary==2.9.9  # If using PostgreSQL

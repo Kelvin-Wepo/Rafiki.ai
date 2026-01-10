@@ -519,6 +519,27 @@ docker-compose up -d --build
 
 See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed documentation.
 
+## Render.com Deployment
+
+Deploy Rafiki.ai to Render.com for production hosting:
+
+**Quick Deploy:**
+1. Push code to GitHub
+2. Go to [Render Dashboard](https://dashboard.render.com)
+3. Click "New +" → "Blueprint"
+4. Connect your repository
+5. Add environment variables
+6. Deploy!
+
+See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for complete deployment guide.
+
+**What you get:**
+- Free hosting (with limitations)
+- Automatic HTTPS
+- Auto-deploy on git push
+- Built-in monitoring
+- Global CDN
+
 ## Troubleshooting
 
 ### Common Issues
@@ -546,6 +567,8 @@ See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed documentation.
 
 - [API_DOCS.md](API_DOCS.md) - Complete API documentation
 - [DOCKER_SETUP.md](DOCKER_SETUP.md) - Docker deployment guide
+- [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) - Render.com deployment guide
+- [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) - Pre-deployment checklist
 - [COLAB_SETUP_GUIDE.md](COLAB_SETUP_GUIDE.md) - GPU acceleration setup
 - [SADTALKER_TROUBLESHOOTING.md](SADTALKER_TROUBLESHOOTING.md) - Troubleshooting guide
 
