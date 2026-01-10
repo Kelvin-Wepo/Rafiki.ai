@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW_SECONDS: int = 60
     
+    # SadTalker Settings
+    COLAB_SADTALKER_URL: Optional[str] = None
+    
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "app.log"
