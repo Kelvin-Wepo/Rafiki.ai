@@ -24,7 +24,7 @@ import { useMicroMovements } from '../../hooks/useMicroMovements';
 import { useBreathing } from '../../hooks/useBreathing';
 import { useEyeTracking } from '../../hooks/useEyeTracking';
 import { useEmotions, type Emotion } from '../../hooks/useEmotions';
-import rafikiImage from '../../assets/rafiki.png';
+import rafikiImage from '../../assets/rafiki_avatar.png';
 import './RafikiImageAvatar.css';
 
 interface AudioAnalysis {
@@ -441,7 +441,7 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
         {/* Image container with animations (hidden when video playing) */}
         {!showVideo && (
           <g clipPath="url(#avatar-circle-clip)">
-            {/* Animated image */}
+            {/* Pure Rafiki image - no overlays */}
             <image
               href={rafikiImage}
               x="6"
@@ -452,91 +452,6 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
               style={imageTransform}
               className="rafiki-image-avatar__image"
             />
-
-            {/* Vignette overlay */}
-            <circle cx="50" cy="50" r="44" fill="url(#vignette-gradient)" />
-
-            {/* Eye highlight overlays */}
-            <g className="eye-overlays" style={{ mixBlendMode: 'overlay' }}>
-              <ellipse
-                cx={leftEyePos.x}
-                cy={leftEyePos.y}
-                rx={4}
-                ry={3 * eyeOpenness}
-                fill="rgba(255, 255, 255, 0.15)"
-                style={{ transition: 'all 0.1s ease-out' }}
-              />
-              <ellipse
-                cx={rightEyePos.x}
-                cy={rightEyePos.y}
-                rx={4}
-                ry={3 * eyeOpenness}
-                fill="rgba(255, 255, 255, 0.15)"
-                style={{ transition: 'all 0.1s ease-out' }}
-              />
-            </g>
-
-            {/* Blink overlay */}
-            {eyeOpenness < 1 && (
-              <g className="blink-overlay">
-                <ellipse
-                  cx={35}
-                  cy={42}
-                  rx={6}
-                  ry={4}
-                  fill={`rgba(139, 85, 36, ${1 - eyeOpenness})`}
-                  style={{ transition: 'all 0.08s ease-out' }}
-                />
-                <ellipse
-                  cx={65}
-                  cy={42}
-                  rx={6}
-                  ry={4}
-                  fill={`rgba(139, 85, 36, ${1 - eyeOpenness})`}
-                  style={{ transition: 'all 0.08s ease-out' }}
-                />
-              </g>
-            )}
-
-            {/* Mouth animation overlay (fallback when no video) */}
-            {mouthOpenness > 0.05 && (
-              <g className="mouth-overlay">
-                <ellipse
-                  cx="50"
-                  cy={72 + mouthOpenness * 2}
-                  rx={8 + mouthOpenness * 4}
-                  ry={2 + mouthOpenness * 6}
-                  fill="rgba(80, 40, 40, 0.7)"
-                  style={{ transition: 'all 0.05s ease-out' }}
-                />
-                {mouthOpenness > 0.3 && (
-                  <ellipse
-                    cx="50"
-                    cy={71 + mouthOpenness * 2}
-                    rx={6 + mouthOpenness * 2}
-                    ry={1 + mouthOpenness * 2}
-                    fill="rgba(255, 255, 255, 0.6)"
-                  />
-                )}
-              </g>
-            )}
-
-            {/* Expression overlays */}
-            {expression.browRaise > 0.2 && (
-              <g className="expression-overlay" opacity={expression.browRaise * 0.5}>
-                <line x1="28" y1={36 - expression.browRaise * 3} x2="42" y2={34 - expression.browRaise * 3} 
-                  stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-                <line x1="58" y1={34 - expression.browRaise * 3} x2="72" y2={36 - expression.browRaise * 3} 
-                  stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-              </g>
-            )}
-
-            {expression.cheekRaise > 0.2 && (
-              <g className="cheek-highlights" opacity={expression.cheekRaise * 0.4}>
-                <ellipse cx="30" cy="55" rx="8" ry="5" fill="rgba(255, 180, 150, 0.3)" />
-                <ellipse cx="70" cy="55" rx="8" ry="5" fill="rgba(255, 180, 150, 0.3)" />
-              </g>
-            )}
           </g>
         )}
 
