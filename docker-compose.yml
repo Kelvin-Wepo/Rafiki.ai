@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rafiki-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # API Keys (set these in .env file)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - DIALOGFLOW_PROJECT_ID=${DIALOGFLOW_PROJECT_ID}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      
+      # SadTalker Configuration
+      - COLAB_SADTALKER_URL=${COLAB_SADTALKER_URL:-}
+      - SADTALKER_MODE=audio  # Options: colab, direct, audio
+      
+      # Other settings
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      
+    volumes:
+      # Mount assets directory for persistent storage
+      - ./backend/assets:/app/backend/assets
+      # Mount service account if exists
+      - ./backend/service-account.json:/app/backend/service-account.json:ro
+    restart: unless-stopped
+    networks:
+      - rafiki-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rafiki-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - rafiki-network
+
+networks:
+  rafiki-network:
+    driver: bridge
+
+volumes:
+  avatar-assets:

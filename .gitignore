@@ -122,4 +122,11 @@ service-account*.json
 # ================================
 # SadTalker (Large AI model files)
 # ================================
+SadTalker/
+sadtalker/
 
+# ================================
+# Docker
+# ================================
+.env
+docker-compose.override.yml
