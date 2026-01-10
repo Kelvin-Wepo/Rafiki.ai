@@ -80,7 +80,7 @@ torchvision==0.16.2
 torchaudio==2.1.2
 
 # Video Processing
-ffmpeg-python==0.2.1
+ffmpeg-python==0.2.0
 
 # Tensor Operations
 tensorboard==2.15.1
