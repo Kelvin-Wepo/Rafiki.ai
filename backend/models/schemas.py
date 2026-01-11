@@ -206,3 +206,109 @@ class TTSResponse(BaseModel):
     audio_data: str = Field(..., description="Base64 encoded audio")
     audio_format: str = Field(default="wav", description="Audio format")
     duration_seconds: Optional[float] = Field(None, description="Audio duration")
+
+
+# ============== KRA API Models ==============
+
+class KRAPINVerifyRequest(BaseModel):
+    """Request model for KRA PIN verification."""
+    pin: str = Field(..., description="KRA PIN to verify (format: A000000000X)", min_length=11, max_length=11)
+    
+    @validator('pin')
+    def validate_pin_format(cls, v):
+        """Validate KRA PIN format."""
+        if not v:
+            raise ValueError("KRA PIN is required")
+        
+        v = v.upper().strip()
+        
+        # Check first character (A for individuals, P for companies)
+        if v[0] not in ['A', 'P']:
+            raise ValueError("KRA PIN must start with 'A' (individual) or 'P' (company)")
+        
+        # Check middle 9 characters are digits
+        if not v[1:10].isdigit():
+            raise ValueError("KRA PIN must have 9 digits after the first letter")
+        
+        # Check last character is a letter
+        if not v[10].isalpha():
+            raise ValueError("KRA PIN must end with a letter")
+        
+        return v
+
+
+class KRAPINVerifyResponse(BaseModel):
+    """Response model for KRA PIN verification."""
+    success: bool = Field(..., description="Whether the request was successful")
+    pin: Optional[str] = Field(None, description="Verified PIN")
+    valid: Optional[bool] = Field(None, description="Whether the PIN is valid")
+    taxpayer_name: Optional[str] = Field(None, description="Name of taxpayer")
+    registration_date: Optional[str] = Field(None, description="PIN registration date")
+    status: Optional[str] = Field(None, description="Taxpayer status")
+    taxpayer_type: Optional[str] = Field(None, description="Type of taxpayer (individual/company)")
+    message: Optional[str] = Field(None, description="Response message")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+
+class KRAComplianceCheckRequest(BaseModel):
+    """Request model for KRA compliance check."""
+    pin: str = Field(..., description="KRA PIN to check compliance for", min_length=11, max_length=11)
+
+
+class KRAComplianceCheckResponse(BaseModel):
+    """Response model for KRA compliance check."""
+    success: bool = Field(..., description="Whether the request was successful")
+    pin: Optional[str] = Field(None, description="KRA PIN checked")
+    compliant: Optional[bool] = Field(None, description="Whether taxpayer is compliant")
+    compliance_status: Optional[str] = Field(None, description="Compliance status description")
+    outstanding_returns: Optional[List[str]] = Field(None, description="List of outstanding tax returns")
+    outstanding_taxes: Optional[float] = Field(None, description="Total outstanding taxes (KES)")
+    last_return_date: Optional[str] = Field(None, description="Date of last tax return filed")
+    certificate_valid: Optional[bool] = Field(None, description="Whether compliance certificate is valid")
+    message: Optional[str] = Field(None, description="Response message")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+
+class KRATaxpayerDetailsRequest(BaseModel):
+    """Request model for taxpayer details."""
+    pin: str = Field(..., description="KRA PIN", min_length=11, max_length=11)
+
+
+class KRATaxpayerDetailsResponse(BaseModel):
+    """Response model for taxpayer details."""
+    success: bool = Field(..., description="Whether the request was successful")
+    pin: Optional[str] = Field(None, description="KRA PIN")
+    taxpayer_name: Optional[str] = Field(None, description="Taxpayer name")
+    taxpayer_type: Optional[str] = Field(None, description="Taxpayer type")
+    registration_date: Optional[str] = Field(None, description="Registration date")
+    postal_address: Optional[str] = Field(None, description="Postal address")
+    physical_address: Optional[str] = Field(None, description="Physical address")
+    email: Optional[str] = Field(None, description="Email address")
+    phone: Optional[str] = Field(None, description="Phone number")
+    business_nature: Optional[str] = Field(None, description="Nature of business")
+    status: Optional[str] = Field(None, description="Account status")
+    message: Optional[str] = Field(None, description="Response message")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+
+class KRAComplianceCertificateRequest(BaseModel):
+    """Request model for compliance certificate."""
+    pin: str = Field(..., description="KRA PIN", min_length=11, max_length=11)
+    email: str = Field(..., description="Email to send certificate to")
+    
+    @validator('email')
+    def validate_email(cls, v):
+        """Validate email format."""
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
+            raise ValueError("Invalid email address format")
+        return v.lower()
+
+
+class KRAComplianceCertificateResponse(BaseModel):
+    """Response model for compliance certificate request."""
+    success: bool = Field(..., description="Whether the request was successful")
+    message: Optional[str] = Field(None, description="Response message")
+    request_id: Optional[str] = Field(None, description="Certificate request ID")
+    status: Optional[str] = Field(None, description="Request status")
+    estimated_time: Optional[str] = Field(None, description="Estimated processing time")
+    error: Optional[str] = Field(None, description="Error message if failed")
