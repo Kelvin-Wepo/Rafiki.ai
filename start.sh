@@ -1,10 +1,15 @@
 #!/bin/bash
+# Rafiki.ai - Backend Start Script
+# Starts backend server with all services (TTS, Dialogflow, ElevenLabs)
+# Run from project root: ./start.sh
 
-# Avatar Studio - Quick Start Script
-# Starts both backend and frontend servers
+set -e  # Exit on error
 
-echo "🎬 African Avatar Studio - Quick Start"
+echo "🚀 Starting Rafiki.ai Backend..."
 echo "========================================"
+
+# Navigate to project root
+cd "$(dirname "$0")"
 
 # Check Python
 if ! command -v python3 &> /dev/null; then
@@ -12,39 +17,41 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Check Node
-if ! command -v node &> /dev/null; then
-    echo "❌ Node.js not found. Please install Node.js 16+"
+# Activate virtual environment
+echo "📦 Activating virtual environment..."
+if [ -d "sadtalker" ]; then
+    source sadtalker/bin/activate
+else
+    echo "❌ Virtual environment not found. Run: python3 -m venv sadtalker"
     exit 1
 fi
 
-# Set API Key
-read -p "Enter your GEMINI_API_KEY (press Enter to skip): " GEMINI_KEY
-if [ -n "$GEMINI_KEY" ]; then
-    export GEMINI_API_KEY=$GEMINI_KEY
+# Set Google Cloud credentials for Dialogflow
+export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/backend/service-account.json"
+echo "🔐 Google Cloud credentials configured"
+
+# Check if .env file exists
+if [ ! -f ".env" ]; then
+    echo "⚠️  Warning: .env file not found in project root"
+    echo "   Copy .env.example to .env and configure your API keys"
 fi
 
 echo ""
-echo "Starting Backend Server..."
-echo "cd backend && python3 -m uvicorn main:app --reload"
-cd backend &
-BACKEND_PID=$!
-sleep 3
-
+echo "🌐 Starting uvicorn server on http://0.0.0.0:8000"
+echo "📚 API docs: http://localhost:8000/docs"
+echo "🏥 Health check: http://localhost:8000/health"
 echo ""
-echo "Starting Frontend Server..."
-echo "cd frontend && npm install && npm start"
-cd ../frontend &
-FRONTEND_PID=$!
-
+echo "✅ Services enabled:"
+echo "   - Google Gemini AI"
+echo "   - Dialogflow (conversation management)"
+echo "   - ElevenLabs TTS (natural voice)"
+echo "   - Speech Recognition"
+echo "   - SadTalker Avatar Animation"
 echo ""
-echo "✅ Servers starting..."
-echo "   Backend:  http://localhost:8000"
-echo "   Frontend: http://localhost:3000"
-echo "   API Docs: http://localhost:8000/docs"
-echo ""
-echo "Press Ctrl+C to stop both servers"
+echo "Press Ctrl+C to stop the server"
 echo ""
 
-# Keep script running
-wait
+# Navigate to backend and start server
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
