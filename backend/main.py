@@ -18,6 +18,7 @@ from routes import voice_router, booking_router, services_router, session_router
 from routes.avatar import router as avatar_router
 from routes.elevenlabs import router as elevenlabs_router
 from routes.avatar_animation import router as avatar_animation_router
+from routes.kra import router as kra_router
 from utils.logger import setup_logging, get_logger
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
@@ -26,6 +27,8 @@ from services.dialogflow_service import dialogflow_service
 from services.voice_service import voice_service
 from services.sms_service import sms_service
 from services.elevenlabs_service import elevenlabs_service
+from services.google_tts_service import google_tts_service
+from services.kra_service import kra_service
 
 # Setup logging
 setup_logging()
@@ -56,11 +59,39 @@ async def lifespan(app: FastAPI):
     # Initialize Voice Service
     voice_service.initialize()
     
+    # Initialize Google Cloud TTS Service (free, natural voice)
+    try:
+        google_tts_service.initialize()
+        logger.info("Google Cloud TTS service initialized successfully")
+    except Exception as e:
+        logger.warning(f"Google Cloud TTS initialization failed: {e}")
+    
+    # Initialize ElevenLabs Service (for high-quality TTS)
+    if settings.ELEVENLABS_API_KEY:
+        logger.info("ElevenLabs service initialized successfully")
+    else:
+        logger.warning("ElevenLabs API key not configured - TTS will use fallback")
+    
     # Initialize SMS Service
     if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:
         sms_service.initialize()
     else:
         logger.warning("Africa's Talking credentials not configured")
+    
+    # Initialize KRA Service
+    if settings.KRA_ENABLED and settings.KRA_CLIENT_ID and settings.KRA_CLIENT_SECRET:
+        try:
+            kra_service.initialize(
+                api_url=settings.KRA_API_URL,
+                client_id=settings.KRA_CLIENT_ID,
+                client_secret=settings.KRA_CLIENT_SECRET,
+                api_key=settings.KRA_API_KEY
+            )
+            logger.info("KRA service initialized successfully")
+        except Exception as e:
+            logger.warning(f"KRA service initialization failed: {e}")
+    else:
+        logger.info("KRA service not enabled (configure KRA_ENABLED=true and credentials)")
     
     # Start session cleanup task
     await session_manager.start_cleanup_task()
@@ -181,6 +212,7 @@ app.include_router(session_router)
 app.include_router(avatar_router)
 app.include_router(elevenlabs_router)
 app.include_router(avatar_animation_router)
+app.include_router(kra_router)
 
 
 # Health check endpoint

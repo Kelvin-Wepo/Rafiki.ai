@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     # eCitizen Services
     ECITIZEN_BASE_URL: str = "https://www.ecitizen.go.ke"
     
+    # KRA (Kenya Revenue Authority) API
+    KRA_API_URL: str = "https://itax.kra.go.ke/api"
+    KRA_CLIENT_ID: str = ""
+    KRA_CLIENT_SECRET: str = ""
+    KRA_API_KEY: Optional[str] = None
+    KRA_ENABLED: bool = False
+    
     # Extra fields from .env
     APP_ENV: str = "development"
     SECRET_KEY: str = "change-this-to-a-secure-random-string"
