@@ -356,17 +356,22 @@ class ElevenLabsService:
                     logger.error(f"{error_msg} - Detail: {error_detail}")
                 except:
                     logger.error(f"{error_msg} - Voice ID: {target_voice}")
-                return {
-                    "success": False,
-                    "error": error_msg
-                }
+                
+                # Try Google Cloud TTS fallback
+                logger.warning(f"ElevenLabs failed with {response.status_code}. Trying Google Cloud TTS fallback...")
+                return await self._google_tts_text_fallback(text, language)
                 
         except Exception as e:
             logger.error(f"TTS error: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            # Try Google Cloud TTS fallback on exception
+            try:
+                return await self._google_tts_text_fallback(text, language)
+            except Exception as fallback_error:
+                logger.error(f"Google Cloud TTS fallback also failed: {fallback_error}")
+                return {
+                    "success": False,
+                    "error": str(e)
+                }
     
     async def text_to_speech_file(
         self,
@@ -417,18 +422,107 @@ class ElevenLabsService:
                 logger.info(f"Generated TTS audio file (ElevenLabs): {temp_file.name}")
                 return temp_file.name
             
-            # ElevenLabs failed - try pyttsx3 fallback
-            logger.warning(f"ElevenLabs TTS failed: {result.get('error')}. Trying pyttsx3 fallback...")
-            return await self._pyttsx3_fallback(text)
+            # ElevenLabs failed - try Google Cloud TTS fallback
+            logger.warning(f"ElevenLabs TTS failed: {result.get('error')}. Trying Google Cloud TTS fallback...")
+            return await self._google_tts_fallback(text)
             
         except Exception as e:
             logger.error(f"TTS file generation error: {e}")
-            # Try fallback on any exception
+            # Try Google Cloud TTS fallback on any exception
             try:
-                return await self._pyttsx3_fallback(text)
+                return await self._google_tts_fallback(text)
             except Exception as fallback_error:
-                logger.error(f"pyttsx3 fallback also failed: {fallback_error}")
-                return None
+                logger.error(f"Google Cloud TTS fallback also failed: {fallback_error}")
+                # Final fallback to espeak
+                try:
+                    return await self._pyttsx3_fallback(text)
+                except Exception as final_error:
+                    logger.error(f"espeak fallback also failed: {final_error}")
+                    return None
+    
+    async def _google_tts_fallback(self, text: str) -> Optional[str]:
+        """
+        Generate TTS audio using Google Cloud TTS as fallback.
+        
+        Args:
+            text: Text to convert to speech
+            
+        Returns:
+            Path to the generated MP3 file, or None on error
+        """
+        try:
+            from services.google_tts_service import google_tts_service
+            
+            # Initialize if needed
+            if not google_tts_service._initialized:
+                google_tts_service.initialize()
+            
+            # Generate audio file
+            audio_file = await google_tts_service.text_to_speech_file(
+                text=text,
+                voice_name="en-US-Neural2-J",  # Warm male voice
+                language="en"
+            )
+            
+            if audio_file:
+                logger.info(f"Generated TTS audio file (Google Cloud fallback): {audio_file}")
+                return audio_file
+            
+            # If Google TTS fails, fall back to espeak
+            logger.warning("Google Cloud TTS fallback failed, trying espeak...")
+            return await self._pyttsx3_fallback(text)
+            
+        except Exception as e:
+            logger.error(f"Google Cloud TTS fallback error: {e}")
+            # Final fallback to espeak
+            return await self._pyttsx3_fallback(text)
+    
+    async def _google_tts_text_fallback(self, text: str, language: str = "en") -> Dict[str, Any]:
+        """
+        Generate TTS audio using Google Cloud TTS as fallback for text_to_speech method.
+        
+        Args:
+            text: Text to convert to speech
+            language: Language code
+            
+        Returns:
+            Dict with audio data (base64) or error
+        """
+        try:
+            from services.google_tts_service import google_tts_service
+            
+            # Initialize if needed
+            if not google_tts_service._initialized:
+                google_tts_service.initialize()
+            
+            # Generate audio
+            result = await google_tts_service.text_to_speech(
+                text=text,
+                voice_name="en-US-Neural2-J",  # Warm male voice
+                language=language
+            )
+            
+            if result.get("success"):
+                logger.info(f"Generated TTS audio using Google Cloud TTS fallback. Text: {len(text)} chars")
+                return {
+                    "success": True,
+                    "audio_data": result["audio_data"],
+                    "content_type": "audio/mp3",
+                    "text_length": len(text),
+                    "voice_name": "Google Cloud Neural2-J",
+                    "voice_id": "en-US-Neural2-J",
+                    "speech_type": "conversational",
+                    "language": language
+                }
+            else:
+                raise Exception(f"Google Cloud TTS returned error: {result.get('error')}")
+            
+        except Exception as e:
+            logger.error(f"Google Cloud TTS text fallback error: {e}")
+            return {
+                "success": False,
+                "error": f"All TTS methods failed. Last error: {str(e)}"
+            }
     
     async def _pyttsx3_fallback(self, text: str) -> Optional[str]:
         """
