@@ -20,6 +20,8 @@ class IntentDetector:
     INTENT_KRA_NIL_RETURNS = "kra_nil_returns"
     INTENT_KRA_PIN_RECOVERY = "kra_pin_recovery"
     INTENT_KRA_PIN_GENERATION = "kra_pin_generation"
+    INTENT_KRA_PIN_VERIFICATION = "kra_pin_verification"
+    INTENT_KRA_COMPLIANCE_CHECK = "kra_compliance_check"
     INTENT_ITAX_HELP = "itax_help"
     INTENT_SERVICE_INQUIRY = "service_inquiry"
     INTENT_BOOKING = "book_appointment"
@@ -47,6 +49,19 @@ class IntentDetector:
         'get pin', 'generate pin', 'create pin', 'new pin',
         'pin application', 'apply for pin', 'register for pin',
         'kra pin', 'pin number'
+    ]
+    
+    KRA_PIN_VERIFICATION_KEYWORDS = [
+        'verify pin', 'check pin', 'validate pin', 'confirm pin',
+        'pin valid', 'pin status', 'verify kra pin', 'check kra pin',
+        'is my pin valid', 'pin verification', 'verify my pin'
+    ]
+    
+    KRA_COMPLIANCE_KEYWORDS = [
+        'tax compliance', 'compliance status', 'compliance certificate',
+        'check compliance', 'am i compliant', 'tax compliant',
+        'outstanding tax', 'outstanding returns', 'kra compliance',
+        'compliance check', 'tax clearance'
     ]
     
     ITAX_KEYWORDS = [
