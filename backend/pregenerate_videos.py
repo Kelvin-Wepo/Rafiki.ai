@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 """
 Pre-generate common phrase videos for faster responses
 Run this during startup or low-traffic periods to build cache
