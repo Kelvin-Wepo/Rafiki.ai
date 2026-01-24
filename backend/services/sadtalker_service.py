@@ -33,12 +33,18 @@ CACHE_DIR = Path(__file__).parent.parent / "assets" / "avatar_cache"
 CHECKPOINT_DIR = os.getenv("SADTALKER_CHECKPOINT_DIR", "./checkpoints")
 SADTALKER_PATH = Path(__file__).parent.parent.parent / "SadTalker"
 
-# Performance optimization settings
-MAX_AUDIO_LENGTH = 10.0  # Maximum audio length in seconds (for speed)
-USE_256_MODEL = True  # Use 256x256 model instead of 512x512 for speed
+# Performance optimization settings - CPU OPTIMIZED for AMD Ryzen
+MAX_AUDIO_LENGTH = 10.0  # Maximum audio length in seconds (reduced for CPU)
+USE_256_MODEL = True  # Use 256x256 model for 2-3x speed improvement
 ENABLE_CACHING = True  # Enable video caching for common phrases
 CACHE_EXPIRY_HOURS = 24  # Cache videos for 24 hours
 USE_COLAB_IF_AVAILABLE = True  # Automatically use Colab GPU if configured
+
+# CPU-specific optimizations
+CPU_BATCH_SIZE = 1  # Batch size 1 is optimal for CPU memory management
+CPU_DISABLE_ENHANCER = True  # Disable enhancers on CPU (too slow)
+CPU_STILL_MODE_DEFAULT = True  # Still mode is faster
+CPU_FRAME_SKIP = 5  # Process every 5th frame, interpolate the rest (4x speedup)
 
 # Default African woman avatar image
 DEFAULT_AVATAR = "rafiki_avatar.png"
@@ -49,7 +55,7 @@ DEFAULT_REF_EYEBLINK = str(REF_VIDEO_DIR / "WDA_AlexandriaOcasioCortez_000.mp4")
 
 # Animation settings optimized for speed
 DEFAULT_SETTINGS = {
-    'still_mode': False,
+    'still_mode': True,  # Still mode is faster
     'preprocess': 'crop',  # 'crop' is faster than 'full'
     'expression_scale': 1.0,
     'pose_style': 0,

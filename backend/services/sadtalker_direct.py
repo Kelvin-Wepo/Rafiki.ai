@@ -11,10 +11,23 @@ from typing import Optional, Tuple
 
 # Add SadTalker to path
 SADTALKER_PATH = Path(__file__).parent.parent.parent / "SadTalker"
-# Use the actual venv path where packages are installed - SadTalker code is in /home/subchief/5TECH/SadTalker
-# but the Python environment with all packages is in /home/subchief/SadTalker/venv
+# Use the actual venv path where packages are installed
+# SadTalker code is in /home/subchief/5TECH/SadTalker
+# Python environment with all packages is in /home/subchief/SadTalker/venv
 SADTALKER_VENV_PYTHON = Path("/home/subchief/SadTalker/venv/bin/python")
+
+# Alternative venv path if the primary one doesn't exist
+SADTALKER_VENV_PYTHON_ALT = Path(__file__).parent.parent.parent / "sadtalker" / "bin" / "python"
+
 sys.path.insert(0, str(SADTALKER_PATH))
+
+def get_sadtalker_python() -> Path:
+    """Get the correct Python path for SadTalker venv"""
+    if SADTALKER_VENV_PYTHON.exists():
+        return SADTALKER_VENV_PYTHON
+    if SADTALKER_VENV_PYTHON_ALT.exists():
+        return SADTALKER_VENV_PYTHON_ALT
+    return Path(sys.executable)  # Fallback to current Python
 
 def check_sadtalker_available() -> bool:
     """Check if SadTalker is properly installed"""
@@ -31,14 +44,16 @@ def check_sadtalker_available() -> bool:
             print("   Run: cd SadTalker && bash scripts/download_models.sh")
             return False
         
-        # Check if venv Python exists
-        if not SADTALKER_VENV_PYTHON.exists():
-            print(f"❌ SadTalker venv Python not found at {SADTALKER_VENV_PYTHON}")
+        # Get the Python executable
+        venv_python = get_sadtalker_python()
+        
+        if not venv_python.exists():
+            print(f"❌ SadTalker venv Python not found at {venv_python}")
             return False
         
         # Check if torch is installed in venv using subprocess
         result = subprocess.run(
-            [str(SADTALKER_VENV_PYTHON), "-c", "import torch; print(torch.__version__)"],
+            [str(venv_python), "-c", "import torch; print(torch.__version__)"],
             capture_output=True,
             text=True,
             timeout=10
@@ -50,6 +65,7 @@ def check_sadtalker_available() -> bool:
             return False
         
         print(f"✅ PyTorch {result.stdout.strip()} available in SadTalker venv")
+        print(f"   Using Python: {venv_python}")
         return True
         
     except subprocess.TimeoutExpired:
@@ -65,12 +81,13 @@ def generate_video_direct(
     driven_audio: str,
     output_path: str,
     preprocess: str = 'crop',
-    still_mode: bool = False,
+    still_mode: bool = True,  # Default to True for faster generation
     expression_scale: float = 1.0,
     enhancer: bool = False,
     batch_size: int = 1,  # Reduced to 1 for stability
     size: int = 256,
-    pose_style: int = 0
+    pose_style: int = 0,
+    frame_skip: int = 5  # Process every 5th frame for 4x speedup
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Generate talking head video directly using SadTalker in its own venv
@@ -86,6 +103,7 @@ def generate_video_direct(
         batch_size: Batch size for generation
         size: Face model resolution (256 or 512)
         pose_style: Pose style (0-46)
+        frame_skip: Process every Nth frame (higher = faster, default 5 for 4x speedup)
     
     Returns:
         Tuple of (output_path, error_message)
@@ -116,20 +134,31 @@ def generate_video_direct(
         try:
             # Run SadTalker in its own venv
             runner_script = SADTALKER_PATH / "run_sadtalker.py"
+            venv_python = get_sadtalker_python()
             
             print(f"🎬 Generating video with SadTalker...")
             print(f"   Source: {source_image}")
             print(f"   Audio: {driven_audio}")
             print(f"   Settings: preprocess={preprocess}, still={still_mode}, scale={expression_scale}")
             print(f"   Size: {size}x{size}, Batch: {batch_size}, Enhancer: {enhancer}")
-            print(f"   ⏳ This may take 2-5 minutes on CPU...")
+            print(f"   Frame skip: {frame_skip} (process every {frame_skip}th frame)")
+            print(f"   Python: {venv_python}")
+            print(f"   ⏳ This may take 5-10 minutes on CPU with turbo mode...")
+            
+            # Set environment variables for CPU optimization
+            env = {
+                **os.environ, 
+                'PYTHONUNBUFFERED': '1',
+                'SADTALKER_FRAME_SKIP': str(frame_skip),
+                'SADTALKER_TURBO': '1'
+            }
             
             result = subprocess.run(
-                [str(SADTALKER_VENV_PYTHON), str(runner_script), config_file],
+                [str(venv_python), str(runner_script), config_file],
                 capture_output=True,
                 text=True,
-                timeout=600,  # 10 minutes timeout for CPU generation
-                env={**os.environ, 'PYTHONUNBUFFERED': '1'}  # Force unbuffered output
+                timeout=900,  # 15 minutes timeout for CPU generation
+                env=env
             )
             
             # Parse result
