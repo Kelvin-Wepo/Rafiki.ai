@@ -19,6 +19,7 @@ from routes.avatar import router as avatar_router
 from routes.elevenlabs import router as elevenlabs_router
 from routes.avatar_animation import router as avatar_animation_router
 from routes.kra import router as kra_router
+from routes.auth import router as auth_router
 from utils.logger import setup_logging, get_logger
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
@@ -205,6 +206,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers
+app.include_router(auth_router)
 app.include_router(voice_router)
 app.include_router(booking_router)
 app.include_router(services_router)
