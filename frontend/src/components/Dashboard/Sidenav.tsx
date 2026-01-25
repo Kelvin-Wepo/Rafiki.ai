@@ -2,6 +2,11 @@
  * Dashboard Sidenav Component
  * Main navigation sidebar for the dashboard.
  * 
+ * Responsive behavior:
+ * - Desktop (≥1024px): Fixed left sidebar, full height
+ * - Tablet (≥768px <1024px): Collapsible/narrower sidebar
+ * - Mobile (<768px): Off-canvas drawer with hamburger toggle
+ * 
  * Sections:
  * - New Conversation
  * - Conversation History
@@ -9,7 +14,7 @@
  * - User Profile / Logout
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import './Dashboard.css';
 
@@ -30,11 +35,35 @@ export function Sidenav({
 }: SidenavProps) {
   const { user, logout, isLoading } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const sidenavRef = useRef<HTMLElement>(null);
+  const firstFocusableRef = useRef<HTMLButtonElement>(null);
 
-  const handleSectionClick = (section: NavSection) => {
+  // Handle ESC key to close drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMobileOpen) {
+        onMobileClose?.();
+      }
+    };
+
+    if (isMobileOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      // Focus first item when drawer opens
+      setTimeout(() => firstFocusableRef.current?.focus(), 100);
+      // Prevent body scroll when drawer is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isMobileOpen, onMobileClose]);
+
+  const handleSectionClick = useCallback((section: NavSection) => {
     onSectionChange(section);
     onMobileClose?.();
-  };
+  }, [onSectionChange, onMobileClose]);
 
   const handleLogout = async () => {
     await logout();
@@ -75,12 +104,14 @@ export function Sidenav({
 
   return (
     <>
-      {/* Mobile overlay */}
-      {isMobileOpen && (
-        <div className="sidenav-overlay" onClick={onMobileClose} />
-      )}
-
-      <aside className={`sidenav ${isMobileOpen ? 'sidenav-open' : ''}`}>
+      <aside 
+        ref={sidenavRef}
+        id="sidenav"
+        className={`sidenav ${isMobileOpen ? 'sidenav-open' : ''}`}
+        role="navigation"
+        aria-label="Main navigation"
+        aria-hidden={!isMobileOpen}
+      >
         {/* Header */}
         <div className="sidenav-header">
           <div className="sidenav-logo">
@@ -95,6 +126,7 @@ export function Sidenav({
           
           {/* Mobile close button */}
           <button
+            ref={firstFocusableRef}
             className="sidenav-close"
             onClick={onMobileClose}
             aria-label="Close menu"

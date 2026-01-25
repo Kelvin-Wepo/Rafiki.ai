@@ -1,9 +1,14 @@
 /**
  * Dashboard Page Component
  * Main dashboard container that shows sidenav and content sections.
+ * 
+ * Responsive Layout:
+ * - Desktop (≥1024px): Fixed sidebar + main content
+ * - Tablet (≥768px <1024px): Collapsible sidebar
+ * - Mobile (<768px): Off-canvas drawer with top navbar
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Sidenav, ConversationHistory, TranscriptDownload } from '.';
 import type { NavSection } from '.';
@@ -21,6 +26,13 @@ export function Dashboard({ children }: DashboardProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Return focus to menu button when drawer closes
+  const handleMobileClose = useCallback(() => {
+    setIsMobileMenuOpen(false);
+    setTimeout(() => menuButtonRef.current?.focus(), 100);
+  }, []);
 
   /**
    * Create a new conversation.
@@ -223,26 +235,56 @@ export function Dashboard({ children }: DashboardProps) {
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         isMobileOpen={isMobileMenuOpen}
-        onMobileClose={() => setIsMobileMenuOpen(false)}
+        onMobileClose={handleMobileClose}
       />
 
       <main className="dashboard-main">
-        {/* Mobile Header */}
+        {/* Mobile/Tablet Header */}
         <header className="mobile-header">
           <button
+            ref={menuButtonRef}
             className="mobile-menu-btn"
             onClick={() => setIsMobileMenuOpen(true)}
             aria-label="Open menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="sidenav"
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
             </svg>
           </button>
-          <h1 className="mobile-title">Rafiki</h1>
+          
+          <div className="mobile-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="mobile-logo">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
+            </svg>
+            <div className="mobile-brand-text">
+              <h1 className="mobile-title">Rafiki</h1>
+              <span className="mobile-subtitle">Government Services</span>
+            </div>
+          </div>
+          
+          <button 
+            className="mobile-new-chat-btn"
+            onClick={handleNewConversation}
+            disabled={isCreatingConversation}
+            aria-label="New conversation"
+          >
+            {isCreatingConversation ? (
+              <span className="spinner-small" />
+            ) : (
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+              </svg>
+            )}
+            <span className="mobile-btn-text">New Chat</span>
+          </button>
         </header>
 
         <div className="dashboard-content">
-          {renderContent()}
+          <div className="content-container">
+            {renderContent()}
+          </div>
         </div>
       </main>
     </div>
