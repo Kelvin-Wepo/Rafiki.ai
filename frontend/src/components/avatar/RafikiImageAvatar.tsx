@@ -196,33 +196,6 @@ const RafikiImageAvatar: React.FC<RafikiImageAvatarProps> = ({
     }
   }, [currentEmotion, onEmotionChange]);
 
-  // Get current viseme for mouth animation
-  const currentViseme = useMemo(() => {
-    if (state === 'speaking' && audioData?.isSpeaking) {
-      return audioData.viseme;
-    }
-    return 'neutral';
-  }, [state, audioData]);
-
-  // Mouth openness based on viseme
-  const _mouthOpenness = useMemo(() => {
-    if (!audioData?.isSpeaking) return 0;
-    
-    const visemeOpenness: Record<Viseme, number> = {
-      neutral: 0,
-      aa: 0.9,
-      ee: 0.4,
-      oo: 0.7,
-      oh: 0.6,
-      consonant: 0.15,
-      th: 0.3,
-      ff: 0.2,
-      smile: 0.3
-    };
-    
-    return visemeOpenness[currentViseme] * (audioData?.amplitude || 0.5);
-  }, [currentViseme, audioData]);
-
   // Combined transformations
   const imageTransform = useMemo(() => {
     const breathScale = 1 + breathing.chestRise * 0.008;
@@ -238,25 +211,6 @@ const RafikiImageAvatar: React.FC<RafikiImageAvatarProps> = ({
       transformOrigin: 'center 60%'
     };
   }, [breathing, microMovement]);
-
-  // Eye positions for overlay
-  const _leftEyePos = useMemo(() => ({
-    x: 35 + eyePosition.x * 3 + microMovement.eyeShift.x * 2,
-    y: 42 + eyePosition.y * 2 + microMovement.eyeShift.y * 1.5
-  }), [eyePosition, microMovement.eyeShift]);
-
-  const _rightEyePos = useMemo(() => ({
-    x: 65 + eyePosition.x * 3 + microMovement.eyeShift.x * 2,
-    y: 42 + eyePosition.y * 2 + microMovement.eyeShift.y * 1.5
-  }), [eyePosition, microMovement.eyeShift]);
-
-  // Eye openness based on blink state and expression
-  const _eyeOpenness = useMemo(() => {
-    if (eyeState === 'closed') return 0;
-    if (eyeState === 'half') return 0.5;
-    if (eyeState === 'squint') return 0.4;
-    return 1 - expression.eyeSquint * 0.3;
-  }, [eyeState, expression.eyeSquint]);
 
   // Glow color and config
   const glowConfig = STATE_CONFIGS[state].glow;

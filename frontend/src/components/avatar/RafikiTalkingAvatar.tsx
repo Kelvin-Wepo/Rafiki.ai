@@ -245,33 +245,6 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
     }
   }, [onVideoEnd]);
 
-  // Get current viseme for mouth animation (fallback)
-  const currentViseme = useMemo(() => {
-    if (state === 'speaking' && audioData?.isSpeaking && !showVideo) {
-      return audioData.viseme;
-    }
-    return 'neutral';
-  }, [state, audioData, showVideo]);
-
-  // Mouth openness based on viseme (fallback when no video)
-  const _mouthOpenness = useMemo(() => {
-    if (showVideo || !audioData?.isSpeaking) return 0;
-    
-    const visemeOpenness: Record<Viseme, number> = {
-      neutral: 0,
-      aa: 0.9,
-      ee: 0.4,
-      oo: 0.7,
-      oh: 0.6,
-      consonant: 0.15,
-      th: 0.3,
-      ff: 0.2,
-      smile: 0.3
-    };
-    
-    return visemeOpenness[currentViseme] * (audioData?.amplitude || 0.5);
-  }, [currentViseme, audioData, showVideo]);
-
   // Combined transformations for image
   const imageTransform = useMemo(() => {
     if (showVideo) return {}; // No transform when showing video
@@ -289,26 +262,6 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
       transformOrigin: 'center 60%'
     };
   }, [breathing, microMovement, showVideo]);
-
-  // Eye positions for overlay
-  const _leftEyePos = useMemo(() => ({
-    x: 35 + eyePosition.x * 3 + microMovement.eyeShift.x * 2,
-    y: 42 + eyePosition.y * 2 + microMovement.eyeShift.y * 1.5
-  }), [eyePosition, microMovement.eyeShift]);
-
-  const _rightEyePos = useMemo(() => ({
-    x: 65 + eyePosition.x * 3 + microMovement.eyeShift.x * 2,
-    y: 42 + eyePosition.y * 2 + microMovement.eyeShift.y * 1.5
-  }), [eyePosition, microMovement.eyeShift]);
-
-  // Eye openness based on blink state and expression
-  const _eyeOpenness = useMemo(() => {
-    if (showVideo) return 1; // Let video handle eyes
-    if (eyeState === 'closed') return 0;
-    if (eyeState === 'half') return 0.5;
-    if (eyeState === 'squint') return 0.4;
-    return 1 - expression.eyeSquint * 0.3;
-  }, [eyeState, expression.eyeSquint, showVideo]);
 
   // Glow color and config
   const glowConfig = STATE_CONFIGS[state].glow;
