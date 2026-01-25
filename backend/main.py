@@ -79,6 +79,15 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Africa's Talking credentials not configured")
     
+    # Initialize Database
+    try:
+        from database import init_db
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        # Continue running - some features may work without DB
+    
     # Initialize KRA Service
     if settings.KRA_ENABLED and settings.KRA_CLIENT_ID and settings.KRA_CLIENT_SECRET:
         try:
@@ -104,6 +113,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down...")
     await session_manager.stop_cleanup_task()
+    
+    # Close database connections
+    try:
+        from database import close_db
+        await close_db()
+    except Exception as e:
+        logger.warning(f"Database close error: {e}")
+    
     logger.info("Shutdown complete")
 
 

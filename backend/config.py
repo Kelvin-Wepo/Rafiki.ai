@@ -79,10 +79,15 @@ class Settings(BaseSettings):
     KRA_API_KEY: Optional[str] = None
     KRA_ENABLED: bool = False
     
+    # Database Settings
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rafiki"
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    DB_ECHO: bool = False  # Set to True for SQL query logging
+    
     # Extra fields from .env
     APP_ENV: str = "development"
     SECRET_KEY: str = "change-this-to-a-secure-random-string"
-    DATABASE_URL: str = "sqlite:///./ecitizen.db"
     SESSION_TIMEOUT_MINUTES: int = 30
     
     class Config:

@@ -28,10 +28,11 @@ africastalking==1.2.5
 httpx==0.26.0
 aiohttp==3.9.1
 
-# Database (SQLite for development, PostgreSQL for production)
-sqlalchemy==2.0.25
-aiosqlite==0.19.0
-# psycopg2-binary==2.9.9  # Uncomment for PostgreSQL
+# Database (PostgreSQL with async support)
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+greenlet==3.0.3
+psycopg2-binary==2.9.9  # For migrations/sync operations
 
 # Security
 python-jose[cryptography]==3.3.0

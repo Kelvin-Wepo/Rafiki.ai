@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rafiki-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rafiki
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - rafiki-network
+
   backend:
     build:
       context: .
@@ -9,13 +30,15 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Database
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/rafiki
+      
       # API Keys (set these in .env file)
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - DIALOGFLOW_PROJECT_ID=${DIALOGFLOW_PROJECT_ID}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - AFRICASTALKING_USERNAME=${AFRICASTALKING_USERNAME:-sandbox}
+      - AFRICASTALKING_API_KEY=${AFRICASTALKING_API_KEY}
       
       # SadTalker Configuration
       - COLAB_SADTALKER_URL=${COLAB_SADTALKER_URL:-}
@@ -29,6 +52,9 @@ services:
       - ./backend/assets:/app/backend/assets
       # Mount service account if exists
       - ./backend/service-account.json:/app/backend/service-account.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - rafiki-network
@@ -53,4 +79,5 @@ networks:
     driver: bridge
 
 volumes:
+  postgres_data:
   avatar-assets:
