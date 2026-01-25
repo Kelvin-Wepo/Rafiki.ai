@@ -205,7 +205,7 @@ const RafikiImageAvatar: React.FC<RafikiImageAvatarProps> = ({
   }, [state, audioData]);
 
   // Mouth openness based on viseme
-  const mouthOpenness = useMemo(() => {
+  const _mouthOpenness = useMemo(() => {
     if (!audioData?.isSpeaking) return 0;
     
     const visemeOpenness: Record<Viseme, number> = {
@@ -240,18 +240,18 @@ const RafikiImageAvatar: React.FC<RafikiImageAvatarProps> = ({
   }, [breathing, microMovement]);
 
   // Eye positions for overlay
-  const leftEyePos = useMemo(() => ({
+  const _leftEyePos = useMemo(() => ({
     x: 35 + eyePosition.x * 3 + microMovement.eyeShift.x * 2,
     y: 42 + eyePosition.y * 2 + microMovement.eyeShift.y * 1.5
   }), [eyePosition, microMovement.eyeShift]);
 
-  const rightEyePos = useMemo(() => ({
+  const _rightEyePos = useMemo(() => ({
     x: 65 + eyePosition.x * 3 + microMovement.eyeShift.x * 2,
     y: 42 + eyePosition.y * 2 + microMovement.eyeShift.y * 1.5
   }), [eyePosition, microMovement.eyeShift]);
 
   // Eye openness based on blink state and expression
-  const eyeOpenness = useMemo(() => {
+  const _eyeOpenness = useMemo(() => {
     if (eyeState === 'closed') return 0;
     if (eyeState === 'half') return 0.5;
     if (eyeState === 'squint') return 0.4;

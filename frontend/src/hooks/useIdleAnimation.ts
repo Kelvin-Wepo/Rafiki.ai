@@ -22,9 +22,9 @@ export const useIdleAnimation = (config: IdleAnimationConfig = {}) => {
   const [shouldBlink, setShouldBlink] = useState(false);
   const [headTilt, setHeadTilt] = useState({ x: 0, y: 0 });
   
-  const idleTimerRef = useRef<NodeJS.Timeout>();
-  const blinkTimerRef = useRef<NodeJS.Timeout>();
-  const movementTimerRef = useRef<NodeJS.Timeout>();
+  const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const blinkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const movementTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
 
   // Reset activity timestamp

@@ -357,7 +357,7 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
               {lastResponse.suggested_actions && lastResponse.suggested_actions.length > 0 && (
                 <div className="px-4 mt-3 w-full max-w-2xl mx-auto">
                   <div className="flex flex-wrap gap-2 justify-center">
-                    {lastResponse.suggested_actions.map((action, index) => (
+                    {lastResponse.suggested_actions.map((action: string, index: number) => (
                       <button
                         key={index}
                         onClick={() => handleSendMessage(action)}
