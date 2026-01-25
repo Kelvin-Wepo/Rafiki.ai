@@ -1,24 +1,21 @@
-# Rafiki AI - Talking Avatar Backend
+# Rafiki AI - Production Backend for Render
 FROM python:3.10-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
+# Install system dependencies (minimal for production)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsm6 \
     libxext6 \
-    libxrender-dev \
-    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (for caching)
-COPY backend/requirements.txt .
+# Copy production requirements
+COPY backend/requirements-prod.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-prod.txt
 
 # Copy backend code
 COPY backend/ ./backend/

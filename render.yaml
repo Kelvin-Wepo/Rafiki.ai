@@ -7,7 +7,7 @@ services:
     plan: free
     buildCommand: |
       pip install --upgrade pip
-      pip install -r backend/requirements.txt
+      pip install -r backend/requirements-prod.txt
     startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION

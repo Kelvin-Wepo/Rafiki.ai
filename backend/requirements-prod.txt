@@ -1,0 +1,61 @@
+# Production Dependencies for Rafiki.ai - Render Deployment
+# Excludes packages requiring native compilation (pyaudio, dlib, etc.)
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Pydantic for data validation
+pydantic==2.10.3
+pydantic-settings==2.1.0
+
+# Google AI Services
+google-generativeai==0.3.2
+google-cloud-dialogflow==2.27.0
+google-cloud-texttospeech==2.33.0
+google-auth==2.26.2
+
+# Voice Processing (web-based only, no pyaudio)
+SpeechRecognition==3.10.1
+
+# Africa's Talking SMS Integration
+africastalking==1.2.5
+
+# HTTP Client
+httpx==0.26.0
+aiohttp==3.9.1
+
+# Database
+sqlalchemy==2.0.25
+aiosqlite==0.19.0
+
+# Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Logging
+structlog==24.1.0
+
+# Rate Limiting
+slowapi==0.1.9
+
+# CORS
+starlette==0.35.1
+
+# Audio/Image Processing
+numpy==1.26.3
+scipy==1.12.0
+pillow==10.1.0
+
+# Video Processing
+ffmpeg-python==0.2.0
+
+# Production Server
+gunicorn==21.2.0
+
+# ElevenLabs TTS
+elevenlabs==0.2.27
