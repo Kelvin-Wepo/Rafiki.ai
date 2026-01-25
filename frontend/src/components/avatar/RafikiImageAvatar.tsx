@@ -157,17 +157,16 @@ const RafikiImageAvatar: React.FC<RafikiImageAvatarProps> = ({
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
 
   // Animation hooks
-  const { eyeState } = useBlinking({ avatarState: state });
+  useBlinking({ avatarState: state });
   const microMovement = useMicroMovements({ avatarState: state });
   const { breathing } = useBreathing({ avatarState: state });
-  const { eyePosition } = useEyeTracking({ 
+  useEyeTracking({ 
     containerRef: containerRef as React.RefObject<HTMLElement>, 
     followCursor,
     avatarState: state 
   });
   const { 
     currentEmotion, 
-    expression, 
     setEmotion 
   } = useEmotions({ avatarState: state });
 
