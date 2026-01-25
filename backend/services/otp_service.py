@@ -297,14 +297,15 @@ class OTPService:
         """
         message = f"Your Rafiki.ai verification code is: {otp}. Valid for {self.OTP_EXPIRY_MINUTES} minutes. Do not share this code."
         
+        # Always log the OTP for debugging (remove in real production with actual SMS)
+        logger.info(f"🔐 OTP GENERATED - Phone: {phone_number}, OTP: {otp}")
+        print(f"\n{'='*60}")
+        print(f"🔐 OTP for {phone_number}: {otp}")
+        print(f"{'='*60}\n", flush=True)
+        
         # If SMS client not available, simulate
         if not self._sms_client:
-            logger.info(f"[SIMULATION] OTP SMS to {phone_number}: {otp}")
-            # In development, also log the OTP for testing
-            if self.settings.ENVIRONMENT == "development":
-                print(f"\n{'='*50}")
-                print(f"📱 OTP for {phone_number}: {otp}")
-                print(f"{'='*50}\n")
+            logger.info(f"[SIMULATION MODE] OTP SMS would be sent to {phone_number}")
             return {"success": True, "simulated": True}
         
         try:
