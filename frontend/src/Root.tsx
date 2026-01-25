@@ -3,47 +3,95 @@
  * Wraps the main app with AuthProvider and handles auth routing.
  */
 
-
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginForm, OTPVerification } from './components/Auth';
-import { Dashboard } from './components/Dashboard';
-
-// Import original App for the main functionality
-import OriginalApp from './App';
+import { MainLayout } from './components/Layout';
 
 /**
- * Auth wrapper that conditionally renders login or main app.
+ * Loading Screen Component
  */
-function AuthenticatedApp() {
-  const { isAuthenticated, isLoading, isVerifying, pendingPhone } = useAuth();
-
-  // Show loading state while validating token
-  if (isLoading && !isVerifying) {
-    return (
-      <div className="auth-loading">
-        <div className="auth-loading-content">
-          <div className="auth-loading-spinner" />
-          <p>Verifying session...</p>
-        </div>
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-cyan-400 border-t-transparent animate-spin" />
+        <p className="text-slate-400">Verifying session...</p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // Show OTP verification screen
+/**
+ * Protected Route Wrapper
+ */
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+}
+
+/**
+ * Auth Route Wrapper - redirects to home if already authenticated
+ */
+function AuthRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+  
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+}
+
+/**
+ * Main App Router with all routes
+ */
+function AppRouter() {
+  const { user, logout, isVerifying, pendingPhone } = useAuth();
+
+  // Show OTP verification if in verifying state
   if (isVerifying && pendingPhone) {
     return <OTPVerification />;
   }
 
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
-    return <LoginForm />;
-  }
-
-  // Show main dashboard with original app as content
   return (
-    <Dashboard>
-      <OriginalApp />
-    </Dashboard>
+    <Routes>
+      {/* Auth Routes */}
+      <Route
+        path="/login"
+        element={
+          <AuthRoute>
+            <LoginForm />
+          </AuthRoute>
+        }
+      />
+
+      {/* Protected Routes */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <MainLayout user={user} onLogout={logout} />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Catch all - redirect to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
@@ -52,9 +100,11 @@ function AuthenticatedApp() {
  */
 function Root() {
   return (
-    <AuthProvider>
-      <AuthenticatedApp />
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
