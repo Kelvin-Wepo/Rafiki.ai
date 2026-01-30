@@ -89,3 +89,12 @@ tensorboard==2.15.1
 
 # Production Server
 gunicorn==21.2.0
+
+# RAG System Dependencies
+chromadb==0.4.22
+langchain==0.1.0
+langchain-google-genai==0.0.11
+pypdf==3.17.4
+beautifulsoup4==4.12.3
+tiktoken==0.5.2
+sentence-transformers==2.2.2

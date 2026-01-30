@@ -90,6 +90,19 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-this-to-a-secure-random-string"
     SESSION_TIMEOUT_MINUTES: int = 30
     
+    # RAG System Configuration
+    RAG_VECTOR_DB_PATH: str = "./backend/data/chroma_db"
+    RAG_CHUNK_SIZE: int = 1000
+    RAG_CHUNK_OVERLAP: int = 200
+    RAG_TOP_K: int = 5
+    RAG_SIMILARITY_THRESHOLD: float = 0.7
+    GOOGLE_API_KEY: str = ""  # For embeddings (same as Gemini)
+    
+    @property
+    def BASE_DIR(self) -> Path:
+        """Get the base directory of the project"""
+        return Path(__file__).parent.parent
+    
     class Config:
         env_file = str(Path(__file__).parent.parent / ".env")
         env_file_encoding = "utf-8"

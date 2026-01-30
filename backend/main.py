@@ -20,6 +20,7 @@ from routes.elevenlabs import router as elevenlabs_router
 from routes.avatar_animation import router as avatar_animation_router
 from routes.kra import router as kra_router
 from routes.auth import router as auth_router
+from routes.rag_routes import router as rag_router
 from utils.logger import setup_logging, get_logger
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
@@ -232,6 +233,7 @@ app.include_router(avatar_router)
 app.include_router(elevenlabs_router)
 app.include_router(avatar_animation_router)
 app.include_router(kra_router)
+app.include_router(rag_router)
 
 
 # Health check endpoint
