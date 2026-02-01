@@ -49,13 +49,17 @@ class RedisFraudService:
     # Core primitives
     def record_event(self, key: str) -> None:
         k = self._events_key(key)
-        now = self._now()
-        # Use a sorted set where score = timestamp, member can be the timestamp
+        # Use seconds for the score so pruning logic using windows (seconds) works.
+        now_s = int(time.time())
+        # Use high-resolution timestamp as member to ensure uniqueness when multiple
+        # events occur within the same second (avoids being collapsed by zset uniqueness)
+        now_ns = time.time_ns()
         try:
-            self.redis.zadd(k, {str(now): now})
+            # member -> score mapping
+            self.redis.zadd(k, {str(now_ns): now_s})
             # Set an expiry slightly longer than the maximum window we might query
             self.redis.expire(k, 24 * 3600)
-            logger.debug(f"RedisFraudService: recorded event {key} @ {now}")
+            logger.debug(f"RedisFraudService: recorded event {key} @ {now_s} (member {now_ns})")
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Failed to write event to redis: %s", exc)
 
