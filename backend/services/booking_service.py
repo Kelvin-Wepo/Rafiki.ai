@@ -42,6 +42,7 @@ class Booking:
         """Convert booking to dictionary."""
         service_info = GOVERNMENT_SERVICES.get(self.service_type.value, {})
         return {
+            "id": self.booking_id,
             "booking_id": self.booking_id,
             "service_type": self.service_type.value,
             "service_name": service_info.get("name", self.service_type.value),
@@ -156,6 +157,7 @@ class BookingService:
             
             return {
                 "success": True,
+                "booking_id": booking.booking_id,
                 "booking": booking.to_dict(),
                 "sms_sent": sms_result.get("success", False),
                 "message": f"Your appointment for {GOVERNMENT_SERVICES[service_type.value]['name']} "
@@ -204,8 +206,8 @@ class BookingService:
         """
         booking = self._bookings.get(booking_id.upper())
         if booking:
-            return booking.to_dict()
-        return None
+            return {"success": True, "booking": booking.to_dict()}
+        return {"success": False, "error": "Booking not found"}
     
     async def get_user_bookings(
         self,
@@ -233,7 +235,7 @@ class BookingService:
         
         # Sort by date, most recent first
         bookings.sort(key=lambda x: x["appointment_date"], reverse=True)
-        return bookings
+        return {"success": True, "bookings": bookings}
     
     async def cancel_booking(
         self,
@@ -345,20 +347,14 @@ class BookingService:
             "message": "Your booking has been updated successfully."
         }
     
-    def get_available_dates(
+    async def get_available_dates(
         self,
         service_type: ServiceType,
         days_ahead: int = 30
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Get available dates for booking.
-        
-        Args:
-            service_type: Type of service
-            days_ahead: Number of days to check
-        
-        Returns:
-            List of available dates with time slots
+        Returns a wrapper dict with success and available_dates.
         """
         available = []
         today = date.today()
@@ -386,7 +382,7 @@ class BookingService:
                 }
             })
         
-        return available
+        return {"success": True, "available_dates": available}
     
     def get_service_info(self, service_type: str) -> Optional[Dict[str, Any]]:
         """
@@ -400,15 +396,9 @@ class BookingService:
         """
         return GOVERNMENT_SERVICES.get(service_type)
     
-    def get_all_services(self) -> List[Dict[str, Any]]:
-        """Get all available services."""
-        return [
-            {
-                "type": key,
-                **value
-            }
-            for key, value in GOVERNMENT_SERVICES.items()
-        ]
+    def get_all_services(self) -> Dict[str, Dict[str, Any]]:
+        """Get all available services as a dict keyed by service type."""
+        return {key: value for key, value in GOVERNMENT_SERVICES.items()}
 
 
 # Global service instance
