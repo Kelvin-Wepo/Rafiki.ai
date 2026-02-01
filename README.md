@@ -109,6 +109,21 @@ COLAB_SADTALKER_URL=https://your-ngrok-url.ngrok-free.app
 HOST=0.0.0.0
 PORT=8000
 DEBUG=true
+
+# Optional: Redis for fraud detection
+# If you want to use Redis to back the rate-limiting/blocklist store for
+# OTP/fraud checks set:
+# FRAUD_REDIS_URL=redis://localhost:6379/0
+#
+# Then, in your app startup (backend), create a redis client and wire the
+# service example:
+#
+# from redis import Redis
+# from services.fraud_service_redis import create_redis_fraud_service
+# from services.fraud_service import set_fraud_service
+#
+# r = Redis.from_url(os.environ.get("FRAUD_REDIS_URL"))
+# set_fraud_service(create_redis_fraud_service(r))
 ```
 
 #### 4. Start Backend Server
