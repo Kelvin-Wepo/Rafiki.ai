@@ -54,6 +54,8 @@ starlette==0.35.1
 pytest==7.4.4
 pytest-asyncio==0.23.3
 httpx==0.26.0
+# For Redis-backed fraud service tests (optional in CI)
+fakeredis==2.22.0
 
 # Development
 black==24.1.0
