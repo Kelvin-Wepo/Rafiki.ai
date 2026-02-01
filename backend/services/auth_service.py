@@ -145,6 +145,23 @@ class AuthService:
         # Check if user exists
         is_new_user = phone_hash not in self._users_by_phone
         
+        # Fraud checks (rate limit OTP requests)
+        from services.fraud_service import get_fraud_service as _get_fraud_service
+        fraud = _get_fraud_service()
+
+        otp_check = fraud.check_otp_request(phone_number)
+        if not otp_check["allow"]:
+            # Log audit event and return rate-limited response
+            self._log_audit_event(
+                "otp_request_rate_limited",
+                phone_hash=hash_value(phone_number),
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                metadata={"retry_after": otp_check.get("retry_after")}
+            )
+            return {"success": False, "error": "rate_limited", "message": "Too many OTP requests. Please try again later."}
+
         # Request OTP (import at call time so tests can patch services.otp_service.get_otp_service)
         from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
@@ -165,7 +182,10 @@ class AuthService:
         else:
             # Unknown OTP method contract
             return {"success": False, "error": "OTP service does not support sending OTP"}
-        
+
+        # Record the OTP request (successful or not) so fraud counters capture attempts
+        fraud.record_otp_request(phone_number)
+
         if otp_result["success"]:
             self._log_audit_event(
                 "login_initiated",
@@ -205,6 +225,21 @@ class AuthService:
             Auth result with JWT token if successful
         """
         # Verify OTP (import at call time so tests can patch services.otp_service.get_otp_service)
+        # Before verifying, check if this phone is blocked due to many recent failures
+        from services.fraud_service import get_fraud_service as _get_fraud_service
+        fraud = _get_fraud_service()
+        fail_check = fraud.check_otp_failures(phone_number)
+        if not fail_check["allow"]:
+            self._log_audit_event(
+                "otp_verify_blocked",
+                phone_hash=hash_value(phone_number),
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                metadata={"retry_after": fail_check.get("retry_after")}
+            )
+            return {"success": False, "error": "blocked", "message": "Too many failed OTP attempts. Try later."}
+
         from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
         verify_result = await otp_service.verify_otp(
@@ -214,7 +249,9 @@ class AuthService:
             user_agent=user_agent
         )
         
+        # If verification failed, record the failure for rate limiting
         if not verify_result["success"]:
+            fraud.record_otp_failure(phone_number)
             return verify_result
         
         phone_hash = hash_value(phone_number)
