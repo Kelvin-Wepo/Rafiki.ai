@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 from pydantic import BaseModel
 
-from services.elevenlabs_service import elevenlabs_service
+from backend.services.elevenlabs_service import elevenlabs_service
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -172,7 +172,7 @@ async def get_agent_info(
 )
 async def health_check():
     """Check ElevenLabs service health."""
-    from config import get_settings
+    from backend.config import get_settings
     settings = get_settings()
     
     return {

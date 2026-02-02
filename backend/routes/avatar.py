@@ -11,7 +11,7 @@ import tempfile
 import os
 import logging
 
-from services.sadtalker_service import get_sadtalker_service
+from backend.services.sadtalker_service import get_sadtalker_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/avatar", tags=["avatar"])

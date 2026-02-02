@@ -11,9 +11,9 @@ from typing import Optional, Dict, Any, Tuple
 from collections import defaultdict
 import asyncio
 
-from config import get_settings
-from utils.logger import get_logger
-from models.user import (
+from backend.config import get_settings
+from backend.utils.logger import get_logger
+from backend.models.user import (
     OTPRecord, OTPStatus, AuthAuditLog,
     hash_value, generate_otp_id, generate_audit_id
 )

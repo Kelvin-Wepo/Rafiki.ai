@@ -127,14 +127,11 @@ export const RafikiSadTalkerAvatar = forwardRef<HTMLDivElement, RafikiSadTalkerA
         });
       };
       
-      const handleLoadedMetadata = () => {
-        // Ensure audio track is enabled
-        if (video.audioTracks && video.audioTracks.length > 0) {
-          video.audioTracks[0].enabled = true;
-        }
-        video.muted = false;
-        video.volume = 1.0;
-      };
+        const handleLoadedMetadata = () => {
+          // Ensure audio is enabled (audioTracks API is deprecated)
+          video.muted = false;
+          video.volume = 1.0;
+        };
       
       video.addEventListener('canplay', handleCanPlay, { once: true });
       video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });

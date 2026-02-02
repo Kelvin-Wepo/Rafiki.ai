@@ -48,7 +48,6 @@ interface RafikiTalkingAvatarProps {
   // SadTalker video props
   videoUrl?: string | null;
   audioUrl?: string | null;  // Audio fallback when video not available
-  isVideoPlaying?: boolean;
   onVideoEnd?: () => void;
 }
 
@@ -160,7 +159,6 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
   onEmotionChange,
   videoUrl,
   audioUrl,
-  isVideoPlaying = false,
   onVideoEnd
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);

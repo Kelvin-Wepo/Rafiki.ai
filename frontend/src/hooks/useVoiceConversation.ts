@@ -159,7 +159,7 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
   }, [updateState]);
 
   // Process user input (text or voice)
-  const processInput = useCallback(async (input: string, isVoice: boolean = false) => {
+  const processInput = useCallback(async (input: string) => {
     if (!input.trim()) return;
 
     // Add user message
@@ -176,7 +176,7 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
       const response = await voiceApi.sendMessage(input, currentSessionId, language);
 
       // Add assistant response
-      const assistantMessage = addMessage('assistant', response.text);
+      addMessage('assistant', response.text);
 
       // Speak the response
       if (autoSpeak && response.text) {
@@ -225,7 +225,7 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
       startAudioLevelMonitoring();
     };
 
-    recognitionRef.current.onresult = (event) => {
+    recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
       let interimTranscript = '';
       let finalTranscript = '';
 
@@ -242,11 +242,11 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
 
       // If we have a final result, process it
       if (finalTranscript) {
-        processInput(finalTranscript, true);
+        processInput(finalTranscript);
       }
     };
 
-    recognitionRef.current.onerror = (event) => {
+    recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
       stopAudioLevelMonitoring();
@@ -333,7 +333,7 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
 
   // Send text message
   const sendMessage = useCallback(async (text: string) => {
-    return processInput(text, false);
+    return processInput(text);
   }, [processInput]);
 
   // Clear conversation
@@ -389,10 +389,55 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
 }
 
 // Type declarations for Web Speech API
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+}
+
+interface SpeechRecognitionEvent {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionErrorEvent {
+  error: string;
+  message: string;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: {
+      new (): SpeechRecognition;
+    };
+    webkitSpeechRecognition: {
+      new (): SpeechRecognition;
+    };
   }
 }
 

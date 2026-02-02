@@ -6,8 +6,8 @@ Handles language detection, preference setting, and multilingual support.
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
-from services.language_service import language_detector
-from utils.logger import get_logger
+from backend.services.language_service import language_detector
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

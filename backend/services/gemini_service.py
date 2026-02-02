@@ -5,7 +5,7 @@ Integrated with Rafiki copilot platform for government service navigation.
 
 import json
 from typing import Dict, Any, Optional, List
-import google.generativeai as genai
+import google.genai as genai
 
 from backend.config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
 from backend.utils.logger import get_logger

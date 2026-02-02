@@ -4,7 +4,7 @@ Test ElevenLabs API Key validity
 """
 import asyncio
 import httpx
-from config import get_settings
+from backend.config import get_settings
 
 async def test_elevenlabs_api():
     settings = get_settings()

@@ -5,7 +5,7 @@ Services information API endpoints.
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 
-from models.schemas import ServiceType, ServiceInfoResponse, ServicesListResponse
+from backend.models.schemas import ServiceType, ServiceInfoResponse, ServicesListResponse
 from backend.services.booking_service import booking_service
 from backend.config import GOVERNMENT_SERVICES
 from backend.utils.logger import get_logger

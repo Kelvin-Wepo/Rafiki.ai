@@ -6,16 +6,16 @@ from datetime import date, datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 
-from models.schemas import (
+from backend.models.schemas import (
     BookingRequest,
     BookingResponse,
     ServiceType,
     TimeSlot,
     BookingStatus
 )
-from services.booking_service import booking_service
-from utils.rate_limiter import rate_limiter
-from utils.logger import get_logger, RequestLogger
+from backend.services.booking_service import booking_service
+from backend.utils.rate_limiter import rate_limiter
+from backend.utils.logger import get_logger, RequestLogger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/booking", tags=["Booking"])

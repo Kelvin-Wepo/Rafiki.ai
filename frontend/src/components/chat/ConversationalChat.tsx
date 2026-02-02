@@ -14,7 +14,6 @@ interface ConversationalChatProps {
 }
 
 export default function ConversationalChat({
-  sessionId: externalSessionId,
   onSessionChange,
   className = ''
 }: ConversationalChatProps) {
@@ -32,10 +31,8 @@ export default function ConversationalChat({
     audioLevel,
     startListening,
     stopListening,
-    sendTextMessage,
+    sendMessage,
     stopSpeaking,
-    clearMessages,
-    setLanguage: updateLanguage,
   } = useVoiceConversation({
     language,
     autoSpeak: !isMuted,
@@ -66,7 +63,7 @@ export default function ConversationalChat({
   const toggleLanguage = () => {
     const newLang = language === 'en-KE' ? 'sw-KE' : 'en-KE';
     setLanguage(newLang);
-    updateLanguage(newLang);
+    setLanguage(newLang);
   };
 
   // Handle mic button
@@ -82,7 +79,7 @@ export default function ConversationalChat({
   const handleTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (textInput.trim()) {
-      sendTextMessage(textInput.trim());
+      sendMessage(textInput.trim());
       setTextInput('');
     }
   };

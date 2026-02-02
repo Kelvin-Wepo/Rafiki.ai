@@ -76,7 +76,7 @@ import asyncio
 import sys
 sys.path.insert(0, 'backend')
 
-from services.sadtalker_service import get_sadtalker_service
+from backend.services.sadtalker_service import get_sadtalker_service
 
 async def create_talking_avatar():
     sadtalker = get_sadtalker_service()
@@ -99,7 +99,7 @@ asyncio.run(create_talking_avatar())
     
     print("\nExample 2: Generate Image with Imagen\n")
     print("""
-from services.imagen_service import ImagenService
+from backend.services.imagen_service import ImagenService
 
 imagen = ImagenService()
 
@@ -118,7 +118,7 @@ if result and result['images']:
     
     print("\nExample 3: Generate Speech with ElevenLabs\n")
     print("""
-from services.elevenlabs_service import ElevenLabsService
+from backend.services.elevenlabs_service import ElevenLabsService
 
 elevenlabs = ElevenLabsService()
 

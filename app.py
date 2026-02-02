@@ -13,7 +13,14 @@ Or use uvicorn directly:
 
 import uvicorn
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
+
+# Add project root to Python path so backend module can be imported
+project_root = Path(__file__).parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Load environment variables
 load_dotenv()

@@ -13,9 +13,10 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(__file__))
 
 
-from services.sadtalker_service import get_sadtalker_service
-from services.elevenlabs_service import ElevenLabsService
-from utils.logger import logger
+from backend.services.sadtalker_service import get_sadtalker_service
+from backend.services.elevenlabs_service import ElevenLabsService
+from backend.services.imagen_service import ImagenService
+from backend.utils.logger import logger
 
 
 async def quick_demo():

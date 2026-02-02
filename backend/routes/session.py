@@ -6,9 +6,9 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Request
 
-from models.schemas import SessionCreateRequest, SessionResponse
-from utils.session_manager import session_manager
-from utils.logger import get_logger
+from backend.models.schemas import SessionCreateRequest, SessionResponse
+from backend.utils.session_manager import session_manager
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/session", tags=["Session"])

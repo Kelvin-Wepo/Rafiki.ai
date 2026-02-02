@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     
     # Initialize Gemini (lazily import to avoid import-time cost)
     try:
-        from services.gemini_service import gemini_service
+        from backend.services.gemini_service import gemini_service
         if settings.GEMINI_API_KEY:
             gemini_service.initialize()
         else:
@@ -50,21 +50,21 @@ async def lifespan(app: FastAPI):
 
     # Initialize Dialogflow
     try:
-        from services.dialogflow_service import dialogflow_service
+        from backend.services.dialogflow_service import dialogflow_service
         dialogflow_service.initialize()
     except Exception as e:
         logger.warning(f"Dialogflow service unavailable: {e}")
 
     # Initialize Voice Service
     try:
-        from services.voice_service import voice_service
+        from backend.services.voice_service import voice_service
         voice_service.initialize()
     except Exception as e:
         logger.warning(f"Voice service unavailable: {e}")
 
     # Initialize Google Cloud TTS Service
     try:
-        from services.google_tts_service import google_tts_service
+        from backend.services.google_tts_service import google_tts_service
         google_tts_service.initialize()
         logger.info("Google Cloud TTS service initialized successfully")
     except Exception as e:
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize ElevenLabs Service (for high-quality TTS)
     try:
-        from services.elevenlabs_service import elevenlabs_service
+        from backend.services.elevenlabs_service import elevenlabs_service
         if settings.ELEVENLABS_API_KEY:
             logger.info("ElevenLabs service initialized successfully")
         else:
@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize SMS Service
     try:
-        from services.sms_service import sms_service
+        from backend.services.sms_service import sms_service
         if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:
             sms_service.initialize()
         else:
@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
     # Initialize KRA Service
     if settings.KRA_ENABLED and settings.KRA_CLIENT_ID and settings.KRA_CLIENT_SECRET:
         try:
-            from services.kra_service import kra_service
+            from backend.services.kra_service import kra_service
             kra_service.initialize(
                 api_url=settings.KRA_API_URL,
                 client_id=settings.KRA_CLIENT_ID,
@@ -275,25 +275,25 @@ async def health_check():
     services_status = {}
 
     try:
-        from services.gemini_service import gemini_service
+        from backend.services.gemini_service import gemini_service
         services_status["gemini"] = gemini_service._initialized
     except Exception:
         services_status["gemini"] = False
 
     try:
-        from services.dialogflow_service import dialogflow_service
+        from backend.services.dialogflow_service import dialogflow_service
         services_status["dialogflow"] = dialogflow_service._initialized
     except Exception:
         services_status["dialogflow"] = False
 
     try:
-        from services.voice_service import voice_service
+        from backend.services.voice_service import voice_service
         services_status["voice"] = voice_service._initialized
     except Exception:
         services_status["voice"] = False
 
     try:
-        from services.sms_service import sms_service
+        from backend.services.sms_service import sms_service
         services_status["sms"] = sms_service._initialized
     except Exception:
         services_status["sms"] = False
@@ -337,7 +337,7 @@ async def get_welcome_message():
     
     Returns a greeting based on the time of day.
     """
-    from config import ASSISTANT_RESPONSES
+    from backend.config import ASSISTANT_RESPONSES
     
     hour = datetime.now().hour
     

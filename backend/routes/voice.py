@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 
-from models.schemas import (
+from backend.models.schemas import (
     VoiceInputRequest,
     TextInputRequest,
     AssistantResponse,
@@ -15,14 +15,14 @@ from models.schemas import (
     TTSResponse,
     ErrorResponse
 )
-from services.voice_service import voice_service
-from services.gemini_service import gemini_service
-from services.dialogflow_service import dialogflow_service
-from services.booking_service import booking_service
-from utils.session_manager import session_manager
-from utils.rate_limiter import rate_limiter
-from utils.logger import get_logger, RequestLogger
-from config import ASSISTANT_RESPONSES
+from backend.services.voice_service import voice_service
+from backend.services.gemini_service import gemini_service
+from backend.services.dialogflow_service import dialogflow_service
+from backend.services.booking_service import booking_service
+from backend.utils.session_manager import session_manager
+from backend.utils.rate_limiter import rate_limiter
+from backend.utils.logger import get_logger, RequestLogger
+from backend.config import ASSISTANT_RESPONSES
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/voice", tags=["Voice Processing"])
@@ -184,7 +184,7 @@ async def process_input(
 
 async def _complete_booking(session) -> Optional[dict]:
     """Complete a booking with collected information."""
-    from models.schemas import ServiceType, TimeSlot
+    from backend.models.schemas import ServiceType, TimeSlot
     from datetime import date, timedelta
     
     booking_state = session.booking_state

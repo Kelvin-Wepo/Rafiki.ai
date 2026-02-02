@@ -1,19 +1,6 @@
 /**
- * Rafiki Avatar Enhanced Demo Application
- * Government AI Voice Assistant Frontend
- * 
- * This demo showcases all enhanced avatar features:
- * - State transitions (Idle, Listening, Thinking, Speaking, Error)
- * - SadTalker integration for realistic lip-synced video
- * - Real-time audio analysis for lip-sync with phoneme detection (fallback)
- * - Natural blinking, breathing, and micro-movements
- * - Eye tracking following cursor
- * - Emotional expressions
- * - Particle effects and voice waveform visualization
- * - Text-to-speech with synchronized lip movement
- * - Accessible design with keyboard navigation
- * 
- * Now using the actual rafiki.png image with SadTalker lip-sync!
+ * Rafiki AI - Modern Voice Assistant Demo
+ * Beautiful, accessible interface showcasing avatar capabilities
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -22,7 +9,7 @@ import { useAudioAnalyzer, useSpeechSynthesis, useSadTalker, type Emotion } from
 import type { AvatarState, AudioAnalysis } from './types';
 import './App.css';
 
-// Demo conversation messages
+// Demo messages in multiple languages
 const DEMO_MESSAGES = {
   en: [
     "Hello! I'm Rafiki, your government AI assistant. How can I help you today?",
@@ -49,17 +36,17 @@ function App() {
   const [demoText, setDemoText] = useState(DEMO_MESSAGES.en[0]);
   const [useSadTalkerMode, setUseSadTalkerMode] = useState(true);
   const [hasAutoGreeted, setHasAutoGreeted] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   
   const { audioData, startAnalyzing, stopAnalyzing } = useAudioAnalyzer();
-  const { speak, stop: stopSpeaking, isSpeaking, audioData: speechAudioData, voices, selectedVoice, setVoice } = useSpeechSynthesis();
+  const { speak, stop: stopSpeaking, isSpeaking, audioData: speechAudioData } = useSpeechSynthesis();
   
   // Update demo text when language changes
   useEffect(() => {
     setDemoText(DEMO_MESSAGES[language][0]);
   }, [language]);
   
-  // SadTalker integration
   // SadTalker integration
   const {
     isGenerating: isSadTalkerGenerating,
@@ -99,7 +86,7 @@ function App() {
     }
   }, [speak, demoText]);
 
-  // Handle microphone input for listening state
+  // Handle microphone input
   const handleStartListening = useCallback(async () => {
     try {
       await startAnalyzing();
@@ -119,15 +106,12 @@ function App() {
     setCurrentState('thinking');
     setCurrentEmotion('thoughtful');
     
-    // Simulate processing and then speaking
     setTimeout(async () => {
       if (useSadTalkerMode && isBackendAvailable) {
-        // Generate lip-synced video with SadTalker
         setCurrentState('speaking');
         setCurrentEmotion('confident');
         await generateFromText(demoText, language);
       } else {
-        // Use browser TTS
         handleFallbackSpeak();
       }
     }, 2000);
@@ -147,13 +131,11 @@ function App() {
     setCurrentEmotion('thoughtful');
     
     if (useSadTalkerMode && isBackendAvailable) {
-      // Generate lip-synced video with SadTalker
       try {
         setCurrentState('speaking');
         setCurrentEmotion('confident');
         const videoUrl = await generateFromText(demoText, language);
         if (!videoUrl) {
-          // Fallback if generation failed
           handleFallbackSpeak();
         }
       } catch (error) {
@@ -161,7 +143,6 @@ function App() {
         handleFallbackSpeak();
       }
     } else {
-      // Use browser TTS
       handleFallbackSpeak();
     }
   }, [
@@ -177,27 +158,7 @@ function App() {
     setTimeout(() => setCurrentEmotion('neutral'), 1500);
   }, []);
 
-  // State control buttons for demo
-  const handleStateChange = useCallback((state: AvatarState) => {
-    if (isRecording) {
-      stopAnalyzing();
-      setIsRecording(false);
-    }
-    if (isSpeaking) {
-      stopSpeaking();
-    }
-    if (isSadTalkerGenerating) {
-      cancelSadTalker();
-    }
-    setCurrentState(state);
-  }, [isRecording, stopAnalyzing, isSpeaking, stopSpeaking, isSadTalkerGenerating, cancelSadTalker]);
-
-  // Emotion control
-  const handleEmotionChange = useCallback((emotion: Emotion) => {
-    setCurrentEmotion(emotion);
-  }, []);
-
-  // Get effective audio data (real or from speech synthesis)
+  // Get effective audio data
   const effectiveAudioData: AudioAnalysis | undefined = 
     currentState === 'speaking' && isSpeaking && !currentVideoUrl
       ? speechAudioData 
@@ -207,7 +168,8 @@ function App() {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        handleStateChange('idle');
+        setCurrentState('idle');
+        setIsExpanded(false);
       } else if (e.key === ' ' && e.target === document.body) {
         e.preventDefault();
         if (isRecording) {
@@ -220,14 +182,13 @@ function App() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isRecording, handleStartListening, handleStopListening, handleStateChange]);
+  }, [isRecording, handleStartListening, handleStopListening]);
 
   // Auto-greeting on page load
   useEffect(() => {
     if (!hasAutoGreeted && isBackendAvailable !== null) {
       setHasAutoGreeted(true);
       
-      // Wait a moment for everything to load, then greet
       const timer = setTimeout(() => {
         if (useSadTalkerMode && isBackendAvailable) {
           setCurrentState('thinking');
@@ -238,271 +199,286 @@ function App() {
             await generateFromText(DEMO_MESSAGES[language][0]);
           }, 1000);
         } else {
-          // Fallback to browser TTS
           setCurrentState('speaking');
           setCurrentEmotion('confident');
           speak(DEMO_MESSAGES[language][0]);
         }
-      }, 2000); // 2 second delay after page load
+      }, 2000);
 
       return () => clearTimeout(timer);
     }
-  }, [hasAutoGreeted, isBackendAvailable, useSadTalkerMode, generateFromText, speak]);
+  }, [hasAutoGreeted, isBackendAvailable, useSadTalkerMode, generateFromText, speak, language]);
 
   return (
     <div className="app">
+      {/* Animated Background */}
+      <div className="app-background">
+        <div className="gradient-orb gradient-orb--1" />
+        <div className="gradient-orb gradient-orb--2" />
+        <div className="gradient-orb gradient-orb--3" />
+      </div>
+
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
-          <h1 className="app-title">Rafiki</h1>
-          <p className="app-subtitle">Government AI Voice Assistant • SadTalker Edition</p>
-          {/* Backend status indicator */}
-          <div className={`backend-status ${isBackendAvailable ? 'backend-status--online' : 'backend-status--offline'}`}>
-            <span className="status-dot" />
-            <span>{isBackendAvailable ? 'SadTalker Ready' : 'SadTalker Offline (Using Fallback)'}</span>
+          <div className="header-main">
+            <div className="logo-container">
+              <div className="logo-icon">🇰🇪</div>
+              <div>
+                <h1 className="app-title">Rafiki AI</h1>
+                <p className="app-subtitle">Government Voice Assistant</p>
+              </div>
+            </div>
+            <div className={`backend-status ${isBackendAvailable ? 'backend-status--online' : 'backend-status--offline'}`}>
+              <span className="status-dot" />
+              <span>{isBackendAvailable ? 'Ready' : 'Offline'}</span>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Avatar Display */}
+      {/* Main Content */}
       <main className="app-main">
-        <div className="avatar-container">
-          <RafikiTalkingAvatar
-            state={currentState}
-            audioData={effectiveAudioData}
-            size={400}
-            accessible={true}
-            showParticles={showEffects.particles}
-            showWaveform={showEffects.waveform}
-            emotion={currentEmotion}
-            followCursor={true}
-            videoUrl={currentVideoUrl}
-            audioUrl={currentAudioUrl}
-            isVideoPlaying={!!currentVideoUrl && currentState === 'speaking'}
-            onVideoEnd={handleVideoEnd}
-          />
-          
-          {/* State indicator */}
-          <div className={`state-indicator state-indicator--${currentState}`}>
-            <span className="state-dot" />
-            <span className="state-label">
-              {currentState.charAt(0).toUpperCase() + currentState.slice(1)}
-              {isSadTalkerGenerating && ' (Generating...)'}
-            </span>
-            {currentEmotion !== 'neutral' && (
-              <span className="emotion-label">• {currentEmotion}</span>
-            )}
-          </div>
-
-          {/* Generation progress */}
-          {isSadTalkerGenerating && sadTalkerJob && (
-            <div className="generation-progress">
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${sadTalkerJob.progress * 100}%` }}
-                />
-              </div>
-              <span className="progress-text">
-                Generating lip-sync video: {Math.round(sadTalkerJob.progress * 100)}%
+        {/* Avatar Section */}
+        <div className="avatar-section">
+          <div className="avatar-container">
+            <RafikiTalkingAvatar
+              state={currentState}
+              audioData={effectiveAudioData}
+              size={420}
+              accessible={true}
+              showParticles={showEffects.particles}
+              showWaveform={showEffects.waveform}
+              emotion={currentEmotion}
+              followCursor={true}
+              videoUrl={currentVideoUrl}
+              audioUrl={currentAudioUrl}
+              onVideoEnd={handleVideoEnd}
+            />
+            
+            {/* State Badge */}
+            <div className={`state-badge state-badge--${currentState}`}>
+              <span className="state-dot" />
+              <span className="state-label">
+                {currentState.charAt(0).toUpperCase() + currentState.slice(1)}
+                {isSadTalkerGenerating && ' (Generating...)'}
               </span>
             </div>
-          )}
-        </div>
 
-        {/* Interaction Controls */}
-        <div className="controls-section">
-          {/* Voice interaction button */}
-          <button
-            className={`voice-button ${isRecording ? 'voice-button--recording' : ''}`}
-            onClick={isRecording ? handleStopListening : handleStartListening}
-            aria-label={isRecording ? 'Stop listening' : 'Start speaking to Rafiki'}
-          >
-            <svg viewBox="0 0 24 24" className="voice-icon">
-              {isRecording ? (
-                <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-              ) : (
-                <path
-                  d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4zm0 16a6 6 0 0 1-6-6H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2a6 6 0 0 1-6 6z"
-                  fill="currentColor"
-                />
-              )}
-            </svg>
-            <span>{isRecording ? 'Tap to stop' : 'Tap to speak'}</span>
-          </button>
-
-          {/* Audio level indicator (when recording) */}
-          {isRecording && (
-            <div className="audio-level">
-              <div 
-                className="audio-level-bar" 
-                style={{ transform: `scaleX(${audioData.amplitude})` }}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* TTS/SadTalker Demo Section */}
-        <div className="tts-section">
-          <h2 className="section-title">Text-to-Speech Demo</h2>
-          
-          {/* Mode toggle */}
-          <div className="mode-toggle">
-            <label className="toggle-label mode-toggle-label">
-              <input
-                type="checkbox"
-                checked={useSadTalkerMode}
-                onChange={(e) => setUseSadTalkerMode(e.target.checked)}
-                disabled={!isBackendAvailable}
-              />
-              <span>Use SadTalker (Realistic Lip-Sync)</span>
-            </label>
-            {!isBackendAvailable && (
-              <span className="mode-hint">Start backend server to enable</span>
+            {/* Progress Bar */}
+            {isSadTalkerGenerating && sadTalkerJob && (
+              <div className="progress-container">
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${sadTalkerJob.progress * 100}%` }}
+                  />
+                </div>
+                <span className="progress-text">
+                  {Math.round(sadTalkerJob.progress * 100)}% Complete
+                </span>
+              </div>
             )}
           </div>
 
-          <div className="tts-controls">
-            {/* Language selector */}
-            <div className="language-selector">
-              <label className="language-label">
-                <span>🌍 Language:</span>
+          {/* Voice Control */}
+          <div className="voice-control">
+            <button
+              className={`voice-button ${isRecording ? 'voice-button--recording' : ''}`}
+              onClick={isRecording ? handleStopListening : handleStartListening}
+              aria-label={isRecording ? 'Stop listening' : 'Start speaking'}
+            >
+              <svg viewBox="0 0 24 24" className="voice-icon">
+                {isRecording ? (
+                  <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+                ) : (
+                  <path
+                    d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4zm0 16a6 6 0 0 1-6-6H4a8 8 0 0 0 7 7.93V22h2v-3.07A8 8 0 0 0 20 11h-2a6 6 0 0 1-6 6z"
+                    fill="currentColor"
+                  />
+                )}
+              </svg>
+              <span>{isRecording ? 'Stop' : 'Speak'}</span>
+            </button>
+
+            {isRecording && (
+              <div className="audio-level-indicator">
+                <div 
+                  className="audio-level-bar" 
+                  style={{ transform: `scaleX(${Math.max(0.1, audioData.amplitude)})` }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Controls Section */}
+        <div className={`controls-section ${isExpanded ? 'controls-section--expanded' : ''}`}>
+          <button 
+            className="expand-toggle"
+            onClick={() => setIsExpanded(!isExpanded)}
+            aria-label={isExpanded ? 'Collapse controls' : 'Expand controls'}
+          >
+            <span>{isExpanded ? '▼' : '▲'}</span>
+            <span>Controls</span>
+          </button>
+
+          <div className="controls-content">
+            {/* TTS Section */}
+            <div className="control-card">
+              <h3 className="card-title">Text-to-Speech</h3>
+              
+              <div className="mode-toggle">
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={useSadTalkerMode}
+                    onChange={(e) => setUseSadTalkerMode(e.target.checked)}
+                    disabled={!isBackendAvailable}
+                  />
+                  <span className="toggle-slider" />
+                  <span className="toggle-label">SadTalker Lip-Sync</span>
+                </label>
+                {!isBackendAvailable && (
+                  <span className="mode-hint">Backend unavailable</span>
+                )}
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Language</label>
                 <select 
-                  className="language-select"
+                  className="select-input"
                   value={language}
                   onChange={(e) => setLanguage(e.target.value as 'en' | 'sw')}
                 >
                   <option value="en">🇬🇧 English</option>
                   <option value="sw">🇰🇪 Kiswahili</option>
                 </select>
-              </label>
-            </div>
+              </div>
 
-            <select 
-              className="tts-message-select"
-              value={demoText}
-              onChange={(e) => setDemoText(e.target.value)}
-            >
-              {DEMO_MESSAGES[language].map((msg, i) => (
-                <option key={i} value={msg}>{msg.substring(0, 50)}...</option>
-              ))}
-            </select>
-            
-            {!useSadTalkerMode && voices.length > 0 && (
-              <select 
-                className="tts-voice-select"
-                value={selectedVoice?.name || ''}
-                onChange={(e) => {
-                  const voice = voices.find(v => v.name === e.target.value);
-                  if (voice) setVoice(voice);
-                }}
+              <div className="input-group">
+                <label className="input-label">Message</label>
+                <select 
+                  className="select-input"
+                  value={demoText}
+                  onChange={(e) => setDemoText(e.target.value)}
+                >
+                  {DEMO_MESSAGES[language].map((msg, i) => (
+                    <option key={i} value={msg}>{msg.substring(0, 60)}...</option>
+                  ))}
+                </select>
+              </div>
+
+              <button 
+                className={`action-button action-button--primary ${(isSpeaking || isSadTalkerGenerating) ? 'action-button--active' : ''}`}
+                onClick={handleSpeak}
+                disabled={isSadTalkerGenerating}
               >
-                {voices.map((voice) => (
-                  <option key={voice.name} value={voice.name}>
-                    {voice.name} ({voice.lang})
-                  </option>
-                ))}
-              </select>
-            )}
-            
-            <button 
-              className={`tts-button ${(isSpeaking || isSadTalkerGenerating) ? 'tts-button--speaking' : ''}`}
-              onClick={handleSpeak}
-              disabled={isSadTalkerGenerating}
-            >
-              {isSadTalkerGenerating ? '⏳ Generating...' : (isSpeaking ? '⏹ Stop' : '▶ Speak')}
-            </button>
-          </div>
-          <textarea
-            className="tts-input"
-            value={demoText}
-            onChange={(e) => setDemoText(e.target.value)}
-            placeholder="Enter text for Rafiki to speak..."
-            rows={3}
-          />
-        </div>
+                {isSadTalkerGenerating ? (
+                  <>
+                    <span className="spinner" />
+                    Generating...
+                  </>
+                ) : isSpeaking ? (
+                  <>
+                    <span>⏹</span>
+                    Stop
+                  </>
+                ) : (
+                  <>
+                    <span>▶</span>
+                    Speak
+                  </>
+                )}
+              </button>
 
-        {/* Demo Controls */}
-        <div className="demo-controls">
-          <h2 className="demo-title">Demo Controls</h2>
-          
-          {/* State buttons */}
-          <div className="control-group">
-            <h3 className="control-label">Avatar State</h3>
-            <div className="state-buttons">
-              {(['idle', 'listening', 'thinking', 'speaking', 'error'] as AvatarState[]).map((state) => (
-                <button
-                  key={state}
-                  className={`state-button state-button--${state} ${currentState === state ? 'state-button--active' : ''}`}
-                  onClick={() => handleStateChange(state)}
-                >
-                  {state.charAt(0).toUpperCase() + state.slice(1)}
-                </button>
-              ))}
+              <textarea
+                className="text-input"
+                value={demoText}
+                onChange={(e) => setDemoText(e.target.value)}
+                placeholder="Enter text for Rafiki to speak..."
+                rows={3}
+              />
             </div>
-          </div>
 
-          {/* Emotion buttons */}
-          <div className="control-group">
-            <h3 className="control-label">Emotion</h3>
-            <div className="emotion-buttons">
-              {(['neutral', 'happy', 'concerned', 'empathetic', 'curious', 'confident', 'thoughtful', 'attentive', 'apologetic'] as Emotion[]).map((emotion) => (
-                <button
-                  key={emotion}
-                  className={`emotion-button ${currentEmotion === emotion ? 'emotion-button--active' : ''}`}
-                  onClick={() => handleEmotionChange(emotion)}
-                >
-                  {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
+            {/* Demo Controls */}
+            <div className="control-card">
+              <h3 className="card-title">Avatar Controls</h3>
+              
+              <div className="control-group">
+                <label className="control-label">State</label>
+                <div className="button-group">
+                  {(['idle', 'listening', 'thinking', 'speaking', 'error'] as AvatarState[]).map((state) => (
+                    <button
+                      key={state}
+                      className={`control-button ${currentState === state ? 'control-button--active' : ''}`}
+                      onClick={() => setCurrentState(state)}
+                    >
+                      {state}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {/* Effect toggles */}
-          <div className="control-group">
-            <h3 className="control-label">Visual Effects</h3>
-            <div className="effect-toggles">
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={showEffects.particles}
-                  onChange={(e) => setShowEffects(prev => ({ ...prev, particles: e.target.checked }))}
-                />
-                <span>Particles</span>
-              </label>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={showEffects.waveform}
-                  onChange={(e) => setShowEffects(prev => ({ ...prev, waveform: e.target.checked }))}
-                />
-                <span>Waveform</span>
-              </label>
+              <div className="control-group">
+                <label className="control-label">Emotion</label>
+                <div className="button-group button-group--wrap">
+                  {(['neutral', 'happy', 'confident', 'thoughtful', 'attentive'] as Emotion[]).map((emotion) => (
+                    <button
+                      key={emotion}
+                      className={`control-button control-button--small ${currentEmotion === emotion ? 'control-button--active' : ''}`}
+                      onClick={() => setCurrentEmotion(emotion)}
+                    >
+                      {emotion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="control-group">
+                <label className="control-label">Effects</label>
+                <div className="checkbox-group">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={showEffects.particles}
+                      onChange={(e) => setShowEffects(prev => ({ ...prev, particles: e.target.checked }))}
+                    />
+                    <span>Particles</span>
+                  </label>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={showEffects.waveform}
+                      onChange={(e) => setShowEffects(prev => ({ ...prev, waveform: e.target.checked }))}
+                    />
+                    <span>Waveform</span>
+                  </label>
+                </div>
+              </div>
             </div>
-          </div>
-          
-          <div className="demo-info">
-            <p>Move your mouse to see eye tracking. Try different emotions and states!</p>
-            <p className="demo-hint">
-              Press <kbd>Space</kbd> to start/stop recording, <kbd>Esc</kbd> to reset.
-            </p>
-            <p className="demo-hint sadtalker-hint">
-              <strong>SadTalker Mode:</strong> Generates realistic lip-synced video from the rafiki.png image.
-              Requires the backend server running at localhost:8000.
-            </p>
+
+            {/* Help Section */}
+            <div className="help-card">
+              <h4 className="help-title">💡 Tips</h4>
+              <ul className="help-list">
+                <li>Press <kbd>Space</kbd> to start/stop recording</li>
+                <li>Press <kbd>Esc</kbd> to reset</li>
+                <li>Move your mouse to see eye tracking</li>
+                <li>SadTalker generates realistic lip-sync videos</li>
+              </ul>
+            </div>
           </div>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="app-footer">
-        <p>Rafiki Government AI Assistant • Accessible • Trustworthy • Inclusive</p>
-        <p className="footer-note">
-          Built with React • SadTalker • Web Audio API • Speech Synthesis
-        </p>
+        <p>Rafiki AI • Accessible • Trustworthy • Inclusive</p>
+        <p className="footer-tech">Built with React • SadTalker • Web Audio API</p>
       </footer>
 
-      {/* Hidden audio element for speech playback */}
+      {/* Hidden audio element */}
       <audio ref={audioRef} style={{ display: 'none' }} />
     </div>
   );

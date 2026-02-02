@@ -10,15 +10,15 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from jose import jwt, JWTError
 
-from config import get_settings
-from utils.logger import get_logger
-from models.user import (
+from backend.config import get_settings
+from backend.utils.logger import get_logger
+from backend.models.user import (
     User, Session, Conversation, UserStatus, AuthProvider,
     UserProfile, ConversationSummary, AuthAuditLog,
     hash_value, mask_phone_number,
     generate_user_id, generate_session_id, generate_conversation_id, generate_audit_id
 )
-from services.otp_service import get_otp_service
+from backend.services.otp_service import get_otp_service
 
 logger = get_logger(__name__)
 
@@ -146,7 +146,7 @@ class AuthService:
         is_new_user = phone_hash not in self._users_by_phone
         
         # Fraud checks (rate limit OTP requests)
-        from services.fraud_service import get_fraud_service as _get_fraud_service
+        from backend.services.fraud_service import get_fraud_service as _get_fraud_service
         fraud = _get_fraud_service()
 
         otp_check = fraud.check_otp_request(phone_number)
@@ -163,7 +163,7 @@ class AuthService:
             return {"success": False, "error": "rate_limited", "message": "Too many OTP requests. Please try again later."}
 
         # Request OTP (import at call time so tests can patch services.otp_service.get_otp_service)
-        from services.otp_service import get_otp_service as _get_otp_service
+        from backend.services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
 
         # Support both `send_otp` (preferred) and `request_otp` method names in OTP implementations
@@ -226,7 +226,7 @@ class AuthService:
         """
         # Verify OTP (import at call time so tests can patch services.otp_service.get_otp_service)
         # Before verifying, check if this phone is blocked due to many recent failures
-        from services.fraud_service import get_fraud_service as _get_fraud_service
+        from backend.services.fraud_service import get_fraud_service as _get_fraud_service
         fraud = _get_fraud_service()
         fail_check = fraud.check_otp_failures(phone_number)
         if not fail_check["allow"]:
@@ -240,7 +240,7 @@ class AuthService:
             )
             return {"success": False, "error": "blocked", "message": "Too many failed OTP attempts. Try later."}
 
-        from services.otp_service import get_otp_service as _get_otp_service
+        from backend.services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
         verify_result = await otp_service.verify_otp(
             phone_number,

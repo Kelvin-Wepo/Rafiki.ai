@@ -8,7 +8,7 @@ storage layer with Redis or another durable store.
 
 import time
 from typing import Dict, Any, Optional
-from utils.logger import get_logger
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

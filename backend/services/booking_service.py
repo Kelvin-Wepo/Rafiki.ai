@@ -7,7 +7,7 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional, List
 
 from backend.config import get_settings, GOVERNMENT_SERVICES
-from models.schemas import ServiceType, TimeSlot, BookingStatus
+from backend.models.schemas import ServiceType, TimeSlot, BookingStatus
 from backend.utils.logger import get_logger
 from backend.services.sms_service import sms_service
 

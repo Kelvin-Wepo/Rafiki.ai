@@ -8,12 +8,12 @@ from fastapi.responses import Response, JSONResponse
 from typing import Optional
 from datetime import datetime
 
-from models.user import (
+from backend.models.user import (
     PhoneAuthRequest, OTPVerifyRequest, AuthResponse,
     TranscriptExport
 )
-from services.auth_service import get_auth_service
-from utils.logger import get_logger
+from backend.services.auth_service import get_auth_service
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -8,8 +8,8 @@ import httpx
 import base64
 import re
 from typing import Optional, Dict, Any, List
-from config import get_settings
-from utils.logger import get_logger
+from backend.config import get_settings
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -451,7 +451,7 @@ class ElevenLabsService:
             Path to the generated MP3 file, or None on error
         """
         try:
-            from services.google_tts_service import google_tts_service
+            from backend.services.google_tts_service import google_tts_service
             
             # Initialize if needed
             if not google_tts_service._initialized:
@@ -489,7 +489,7 @@ class ElevenLabsService:
             Dict with audio data (base64) or error
         """
         try:
-            from services.google_tts_service import google_tts_service
+            from backend.services.google_tts_service import google_tts_service
             
             # Initialize if needed
             if not google_tts_service._initialized:
