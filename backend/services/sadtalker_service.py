@@ -236,6 +236,70 @@ class SadTalkerService:
             logger.warning(f"Failed to cache video: {e}")
             return video_path
     
+    async def _ensure_audio_in_video(self, video_path: str, audio_path: str) -> str:
+        """
+        Ensure audio is properly embedded in the video file.
+        If video has no audio track, merge the original audio into the video.
+        
+        Args:
+            video_path: Path to the generated video
+            audio_path: Path to the original audio file
+            
+        Returns:
+            Path to video with audio (may be same file or new merged file)
+        """
+        try:
+            import subprocess
+            
+            # Check if video has audio track
+            result = subprocess.run(
+                ['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                 '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', video_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            has_audio = result.returncode == 0 and result.stdout.strip() == 'audio'
+            
+            if not has_audio and os.path.exists(audio_path):
+                logger.info(f"Video has no audio track, merging audio from: {audio_path}")
+                
+                # Create output path for merged video
+                merged_path = video_path.replace('.mp4', '_with_audio.mp4')
+                
+                # Merge audio into video using ffmpeg
+                merge_result = subprocess.run(
+                    ['ffmpeg', '-i', video_path, '-i', audio_path,
+                     '-c:v', 'copy', '-c:a', 'aac', '-map', '0:v:0', '-map', '1:a:0',
+                     '-shortest', '-y', merged_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                
+                if merge_result.returncode == 0 and os.path.exists(merged_path):
+                    logger.info(f"✅ Audio merged into video: {merged_path}")
+                    # Replace original video with merged version
+                    try:
+                        os.remove(video_path)
+                        os.rename(merged_path, video_path)
+                    except Exception as rename_err:
+                        logger.warning(f"Could not replace video file: {rename_err}")
+                        # Use merged file if rename fails
+                        return merged_path
+                    return video_path
+                else:
+                    logger.warning(f"Failed to merge audio: {merge_result.stderr}")
+                    return video_path  # Return original even if merge failed
+            else:
+                logger.info("Video already has audio track")
+                return video_path
+                
+        except Exception as e:
+            logger.warning(f"Could not verify/merge audio in video: {e}")
+            return video_path  # Return original video even if check failed
+    
     def _truncate_audio_if_needed(self, audio_path: str) -> str:
         """Truncate audio to MAX_AUDIO_LENGTH if too long"""
         try:
@@ -362,7 +426,8 @@ class SadTalkerService:
         background_enhancer: Optional[str] = None,
         ref_eyeblink: Optional[str] = None,
         ref_pose: Optional[str] = None,
-        cache_key: Optional[str] = None
+        cache_key: Optional[str] = None,
+        ensure_audio: bool = True
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Generate a lip-synced video from audio with personality and enhancements
@@ -438,6 +503,10 @@ class SadTalkerService:
                     audio_path, avatar_path, preprocess, still_mode, expression_scale,
                     enhancer, background_enhancer, ref_eyeblink, ref_pose
                 )
+            
+            # Verify and ensure audio is embedded in video
+            if video_path and os.path.exists(video_path) and ensure_audio:
+                video_path = await self._ensure_audio_in_video(video_path, audio_path)
             
             # Cache the video if generation was successful
             if video_path and cache_key:
