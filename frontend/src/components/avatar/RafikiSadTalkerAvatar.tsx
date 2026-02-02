@@ -98,22 +98,58 @@ export const RafikiSadTalkerAvatar = forwardRef<HTMLDivElement, RafikiSadTalkerA
   // Expose container ref
   useImperativeHandle(ref, () => containerRef.current!, []);
 
-  // Handle video URL changes
+  // Handle video URL changes with audio synchronization
   useEffect(() => {
     if (videoUrl && videoRef.current) {
       setVideoError(null);
       setShowVideo(true);
-      videoRef.current.src = videoUrl;
-      videoRef.current.load();
+      const video = videoRef.current;
       
-      // Auto-play when ready
-      videoRef.current.play().catch(err => {
-        console.error('Video autoplay failed:', err);
-        setVideoError('Autoplay blocked - click to play');
-      });
+      // Set video source
+      video.src = videoUrl;
+      
+      // Ensure audio is enabled
+      video.muted = false;
+      video.volume = 1.0;
+      
+      // Load video
+      video.load();
+      
+      // Play video when ready, ensuring audio is enabled
+      const handleCanPlay = () => {
+        video.muted = false;
+        video.volume = 1.0;
+        video.play().catch(err => {
+          console.error('Video autoplay failed:', err);
+          if (err.name === 'NotAllowedError') {
+            setVideoError('Autoplay blocked - click to play');
+          }
+        });
+      };
+      
+      const handleLoadedMetadata = () => {
+        // Ensure audio track is enabled
+        if (video.audioTracks && video.audioTracks.length > 0) {
+          video.audioTracks[0].enabled = true;
+        }
+        video.muted = false;
+        video.volume = 1.0;
+      };
+      
+      video.addEventListener('canplay', handleCanPlay, { once: true });
+      video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+      
+      return () => {
+        video.removeEventListener('canplay', handleCanPlay);
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
     } else {
       setShowVideo(false);
       setIsVideoPlaying(false);
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+      }
     }
   }, [videoUrl]);
 
@@ -194,9 +230,17 @@ export const RafikiSadTalkerAvatar = forwardRef<HTMLDivElement, RafikiSadTalkerA
             ref={videoRef}
             className="avatar-video"
             playsInline
+            muted={false}
             onPlay={handleVideoPlay}
             onEnded={handleVideoEnded}
             onError={handleVideoError}
+            onLoadedMetadata={() => {
+              // Ensure audio is enabled when metadata loads
+              if (videoRef.current) {
+                videoRef.current.muted = false;
+                videoRef.current.volume = 1.0;
+              }
+            }}
           />
           {videoError && (
             <div className="video-error">
