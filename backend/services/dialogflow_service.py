@@ -6,7 +6,7 @@ import uuid
 from typing import Dict, Any, Optional, List
 
 from backend.config import get_settings, GOVERNMENT_SERVICES
-from utils import get_logger
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
