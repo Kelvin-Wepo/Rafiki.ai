@@ -209,32 +209,76 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
     }
   }, [currentEmotion, onEmotionChange]);
 
-  // Handle video playback
+  // Handle video playback with audio synchronization
   useEffect(() => {
-    if (videoUrl && state === 'speaking' && isVideoPlaying) {
+    if (videoUrl && state === 'speaking') {
       setShowVideo(true);
       if (videoRef.current) {
-        videoRef.current.src = videoUrl;
-        videoRef.current.play().catch(console.error);
+        const video = videoRef.current;
+        
+        // Set video source
+        video.src = videoUrl;
+        
+        // Ensure audio is enabled
+        video.muted = false;
+        video.volume = 1.0;
+        
+        // Load and play video with audio
+        video.load();
+        
+        // Play video when ready, ensuring audio is enabled
+        const handleCanPlay = () => {
+          video.play().catch(err => {
+            console.error('Video playback error:', err);
+            // If autoplay fails, try with user interaction
+            if (err.name === 'NotAllowedError') {
+              console.warn('Autoplay blocked - video will play on user interaction');
+            }
+          });
+        };
+        
+        const handleLoadedMetadata = () => {
+          // Ensure audio is enabled (audioTracks API is deprecated, but we ensure muted is false)
+          video.muted = false;
+          video.volume = 1.0;
+        };
+        
+        video.addEventListener('canplay', handleCanPlay, { once: true });
+        video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+        
+        return () => {
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        };
       }
     } else {
       setShowVideo(false);
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+      }
     }
-  }, [videoUrl, state, isVideoPlaying]);
+  }, [videoUrl, state]);
 
-  // Handle audio playback (fallback mode)
+  // Handle audio playback (fallback mode - only when video is NOT available)
   useEffect(() => {
-    if (audioUrl && audioRef.current && state === 'speaking') {
-      console.log('Playing audio fallback:', audioUrl);
+    // Only play audio if video is not available
+    if (audioUrl && !videoUrl && audioRef.current && state === 'speaking') {
+      console.log('Playing audio fallback (video unavailable):', audioUrl);
       audioRef.current.src = audioUrl;
+      audioRef.current.volume = 1.0;
       audioRef.current.play().catch(err => {
         console.error('Audio playback error:', err);
       });
-    } else if (audioRef.current && !audioUrl) {
+    } else if (audioRef.current) {
+      // Stop audio if video is available or state changes
       audioRef.current.pause();
-      audioRef.current.src = '';
+      if (videoUrl) {
+        // Clear audio source when video is available to prevent conflicts
+        audioRef.current.src = '';
+      }
     }
-  }, [audioUrl, state]);
+  }, [audioUrl, videoUrl, state]);
 
   // Handle video end
   const handleVideoEnded = useCallback(() => {
@@ -300,6 +344,23 @@ const RafikiTalkingAvatar: React.FC<RafikiTalkingAvatarProps> = ({
         playsInline
         muted={false}
         onEnded={handleVideoEnded}
+        onError={(e) => {
+          console.error('Video error:', e);
+          const video = e.currentTarget;
+          if (video.error) {
+            console.error('Video error details:', {
+              code: video.error.code,
+              message: video.error.message
+            });
+          }
+        }}
+        onLoadedMetadata={() => {
+          // Ensure audio is enabled when metadata loads
+          if (videoRef.current) {
+            videoRef.current.muted = false;
+            videoRef.current.volume = 1.0;
+          }
+        }}
         style={{
           position: 'absolute',
           width: '88%',
