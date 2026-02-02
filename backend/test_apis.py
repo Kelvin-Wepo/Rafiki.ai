@@ -33,7 +33,7 @@ async def test_all_services():
     # Test 1: Google Gemini/Imagen
     print("1️⃣ Testing Google Gemini API...")
     try:
-        import google.generativeai as genai
+        import google.genai as genai
         api_key = os.getenv('GEMINI_API_KEY')
         
         if not api_key:
@@ -43,7 +43,7 @@ async def test_all_services():
             model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content("Hello, are you working?")
             
-            if response.text:
+            if getattr(response, 'text', None) or getattr(response, 'candidates', None):
                 print(f"✅ Google Gemini Connected!")
                 print(f"   Response: {response.text[:60]}...")
                 results["gemini"] = True

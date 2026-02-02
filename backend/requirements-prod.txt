@@ -11,7 +11,7 @@ pydantic==2.10.3
 pydantic-settings==2.1.0
 
 # Google AI Services
-google-generativeai==0.3.2
+google-genai>=0.1.0
 google-cloud-dialogflow==2.27.0
 google-cloud-texttospeech==2.33.0
 google-auth==2.26.2

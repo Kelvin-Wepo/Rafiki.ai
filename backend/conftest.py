@@ -119,8 +119,8 @@ def mock_elevenlabs():
 @pytest.fixture
 def mock_google_genai():
     """Mock Google Gemini API."""
-    with patch('google.generativeai.configure') as mock_config, \
-         patch('google.generativeai.GenerativeModel') as mock_model:
+    with patch('google.genai.configure') as mock_config, \
+         patch('google.genai.GenerativeModel') as mock_model:
         
         mock_response = Mock()
         mock_response.text = "This is a test response from Gemini."

@@ -19,7 +19,7 @@ try:
 except ImportError:
     chromadb = None
 
-import google.generativeai as genai
+import google.genai as genai
 from backend.utils.constitution_loader import ConstitutionLoader, DocumentChunk
 from backend.config import get_settings
 

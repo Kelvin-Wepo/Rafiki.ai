@@ -44,7 +44,7 @@ def main():
     
     check_component(
         "Google Gemini",
-        lambda: bool(__import__('google.generativeai'))
+        lambda: bool(__import__('google.genai'))
     )
     
     check_component(
