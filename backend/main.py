@@ -14,23 +14,12 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from config import get_settings
-from routes import voice_router, booking_router, services_router, session_router
-from routes.avatar import router as avatar_router
-from routes.elevenlabs import router as elevenlabs_router
-from routes.avatar_animation import router as avatar_animation_router
-from routes.kra import router as kra_router
-from routes.auth import router as auth_router
-from routes.rag_routes import router as rag_router
+# Note: routers and heavyweight services are imported lazily inside the application
+# lifespan and request handlers to reduce module import time during test collection
+# and to speed up application cold start time.
 from utils.logger import setup_logging, get_logger
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
-from services.gemini_service import gemini_service
-from services.dialogflow_service import dialogflow_service
-from services.voice_service import voice_service
-from services.sms_service import sms_service
-from services.elevenlabs_service import elevenlabs_service
-from services.google_tts_service import google_tts_service
-from services.kra_service import kra_service
 
 # Setup logging
 setup_logging()
@@ -49,37 +38,57 @@ async def lifespan(app: FastAPI):
     # Initialize services
     logger.info("Initializing services...")
     
-    # Initialize Gemini
-    if settings.GEMINI_API_KEY:
-        gemini_service.initialize()
-    else:
-        logger.warning("Gemini API key not configured")
-    
-    # Initialize Dialogflow
-    dialogflow_service.initialize()
-    
-    # Initialize Voice Service
-    voice_service.initialize()
-    
-    # Initialize Google Cloud TTS Service (free, natural voice)
+    # Initialize Gemini (lazily import to avoid import-time cost)
     try:
+        from services.gemini_service import gemini_service
+        if settings.GEMINI_API_KEY:
+            gemini_service.initialize()
+        else:
+            logger.warning("Gemini API key not configured")
+    except Exception as e:
+        logger.warning(f"Gemini service unavailable: {e}")
+
+    # Initialize Dialogflow
+    try:
+        from services.dialogflow_service import dialogflow_service
+        dialogflow_service.initialize()
+    except Exception as e:
+        logger.warning(f"Dialogflow service unavailable: {e}")
+
+    # Initialize Voice Service
+    try:
+        from services.voice_service import voice_service
+        voice_service.initialize()
+    except Exception as e:
+        logger.warning(f"Voice service unavailable: {e}")
+
+    # Initialize Google Cloud TTS Service
+    try:
+        from services.google_tts_service import google_tts_service
         google_tts_service.initialize()
         logger.info("Google Cloud TTS service initialized successfully")
     except Exception as e:
         logger.warning(f"Google Cloud TTS initialization failed: {e}")
-    
+
     # Initialize ElevenLabs Service (for high-quality TTS)
-    if settings.ELEVENLABS_API_KEY:
-        logger.info("ElevenLabs service initialized successfully")
-    else:
-        logger.warning("ElevenLabs API key not configured - TTS will use fallback")
-    
+    try:
+        from services.elevenlabs_service import elevenlabs_service
+        if settings.ELEVENLABS_API_KEY:
+            logger.info("ElevenLabs service initialized successfully")
+        else:
+            logger.warning("ElevenLabs API key not configured - TTS will use fallback")
+    except Exception as e:
+        logger.warning(f"ElevenLabs service unavailable: {e}")
+
     # Initialize SMS Service
-    if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:
-        sms_service.initialize()
-    else:
-        logger.warning("Africa's Talking credentials not configured")
-    
+    try:
+        from services.sms_service import sms_service
+        if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:
+            sms_service.initialize()
+        else:
+            logger.warning("Africa's Talking credentials not configured")
+    except Exception as e:
+        logger.warning(f"SMS service unavailable: {e}")    
     # Initialize Database
     try:
         from database import init_db
@@ -92,6 +101,7 @@ async def lifespan(app: FastAPI):
     # Initialize KRA Service
     if settings.KRA_ENABLED and settings.KRA_CLIENT_ID and settings.KRA_CLIENT_SECRET:
         try:
+            from services.kra_service import kra_service
             kra_service.initialize(
                 api_url=settings.KRA_API_URL,
                 client_id=settings.KRA_CLIENT_ID,
@@ -103,12 +113,40 @@ async def lifespan(app: FastAPI):
             logger.warning(f"KRA service initialization failed: {e}")
     else:
         logger.info("KRA service not enabled (configure KRA_ENABLED=true and credentials)")
-    
+
+    # Register routers lazily (reduces import-time overhead)
+    try:
+        from routes.auth import router as auth_router
+        from routes.voice import router as voice_router
+        from routes.booking import router as booking_router
+        from routes.services import router as services_router
+        from routes.session import router as session_router
+        from routes.avatar import router as avatar_router
+        from routes.elevenlabs import router as elevenlabs_router
+        from routes.avatar_animation import router as avatar_animation_router
+        from routes.kra import router as kra_router
+        from routes.rag_routes import router as rag_router
+
+        app.include_router(auth_router)
+        app.include_router(voice_router)
+        app.include_router(booking_router)
+        app.include_router(services_router)
+        app.include_router(session_router)
+        app.include_router(avatar_router)
+        app.include_router(elevenlabs_router)
+        app.include_router(avatar_animation_router)
+        app.include_router(kra_router)
+        app.include_router(rag_router)
+
+        logger.info("Routers registered")
+    except Exception as e:
+        logger.warning(f"Router registration failed at startup: {e}")
+
     # Start session cleanup task
     await session_manager.start_cleanup_task()
-    
+
     logger.info("All services initialized")
-    
+
     yield
     
     # Shutdown
@@ -223,18 +261,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Include routers
-app.include_router(auth_router)
-app.include_router(voice_router)
-app.include_router(booking_router)
-app.include_router(services_router)
-app.include_router(session_router)
-app.include_router(avatar_router)
-app.include_router(elevenlabs_router)
-app.include_router(avatar_animation_router)
-app.include_router(kra_router)
-app.include_router(rag_router)
-
+# Routers are registered at application startup to reduce import-time overhead
 
 # Health check endpoint
 @app.get("/health", tags=["Health"])
@@ -244,17 +271,40 @@ async def health_check():
     
     Returns the status of the application and its services.
     """
+    # Import services lazily to avoid import cost during test collection or tooling
+    services_status = {}
+
+    try:
+        from services.gemini_service import gemini_service
+        services_status["gemini"] = gemini_service._initialized
+    except Exception:
+        services_status["gemini"] = False
+
+    try:
+        from services.dialogflow_service import dialogflow_service
+        services_status["dialogflow"] = dialogflow_service._initialized
+    except Exception:
+        services_status["dialogflow"] = False
+
+    try:
+        from services.voice_service import voice_service
+        services_status["voice"] = voice_service._initialized
+    except Exception:
+        services_status["voice"] = False
+
+    try:
+        from services.sms_service import sms_service
+        services_status["sms"] = sms_service._initialized
+    except Exception:
+        services_status["sms"] = False
+
+    services_status["elevenlabs"] = bool(settings.ELEVENLABS_API_KEY)
+
     return {
         "status": "healthy",
         "version": settings.APP_VERSION,
         "timestamp": datetime.utcnow().isoformat(),
-        "services": {
-            "gemini": gemini_service._initialized,
-            "dialogflow": dialogflow_service._initialized,
-            "voice": voice_service._initialized,
-            "sms": sms_service._initialized,
-            "elevenlabs": bool(settings.ELEVENLABS_API_KEY)
-        }
+        "services": services_status
     }
 
 
