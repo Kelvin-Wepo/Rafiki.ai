@@ -13,13 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from config import get_settings
+from backend.config import get_settings
 # Note: routers and heavyweight services are imported lazily inside the application
 # lifespan and request handlers to reduce module import time during test collection
 # and to speed up application cold start time.
-from utils.logger import setup_logging, get_logger
-from utils.session_manager import session_manager
-from utils.rate_limiter import rate_limiter
+from backend.utils.logger import setup_logging, get_logger
+from backend.utils.session_manager import session_manager
+from backend.utils.rate_limiter import rate_limiter
 
 # Setup logging
 setup_logging()
@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
         logger.warning(f"SMS service unavailable: {e}")    
     # Initialize Database
     try:
-        from database import init_db
+        from backend.database import init_db
         await init_db()
         logger.info("Database initialized successfully")
     except Exception as e:
@@ -116,16 +116,16 @@ async def lifespan(app: FastAPI):
 
     # Register routers lazily (reduces import-time overhead)
     try:
-        from routes.auth import router as auth_router
-        from routes.voice import router as voice_router
-        from routes.booking import router as booking_router
-        from routes.services import router as services_router
-        from routes.session import router as session_router
-        from routes.avatar import router as avatar_router
-        from routes.elevenlabs import router as elevenlabs_router
-        from routes.avatar_animation import router as avatar_animation_router
-        from routes.kra import router as kra_router
-        from routes.rag_routes import router as rag_router
+        from backend.routes.auth import router as auth_router
+        from backend.routes.voice import router as voice_router
+        from backend.routes.booking import router as booking_router
+        from backend.routes.services import router as services_router
+        from backend.routes.session import router as session_router
+        from backend.routes.avatar import router as avatar_router
+        from backend.routes.elevenlabs import router as elevenlabs_router
+        from backend.routes.avatar_animation import router as avatar_animation_router
+        from backend.routes.kra import router as kra_router
+        from backend.routes.rag_routes import router as rag_router
 
         app.include_router(auth_router)
         app.include_router(voice_router)
@@ -155,7 +155,7 @@ async def lifespan(app: FastAPI):
     
     # Close database connections
     try:
-        from database import close_db
+        from backend.database import close_db
         await close_db()
     except Exception as e:
         logger.warning(f"Database close error: {e}")

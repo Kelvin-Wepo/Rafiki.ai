@@ -9,7 +9,7 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
-from config import get_settings
+from backend.config import get_settings
 
 def setup_logging(
     log_level: Optional[str] = None,

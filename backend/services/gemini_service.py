@@ -7,9 +7,9 @@ import json
 from typing import Dict, Any, Optional, List
 import google.generativeai as genai
 
-from config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
-from utils.logger import get_logger
-from services.intent_service import intent_detector
+from backend.config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
+from backend.utils.logger import get_logger
+from backend.services.intent_service import intent_detector
 
 logger = get_logger(__name__)
 

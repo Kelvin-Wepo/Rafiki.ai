@@ -6,10 +6,10 @@ import uuid
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional, List
 
-from config import get_settings, GOVERNMENT_SERVICES
+from backend.config import get_settings, GOVERNMENT_SERVICES
 from models.schemas import ServiceType, TimeSlot, BookingStatus
-from utils.logger import get_logger
-from services.sms_service import sms_service
+from backend.utils.logger import get_logger
+from backend.services.sms_service import sms_service
 
 logger = get_logger(__name__)
 

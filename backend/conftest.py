@@ -19,7 +19,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-from database import Base, get_db
+from backend.database import Base, get_db
 
 # Mock optional heavy dependencies to avoid import-time failures during test collection
 # (e.g., PyPDF2 / pypdf used by ConstitutionLoader). Insert simple Mock modules so
@@ -29,8 +29,8 @@ for _module in ("pypdf", "PyPDF2"):
         sys.modules[_module] = Mock()
         setattr(sys.modules[_module], "PdfReader", Mock())
 
-from main import app
-from config import get_settings
+from backend.main import app
+from backend.config import get_settings
 
 
 # ============== Database Fixtures ==============
