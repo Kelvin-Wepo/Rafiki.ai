@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     AFRICASTALKING_USERNAME: str = ""
     AFRICASTALKING_API_KEY: str = ""
     AFRICASTALKING_SENDER_ID: Optional[str] = None
+
+    # OTP/SMS simulation (dev only)
+    OTP_SIMULATE: bool = False
     
     # Session Settings
     SESSION_SECRET_KEY: str = "change-this-to-a-secure-random-string"

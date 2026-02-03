@@ -64,6 +64,8 @@ class OTPService:
         self._rate_limit_tracker: Dict[str, list] = defaultdict(list)
         self._lockout_tracker: Dict[str, datetime] = {}
         self._audit_logs: list = []
+        # Keep last plaintext OTPs in memory for debugging when DEBUG or OTP_SIMULATE is enabled
+        self._last_plain_otps: Dict[str, str] = {}
     
     def initialize(self) -> bool:
         """Initialize Africa's Talking SMS client."""
@@ -247,6 +249,10 @@ class OTPService:
         
         # Store OTP record
         self._otp_records[phone_hash] = otp_record
+
+        # Save plaintext OTP for debugging when allowed (DEBUG or OTP_SIMULATE)
+        if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+            self._last_plain_otps[phone_hash] = otp
         
         # Track rate limit
         self._rate_limit_tracker[phone_hash].append(datetime.utcnow())
@@ -267,7 +273,8 @@ class OTPService:
                 "success": True,
                 "message": "OTP sent successfully. Check your SMS.",
                 "expires_in": self.OTP_EXPIRY_MINUTES * 60,
-                "otp_id": otp_record.id
+                "otp_id": otp_record.id,
+                "simulated": sms_result.get("simulated", False)
             }
         else:
             self._log_audit_event(
@@ -325,15 +332,31 @@ class OTPService:
             logger.info(f"SMS sent: {response}")
             
             # Check response
-            if response.get("SMSMessageData", {}).get("Recipients"):
-                recipient = response["SMSMessageData"]["Recipients"][0]
+            recipients = response.get("SMSMessageData", {}).get("Recipients")
+            if recipients:
+                recipient = recipients[0]
                 if recipient.get("status") == "Success":
                     return {"success": True, "message_id": recipient.get("messageId")}
+                else:
+                    logger.warning(f"SMS recipient status: {recipient.get('status')}")
+                    # If running in debug or simulation mode, fallback to simulated success
+                    if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+                        logger.info("SMS delivery failed but OTP_SIMULATE/DEBUG enabled - falling back to simulation")
+                        return {"success": True, "simulated": True}
+                    return {"success": False, "error": "SMS delivery failed"}
             
+            # No recipient info - treat as failure unless simulation enabled
+            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+                logger.info("No SMS recipient info but OTP_SIMULATE/DEBUG enabled - falling back to simulation")
+                return {"success": True, "simulated": True}
             return {"success": False, "error": "SMS delivery failed"}
             
         except Exception as e:
             logger.error(f"SMS send error: {e}")
+            # If SMS send failed but we're in DEBUG or OTP_SIMULATE mode, fall back to simulated success
+            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+                logger.info("SMS send failed but OTP_SIMULATE/DEBUG enabled - falling back to simulation")
+                return {"success": True, "simulated": True}
             return {"success": False, "error": str(e)}
     
     async def verify_otp(
@@ -479,6 +502,36 @@ class OTPService:
         event_type: Optional[str] = None,
         limit: int = 100
     ) -> list:
+        """
+        Get audit logs for security review.
+        
+        Args:
+            phone_hash: Filter by phone number hash
+            event_type: Filter by event type
+            limit: Maximum number of records
+        
+        Returns:
+            List of audit log records
+        """
+        logs = self._audit_logs
+        
+        if phone_hash:
+            logs = [l for l in logs if l.phone_number_hash == phone_hash]
+        
+        if event_type:
+            logs = [l for l in logs if l.event_type == event_type]
+        
+        return sorted(logs, key=lambda x: x.timestamp, reverse=True)[:limit]
+
+    def get_last_plain_otp(self, phone_number: str) -> Optional[str]:
+        """
+        Return the last generated plaintext OTP for a phone number.
+        Only available when DEBUG or OTP_SIMULATE is enabled.
+        """
+        if not (self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False)):
+            return None
+        phone_hash = hash_value(phone_number)
+        return self._last_plain_otps.get(phone_hash)
         """
         Get audit logs for security review.
         

@@ -14,6 +14,7 @@ from backend.models.user import (
 )
 from backend.services.auth_service import get_auth_service
 from backend.utils.logger import get_logger
+from backend.config import get_settings
 
 logger = get_logger(__name__)
 
@@ -209,6 +210,28 @@ async def validate_token(
         "phone_masked": user["phone_masked"],
         "expires": user.get("exp")
     }
+
+
+@router.get("/debug/last-otp")
+async def debug_last_otp(
+    phone: str
+):
+    """
+    Debug endpoint to retrieve the last generated OTP for a phone number.
+    Only available when DEBUG or OTP_SIMULATE is enabled. Do NOT enable in production.
+    """
+    settings = get_settings()
+    if not (settings.DEBUG or getattr(settings, 'OTP_SIMULATE', False)):
+        raise HTTPException(status_code=403, detail="Debug endpoint not allowed")
+
+    from backend.services.otp_service import get_otp_service as _get_otp_service
+    otp_service = _get_otp_service()
+    otp = otp_service.get_last_plain_otp(phone)
+
+    if not otp:
+        raise HTTPException(status_code=404, detail="OTP not found")
+
+    return {"success": True, "phone": phone, "otp": otp}
 
 
 # ============== Conversation Endpoints ==============
