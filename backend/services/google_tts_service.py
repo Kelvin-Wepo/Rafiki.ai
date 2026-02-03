@@ -70,16 +70,29 @@ class GoogleTTSService:
             True if initialization successful
         """
         try:
-            # Use the same credentials as Dialogflow
+            # Prefer service account credentials (GOOGLE_APPLICATION_CREDENTIALS); fall back to API key if provided
             credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-            if not credentials_path:
-                logger.warning("Google Cloud credentials not configured for TTS")
-                return False
-            
-            self._client = texttospeech.TextToSpeechClient()
-            self._initialized = True
-            logger.info("Google Cloud TTS service initialized successfully")
-            return True
+            if credentials_path:
+                self._client = texttospeech.TextToSpeechClient()
+                self._initialized = True
+                logger.info("Google Cloud TTS service initialized successfully using service account credentials")
+                return True
+
+            # If no service account JSON is provided, allow initializing with an API key
+            if self.settings.GOOGLE_API_KEY:
+                try:
+                    from google.api_core.client_options import ClientOptions
+                    client_options = ClientOptions(api_key=self.settings.GOOGLE_API_KEY)
+                    self._client = texttospeech.TextToSpeechClient(client_options=client_options)
+                    self._initialized = True
+                    logger.info("Google Cloud TTS service initialized using API key")
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to initialize Google Cloud TTS with API key: {e}")
+                    return False
+
+            logger.warning("Google Cloud credentials not configured for TTS (set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_API_KEY)")
+            return False
             
         except Exception as e:
             logger.error(f"Failed to initialize Google Cloud TTS: {e}")
