@@ -354,9 +354,18 @@ class ElevenLabsService:
                 try:
                     error_detail = response.json()
                     logger.error(f"{error_msg} - Detail: {error_detail}")
-                except:
+
+                    # Detect subscription/payment issues and make a clear log
+                    detail_status = None
+                    if isinstance(error_detail, dict):
+                        detail_status = error_detail.get("detail", {}).get("status") or error_detail.get("status")
+
+                    if response.status_code == 402 or detail_status == "payment_required":
+                        logger.warning("ElevenLabs returned 402 Payment Required for the requested voice. This usually means your subscription does not allow library voices via the API. Consider selecting a different voice or upgrading your subscription.")
+
+                except Exception:
                     logger.error(f"{error_msg} - Voice ID: {target_voice}")
-                
+
                 # Try Google Cloud TTS fallback
                 logger.warning(f"ElevenLabs failed with {response.status_code}. Trying Google Cloud TTS fallback...")
                 return await self._google_tts_text_fallback(text, language)
@@ -493,20 +502,24 @@ class ElevenLabsService:
             
             # Initialize if needed
             if not google_tts_service._initialized:
-                google_tts_service.initialize()
+                initialized = google_tts_service.initialize()
+                if not initialized:
+                    logger.warning("Google Cloud TTS not initialized (missing credentials). Please set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_API_KEY.")
+                    return {"success": False, "error": "google_tts_not_initialized", "message": "Google Cloud credentials not configured"}
             
-            # Generate audio
-            result = await google_tts_service.text_to_speech(
+            # Generate audio bytes
+            audio_bytes = await google_tts_service.text_to_speech(
                 text=text,
                 voice_name="en-US-Neural2-J",  # Warm male voice
                 language=language
             )
-            
-            if result.get("success"):
+
+            if audio_bytes:
+                audio_data = base64.b64encode(audio_bytes).decode('utf-8')
                 logger.info(f"Generated TTS audio using Google Cloud TTS fallback. Text: {len(text)} chars")
                 return {
                     "success": True,
-                    "audio_data": result["audio_data"],
+                    "audio_data": audio_data,
                     "content_type": "audio/mp3",
                     "text_length": len(text),
                     "voice_name": "Google Cloud Neural2-J",
@@ -515,7 +528,8 @@ class ElevenLabsService:
                     "language": language
                 }
             else:
-                raise Exception(f"Google Cloud TTS returned error: {result.get('error')}")
+                logger.error("Google Cloud TTS returned no audio bytes")
+                return {"success": False, "error": "no_audio", "message": "Google Cloud TTS returned no audio"}
             
         except Exception as e:
             logger.error(f"Google Cloud TTS text fallback error: {e}")

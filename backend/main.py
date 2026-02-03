@@ -65,8 +65,11 @@ async def lifespan(app: FastAPI):
     # Initialize Google Cloud TTS Service
     try:
         from backend.services.google_tts_service import google_tts_service
-        google_tts_service.initialize()
-        logger.info("Google Cloud TTS service initialized successfully")
+        initialized = google_tts_service.initialize()
+        if initialized:
+            logger.info("Google Cloud TTS service initialized successfully")
+        else:
+            logger.warning("Google Cloud TTS service not initialized (credentials missing)")
     except Exception as e:
         logger.warning(f"Google Cloud TTS initialization failed: {e}")
 
