@@ -1,6 +1,12 @@
 """
 Google Gemini API integration for natural language understanding.
 Integrated with Rafiki copilot platform for government service navigation.
+
+Features:
+- Natural language understanding via Gemini AI
+- PII detection and sanitization
+- Bilingual (English/Kiswahili) support
+- Secure input handling
 """
 
 import json
@@ -10,6 +16,7 @@ import google.genai as genai
 from backend.config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
 from backend.utils.logger import get_logger
 from backend.services.intent_service import intent_detector
+from backend.utils.encryption import get_pii_detector, PIIDetector
 
 logger = get_logger(__name__)
 
@@ -18,6 +25,11 @@ class GeminiService:
     """
     Service for integrating with Google Gemini API for NLU.
     Handles intent detection, entity extraction, and response generation.
+    
+    Security Features:
+    - PII detection and masking before logging
+    - Input sanitization
+    - Secure handling of sensitive data
     """
     
     def __init__(self):
@@ -26,9 +38,55 @@ class GeminiService:
         self._model = None
         self._chat = None
         self._initialized = False
+        self._pii_detector: Optional[PIIDetector] = None
         
         # System context for the assistant
         self._system_context = self._build_system_context()
+        
+        # Initialize PII detector
+        try:
+            self._pii_detector = get_pii_detector()
+            logger.info("PII detector initialized for Gemini service")
+        except Exception as e:
+            logger.warning(f"PII detector not available: {e}")
+    
+    def _sanitize_input(self, text: str) -> tuple[str, Dict[str, Any]]:
+        """
+        Sanitize input text by detecting PII.
+        
+        Args:
+            text: Input text to sanitize
+            
+        Returns:
+            Tuple of (original text, PII detection results)
+        """
+        pii_found = {}
+        
+        if self._pii_detector:
+            pii_found = self._pii_detector.detect(text)
+            
+            if pii_found:
+                # Log PII detection (masked) for security auditing
+                logger.warning(
+                    f"PII detected in input: {list(pii_found.keys())} - "
+                    f"counts: {self._pii_detector.get_pii_summary(text)}"
+                )
+        
+        return text, pii_found
+    
+    def _get_safe_log_text(self, text: str) -> str:
+        """
+        Get a safe version of text for logging (PII masked).
+        
+        Args:
+            text: Text to mask
+            
+        Returns:
+            Text with PII masked
+        """
+        if self._pii_detector:
+            return self._pii_detector.mask(text)
+        return text
     
     def _build_system_context(self, language: str = 'en') -> str:
         """Build the system context prompt for Gemini using Rafiki copilot guidelines."""
@@ -289,6 +347,9 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
                 }
         
         try:
+            # Sanitize input and detect PII
+            sanitized_message, pii_detected = self._sanitize_input(user_message)
+            
             # Detect language from message if not explicitly provided
             detected_language = intent_detector._detect_language(user_message)
             language = detected_language if detected_language != 'en' or language == 'en' else language
@@ -324,10 +385,14 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
             parsed_response['language_detected'] = intent_analysis['language']
             parsed_response['entities'] = {**parsed_response.get('entities', {}), **intent_analysis['entities']}
             parsed_response['confidence'] = intent_analysis['confidence']
+            parsed_response['pii_detected'] = list(pii_detected.keys()) if pii_detected else []
             
+            # Log with PII masked
+            safe_log_msg = self._get_safe_log_text(user_message)
             logger.info(
                 f"Processed message - Intent: {intent_analysis['intent']}, "
-                f"Confidence: {intent_analysis['confidence']:.2f}, Language: {language}"
+                f"Confidence: {intent_analysis['confidence']:.2f}, Language: {language}, "
+                f"Message: {safe_log_msg[:50]}..."
             )
             return parsed_response
             

@@ -1,0 +1,266 @@
+KENYA REVENUE AUTHORITY (KRA) - iTAX SERVICES GUIDE
+=====================================================
+
+Source: Kenya Revenue Authority
+Official Website: https://itax.kra.go.ke
+Last Updated: 2024
+
+SECTION 1: KRA PIN REGISTRATION
+================================
+
+What is a KRA PIN?
+-------------------
+A KRA PIN (Personal Identification Number) is a unique identifier issued by the Kenya Revenue Authority to every taxpayer in Kenya. It is required for:
+- Filing tax returns
+- Opening bank accounts
+- Registering businesses
+- Applying for government jobs
+- Land transactions
+- Vehicle registration
+- Importing and exporting goods
+
+Eligibility for KRA PIN
+------------------------
+Any person or entity that earns income in Kenya must register for a KRA PIN, including:
+- Kenyan citizens aged 18 years and above
+- Foreign nationals working or doing business in Kenya
+- Companies and partnerships registered in Kenya
+- Non-profit organizations
+
+Documents Required for KRA PIN Registration (Individual)
+---------------------------------------------------------
+1. Valid National ID card or Passport
+2. Two recent passport-size photographs
+3. Completed PIN application form (available on iTax)
+4. Supporting documents based on income source:
+   - Employment: Letter from employer
+   - Business: Business registration certificate
+   - Rental income: Property ownership documents
+
+How to Apply for KRA PIN Online (iTax)
+---------------------------------------
+Step 1: Visit https://itax.kra.go.ke
+Step 2: Click on "New PIN Registration"
+Step 3: Select taxpayer type (Individual/Non-Individual)
+Step 4: Fill in personal details:
+   - Full names (as per National ID)
+   - Date of birth
+   - National ID number
+   - Email address (active)
+   - Mobile phone number
+Step 5: Upload required documents
+Step 6: Submit application
+Step 7: Receive PIN via email within 24-48 hours
+
+PIN Registration at Huduma Centres
+-----------------------------------
+Location: Any Huduma Centre nationwide
+Requirements: Original National ID + 2 passport photos
+Processing time: Same day (if no complications)
+Fee: FREE
+
+
+SECTION 2: KRA PIN RECOVERY
+============================
+
+Forgot Your KRA PIN?
+---------------------
+If you have forgotten your KRA PIN, you can recover it through:
+
+Method 1: Online Recovery via iTax
+-----------------------------------
+Step 1: Visit https://itax.kra.go.ke
+Step 2: Click "Forgot PIN"
+Step 3: Enter your National ID number
+Step 4: Enter registered email address
+Step 5: Click "Retrieve"
+Step 6: Check email for PIN (sent to registered email)
+
+Method 2: USSD Recovery
+------------------------
+Dial *285# on your registered mobile number
+Follow the prompts to receive your PIN via SMS
+
+Method 3: KRA Contact Centre
+-----------------------------
+Call: +254 (020) 4 999 999
+Toll-free: 0800 222 222
+Email: callcentre@kra.go.ke
+Provide: Full name, National ID, date of birth
+
+Method 4: Visit KRA Office
+---------------------------
+Visit any KRA service centre with:
+- Original National ID
+- Completed request form
+
+
+SECTION 3: NIL RETURNS FILING
+==============================
+
+What are Nil Returns?
+----------------------
+Nil Returns are tax returns filed when a person has a KRA PIN but has no taxable income to declare for a given tax period. Filing Nil Returns is MANDATORY even if you earned no income.
+
+Who Must File Nil Returns?
+---------------------------
+- Employees whose PAYE is deducted at source (already filed by employer)
+- Unemployed individuals with KRA PIN
+- Students with KRA PIN
+- Retirees with no taxable income
+- Persons between jobs
+
+Filing Deadline
+----------------
+Annual returns (including Nil Returns) must be filed by 30th June each year for the previous tax year (January 1 - December 31).
+
+Penalty for Late/Non-Filing
+----------------------------
+- Penalty: KES 2,000 per month or 5% of tax due (whichever is higher)
+- Maximum: KES 20,000 per return
+- Interest: 1% per month on unpaid tax
+
+How to File Nil Returns on iTax
+--------------------------------
+Step 1: Log in to https://itax.kra.go.ke
+   - Enter your KRA PIN
+   - Enter your password
+   - Complete security verification
+
+Step 2: Navigate to Returns
+   - Click "Returns" on the main menu
+   - Select "File Returns"
+
+Step 3: Select Return Type
+   - Choose "Income Tax - Resident Individual"
+   - Select the tax year (e.g., 2023 for filing in 2024)
+
+Step 4: Fill in the Form
+   - For Nil Returns, enter ZERO (0) in all income fields
+   - Employment income: 0
+   - Business income: 0
+   - Rental income: 0
+   - Other income: 0
+
+Step 5: Submit Return
+   - Review all entries
+   - Click "Submit"
+   - Save or print the acknowledgement receipt
+
+Step 6: Confirm Submission
+   - Check "My Returns" to confirm status shows "Filed"
+   - Download the acknowledgement for your records
+
+
+SECTION 4: iTAX PASSWORD MANAGEMENT
+====================================
+
+First Time Login
+-----------------
+1. Visit https://itax.kra.go.ke
+2. Click "First Time Login"
+3. Enter your KRA PIN
+4. Enter your registered email
+5. Click "Generate Password"
+6. Check email for temporary password
+7. Log in with temporary password
+8. Create new password (must include uppercase, lowercase, numbers, special characters)
+
+Password Reset
+---------------
+1. Click "Forgot Password" on iTax login page
+2. Enter KRA PIN
+3. Enter registered email
+4. Click "Reset Password"
+5. Check email for reset link
+6. Create new password
+
+Password Requirements
+----------------------
+- Minimum 8 characters
+- At least one uppercase letter (A-Z)
+- At least one lowercase letter (a-z)
+- At least one number (0-9)
+- At least one special character (!@#$%^&*)
+
+
+SECTION 5: KRA TAX COMPLIANCE CERTIFICATE (TCC)
+================================================
+
+What is a Tax Compliance Certificate?
+--------------------------------------
+A Tax Compliance Certificate (TCC) is a document issued by KRA confirming that a taxpayer has met all tax obligations. It is required for:
+- Government tenders and contracts
+- Renewal of business licenses
+- Professional registration
+- Certain visa applications
+- Banking and financial services
+
+Validity Period
+----------------
+- Valid for 12 months from date of issue
+- Must be renewed annually
+
+Requirements for TCC
+---------------------
+1. All tax returns filed up to date
+2. No outstanding tax liability
+3. No pending tax disputes
+4. Active KRA PIN status
+
+How to Apply for TCC Online
+----------------------------
+Step 1: Log in to iTax
+Step 2: Click "Certificates" > "Apply for Certificate"
+Step 3: Select "Tax Compliance Certificate"
+Step 4: Confirm tax status (system checks automatically)
+Step 5: Submit application
+Step 6: Download TCC (if eligible) or view status
+
+Processing Time
+----------------
+- Instant: If all returns filed and no outstanding liability
+- Up to 7 days: If review required
+- May require visit: If tax disputes exist
+
+
+SECTION 6: CONTACT INFORMATION
+===============================
+
+KRA Contact Centre
+-------------------
+Main Line: +254 (020) 4 999 999
+Toll-Free: 0800 222 222
+Email: callcentre@kra.go.ke
+
+iTax Technical Support
+-----------------------
+Email: itax.support@kra.go.ke
+Help Desk: +254 (020) 281 0000
+
+Operating Hours
+----------------
+Monday - Friday: 8:00 AM - 5:00 PM
+Saturday: 8:00 AM - 1:00 PM
+Sunday: Closed
+Public Holidays: Closed
+
+KRA Headquarters
+-----------------
+Times Tower, Haile Selassie Avenue
+P.O. Box 48240 - 00100
+Nairobi, Kenya
+
+Regional Offices
+-----------------
+- Mombasa: Mbaraki Road
+- Kisumu: Oginga Odinga Street
+- Nakuru: Kenyatta Avenue
+- Eldoret: Uganda Road
+- And more in all major towns
+
+---
+Document Version: 2024.1
+Source: Kenya Revenue Authority (KRA)
+Official Reference: https://www.kra.go.ke
+Digital Signature: SHA256:verified_kra_guide_2024

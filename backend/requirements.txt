@@ -38,6 +38,7 @@ psycopg2-binary==2.9.9  # For migrations/sync operations
 # Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+cryptography>=41.0.0  # For AES-256-GCM encryption
 
 # Environment Variables
 python-dotenv==1.0.0

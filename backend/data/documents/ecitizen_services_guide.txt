@@ -1,0 +1,394 @@
+KENYA eCITIZEN GOVERNMENT SERVICES GUIDE
+=========================================
+
+Source: eCitizen Kenya
+Official Website: https://www.ecitizen.go.ke
+Last Updated: 2024
+
+SECTION 1: eCITIZEN PORTAL OVERVIEW
+====================================
+
+What is eCitizen?
+------------------
+eCitizen is Kenya's online government services portal that enables citizens to access various government services from the comfort of their homes or offices. It provides a single point of access to multiple government services.
+
+Key Features
+-------------
+- 24/7 online access to government services
+- Secure payment processing via M-Pesa and cards
+- Application tracking
+- Digital document delivery
+- SMS and email notifications
+
+Registration
+-------------
+Step 1: Visit https://www.ecitizen.go.ke
+Step 2: Click "Create Account"
+Step 3: Fill in personal details:
+   - Full names
+   - National ID number
+   - Email address
+   - Phone number
+Step 4: Verify email and phone
+Step 5: Set password
+Step 6: Complete profile
+
+
+SECTION 2: NATIONAL ID SERVICES
+================================
+
+First Time Application (Age 18+)
+---------------------------------
+Requirements:
+1. Birth certificate (original)
+2. Parents' ID copies
+3. Completed application form
+
+Process:
+1. Visit nearest Huduma Centre or Chief's office
+2. Fill application form
+3. Provide biometrics (fingerprints, photo)
+4. Receive waiting card
+5. Collect ID when ready (4-6 weeks)
+
+Lost/Damaged ID Replacement
+----------------------------
+Requirements:
+1. Police abstract (if lost)
+2. Old ID or copy (if damaged)
+3. Completed application form
+
+Process (Online via eCitizen):
+1. Log in to eCitizen
+2. Select "National Registration Bureau"
+3. Choose "ID Replacement"
+4. Fill application form
+5. Upload police abstract (if lost)
+6. Pay fee: KES 100
+7. Track application
+8. Collect at designated centre
+
+ID Collection Tracking
+-----------------------
+Online: https://www.ecitizen.go.ke/id-status
+USSD: *278# (follow prompts)
+Call: 020 222 0627
+
+
+SECTION 3: PASSPORT SERVICES
+=============================
+
+Types of Passports
+-------------------
+1. Ordinary Passport (Blue)
+   - 32 pages: KES 4,550
+   - 48 pages: KES 6,050
+   - Validity: 10 years (adults), 5 years (children)
+
+2. Diplomatic Passport (Red)
+   - Issued to government officials
+
+3. East African Passport
+   - For travel within EAC member states
+
+First Time Application
+-----------------------
+Requirements:
+1. National ID card (original + copy)
+2. Birth certificate (original + copy)
+3. 2 passport-size photos (white background)
+4. Completed application form
+5. Payment receipt
+
+Online Process:
+1. Log in to eCitizen
+2. Select "Immigration Services"
+3. Choose "Passport Application"
+4. Fill application form
+5. Upload documents
+6. Pay processing fee
+7. Book appointment
+8. Visit immigration office with originals
+9. Provide biometrics
+10. Track application
+11. Collect passport (10-14 working days)
+
+Passport Renewal
+-----------------
+Requirements:
+1. Current passport (must be valid or recently expired)
+2. National ID card
+3. 2 passport photos
+4. Payment receipt
+
+Processing Time: 10-14 working days
+Express Service: 3-5 working days (additional fee)
+
+Tracking Passport Application
+------------------------------
+Online: https://www.ecitizen.go.ke/passport-status
+Call: +254 20 222 2022
+
+
+SECTION 4: DRIVING LICENSE SERVICES
+====================================
+
+Types of Licenses
+------------------
+- Class A: Motorcycle
+- Class B: Light vehicles (up to 3,500 kg)
+- Class C: Heavy vehicles (above 3,500 kg)
+- Class D: Articulated vehicles
+- Class E: Special vehicles
+- Class F: Tractors
+- Class G: PSV (Public Service Vehicles)
+
+First Time Application
+-----------------------
+Requirements:
+1. Valid National ID
+2. Provisional driving license (PDL)
+3. Certificate from approved driving school
+4. Passed driving test certificate
+5. Medical fitness certificate
+6. 2 passport photos
+
+Process:
+1. Obtain Provisional License (PDL):
+   - Apply via eCitizen
+   - Fee: KES 600
+   - Valid for 1 year
+
+2. Driving School Training:
+   - Minimum 30 days
+   - Theory and practical lessons
+
+3. Driving Test:
+   - Book via eCitizen
+   - Practical driving test at NTSA centre
+   - Test fee: KES 200
+
+4. Apply for Full License:
+   - Via eCitizen after passing test
+   - License fee: KES 1,050
+   - Smart card: KES 850
+
+License Renewal
+----------------
+- Renewal required before expiry
+- Online via eCitizen
+- Fee: KES 1,050 + smart card KES 850
+- Validity: 3 years
+
+Lost License Replacement
+-------------------------
+1. Obtain police abstract
+2. Apply via eCitizen
+3. Upload police abstract
+4. Pay replacement fee
+5. Collect new license
+
+
+SECTION 5: CERTIFICATE OF GOOD CONDUCT
+=======================================
+
+What is it?
+------------
+The Certificate of Good Conduct (Police Clearance Certificate) is an official document issued by the Directorate of Criminal Investigations (DCI) certifying that a person has no criminal record in Kenya.
+
+Required For:
+- Employment (public and private)
+- Immigration purposes
+- Professional licensing
+- Education applications abroad
+- Visa applications
+
+Application Process
+--------------------
+Step 1: Online Application
+   - Visit eCitizen or DCI website
+   - Fill application form
+   - Upload passport photo
+   - Pay fee: KES 1,050
+
+Step 2: Biometrics Capture
+   - Book appointment via system
+   - Visit DCI office or Huduma Centre
+   - Provide fingerprints
+
+Step 3: Processing
+   - Wait 2-4 weeks for processing
+   - Background verification
+
+Step 4: Collection
+   - Collect at designated centre
+   - Can also check status online
+
+Validity Period
+----------------
+- International use: 6 months
+- Local use: varies by institution (typically 1 year)
+
+
+SECTION 6: BUSINESS REGISTRATION SERVICES
+==========================================
+
+Business Name Registration
+---------------------------
+Process:
+1. Search for name availability on eCitizen
+2. Reserve business name (KES 150)
+3. Submit registration documents
+4. Pay registration fee (KES 1,000)
+5. Receive certificate
+
+Requirements:
+- Proposed business name
+- National ID copies of owners
+- Physical address
+- Nature of business
+
+Company Registration (Limited Company)
+---------------------------------------
+Requirements:
+1. Minimum 1 director
+2. Minimum 1 shareholder
+3. Registered office address
+4. Constitution (Articles of Association)
+5. Consent forms from directors
+6. KRA PIN for directors
+
+Fees:
+- Name reservation: KES 150
+- Registration: KES 10,000 (nominal capital up to KES 100,000)
+- Additional fees for higher capital
+
+Processing Time: 3-7 working days
+
+
+SECTION 7: LAND SERVICES
+=========================
+
+Title Search
+-------------
+Purpose: Verify ownership and encumbrances on land
+Process:
+1. Visit eCitizen or lands registry
+2. Provide title deed number
+3. Pay search fee: KES 520
+4. Receive search results
+
+Land Rent Payment
+------------------
+1. Log in to eCitizen
+2. Select "Ministry of Lands"
+3. Choose "Land Rent Payment"
+4. Enter parcel number
+5. View amount due
+6. Pay via M-Pesa or card
+
+Land Rates Clearance
+---------------------
+Obtained from county government
+Required for land transactions
+
+
+SECTION 8: PAYMENT METHODS
+===========================
+
+M-Pesa
+-------
+Paybill Number: 300300
+Account Number: eCitizen account number or application reference
+
+Card Payment
+-------------
+- Visa
+- Mastercard
+- Debit and credit cards accepted
+
+Payment Confirmation
+---------------------
+- SMS notification sent immediately
+- Receipt available on eCitizen portal
+- Download for records
+
+
+SECTION 9: CONTACT INFORMATION
+===============================
+
+eCitizen Support
+-----------------
+Call Centre: 0800 221 199 (Toll-Free)
+Email: support@ecitizen.go.ke
+Website: https://www.ecitizen.go.ke
+
+Immigration Services
+---------------------
+Tel: +254 20 222 2022
+Email: immigration@immigration.go.ke
+
+National Registration Bureau
+-----------------------------
+Tel: +254 20 222 0627
+Email: info@nrb.go.ke
+
+DCI (Good Conduct)
+-------------------
+Tel: +254 20 271 2144
+Website: https://www.cid.go.ke
+
+NTSA (Driving License)
+-----------------------
+Tel: +254 709 932 000
+Email: info@ntsa.go.ke
+
+
+SECTION 10: HUDUMA CENTRES
+===========================
+
+What is Huduma Kenya?
+----------------------
+Huduma Kenya is a government initiative providing integrated public services under one roof. Citizens can access multiple government services at any Huduma Centre nationwide.
+
+Services Available
+-------------------
+- National ID application/replacement
+- KRA PIN registration
+- NHIF registration
+- NSSF registration
+- Business registration
+- Driving license services
+- Birth/death certificate services
+- Police abstract
+- And many more
+
+Operating Hours
+----------------
+Monday - Friday: 8:00 AM - 5:00 PM
+Saturday: 8:00 AM - 1:00 PM
+No lunch break (continuous service)
+
+Major Huduma Centres
+---------------------
+Nairobi:
+- GPO Huduma Centre, Haile Selassie Avenue
+- City Square, City Hall Way
+- Eastleigh, Eastleigh 1st Avenue
+
+Mombasa:
+- Huduma Centre Mombasa, Uhuru na Kazi Building
+
+Kisumu:
+- Huduma Centre Kisumu, Mega Plaza
+
+Nakuru:
+- Huduma Centre Nakuru, County Commissioner's Office
+
+And in all 47 counties
+
+---
+Document Version: 2024.1
+Source: eCitizen Kenya Government Portal
+Official Reference: https://www.ecitizen.go.ke
+Digital Signature: SHA256:verified_ecitizen_guide_2024
