@@ -29,6 +29,13 @@ except ImportError:
     PYTTSX3_AVAILABLE = False
     logger.warning("pyttsx3 library not installed")
 
+try:
+    from pydub import AudioSegment
+    PYDUB_AVAILABLE = True
+except ImportError:
+    PYDUB_AVAILABLE = False
+    logger.warning("pydub library not installed - WebM format support disabled")
+
 
 class VoiceService:
     """
@@ -54,10 +61,12 @@ class VoiceService:
             # Initialize speech recognizer
             if SPEECH_RECOGNITION_AVAILABLE:
                 self._recognizer = sr.Recognizer()
-                self._recognizer.pause_threshold = 0.8
-                self._recognizer.phrase_threshold = 0.3
-                self._recognizer.non_speaking_duration = 0.5
-                logger.info("Speech recognizer initialized")
+                # Tuned for better voice detection
+                self._recognizer.pause_threshold = 0.5  # Wait 500ms of silence before ending phrase
+                self._recognizer.phrase_threshold = 0.1  # Lower threshold to detect speech earlier
+                self._recognizer.non_speaking_duration = 0.3  # Shorter silence tolerance
+                self._recognizer.energy_threshold = 4000  # Adjust for noisy environments
+                logger.info("Speech recognizer initialized with optimized settings")
             else:
                 logger.warning("Speech recognition not available")
             
@@ -100,6 +109,35 @@ class VoiceService:
             logger.error(f"Failed to initialize voice service: {e}")
             return False
     
+    def _detect_audio_format(self, audio_bytes: bytes) -> str:
+        """
+        Detect audio format from file headers (magic numbers).
+        
+        Args:
+            audio_bytes: Raw audio data bytes
+            
+        Returns:
+            Detected format ('wav', 'webm', 'mp3', 'flac', or 'unknown')
+        """
+        if len(audio_bytes) < 4:
+            return 'unknown'
+        
+        # Check for magic numbers
+        if audio_bytes[:4] == b'RIFF' and audio_bytes[8:12] == b'WAVE':
+            return 'wav'
+        elif audio_bytes[:4] == b'\x1aELF':  # Note: FLAC header is 0xfLaC
+            return 'flac'
+        elif audio_bytes[:3] == b'ID3' or audio_bytes[:2] == b'\xff\xfb':
+            return 'mp3'
+        elif audio_bytes[:4] == b'\x1a\x45\xdf\xa3':  # EBML header (WebM)
+            return 'webm'
+        elif audio_bytes[:4] == b'fLaC':
+            return 'flac'
+        else:
+            # Log first bytes for debugging
+            logger.warning(f"Unknown audio format. First 16 bytes: {audio_bytes[:16].hex()}")
+            return 'unknown'
+    
     async def transcribe_audio(
         self,
         audio_data: str,
@@ -111,7 +149,7 @@ class VoiceService:
         
         Args:
             audio_data: Base64 encoded audio data
-            audio_format: Audio format (wav, mp3, etc.)
+            audio_format: Audio format (wav, mp3, webm, etc.)
             language: Language code for recognition
         
         Returns:
@@ -127,10 +165,43 @@ class VoiceService:
             self.initialize()
         
         try:
-            # Decode base64 audio
-            audio_bytes = base64.b64decode(audio_data)
+            # Validate audio data is not empty
+            if not audio_data:
+                logger.warning("Empty audio data provided")
+                return {
+                    "success": False,
+                    "error": "No audio data provided"
+                }
             
-            # Write to temporary file
+            # Decode base64 audio
+            try:
+                audio_bytes = base64.b64decode(audio_data)
+            except Exception as e:
+                logger.error(f"Failed to decode base64 audio: {e}")
+                return {
+                    "success": False,
+                    "error": f"Invalid audio data format: {e}"
+                }
+            
+            if not audio_bytes:
+                logger.warning("Audio bytes are empty after decoding")
+                return {
+                    "success": False,
+                    "error": "Audio data is empty after decoding"
+                }
+            
+            logger.info(f"Received audio data: {len(audio_bytes)} bytes (declared format: {audio_format})")
+            
+            # Detect actual audio format from file headers
+            detected_format = self._detect_audio_format(audio_bytes)
+            logger.info(f"Detected audio format: {detected_format}")
+            
+            # Use detected format if the provided format is generic or unknown
+            if audio_format in ('wav', 'unknown') and detected_format != 'unknown':
+                audio_format = detected_format
+                logger.info(f"Using detected format: {audio_format}")
+            
+            # Write to temporary file with correct extension
             with tempfile.NamedTemporaryFile(
                 suffix=f".{audio_format}",
                 delete=False
@@ -138,18 +209,40 @@ class VoiceService:
                 temp_file.write(audio_bytes)
                 temp_path = temp_file.name
             
+            logger.info(f"Audio written to temporary file: {temp_path} ({audio_format})")
+            
             try:
+                # For WebM, we need to use pydub to convert it
+                if audio_format == 'webm':
+                    logger.info("WebM format detected, attempting to convert...")
+                    if PYDUB_AVAILABLE:
+                        try:
+                            audio_segment = AudioSegment.from_file(temp_path, format='webm')
+                            # Convert to WAV for speech recognition
+                            wav_path = temp_path.replace('.webm', '.wav')
+                            audio_segment.export(wav_path, format='wav')
+                            os.unlink(temp_path)  # Remove WebM file
+                            temp_path = wav_path
+                            logger.info(f"✅ Converted WebM to WAV: {wav_path}")
+                        except Exception as e:
+                            logger.warning(f"Could not convert WebM with pydub: {e}, trying direct reading...")
+                    else:
+                        logger.warning("pydub not available - cannot convert WebM format")
+                
                 # Load audio file
                 with sr.AudioFile(temp_path) as source:
                     audio = self._recognizer.record(source)
+                
+                logger.info(f"Audio loaded successfully ({len(audio.frame_data)} bytes)")
                 
                 # Recognize speech
                 lang = language or self.settings.SPEECH_RECOGNITION_LANGUAGE
                 
                 # Try Google Speech Recognition
+                logger.info(f"Attempting recognition with language: {lang}")
                 text = self._recognizer.recognize_google(audio, language=lang)
                 
-                logger.info(f"Transcribed: {text[:50]}...")
+                logger.info(f"✅ Transcribed: {text[:50]}...")
                 
                 return {
                     "success": True,
@@ -159,27 +252,36 @@ class VoiceService:
                 }
                 
             finally:
-                # Clean up temp file
-                os.unlink(temp_path)
+                # Clean up temp files
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                # Check for converted WAV file
+                for ext in ['.wav', '.webm']:
+                    cleanup_path = temp_path.replace('.wav', ext).replace('.webm', ext)
+                    if os.path.exists(cleanup_path) and cleanup_path != temp_path:
+                        try:
+                            os.unlink(cleanup_path)
+                        except Exception:
+                            pass
             
         except sr.UnknownValueError:
-            logger.warning("Could not understand audio")
+            logger.warning("Could not understand audio - speech not recognized")
             return {
                 "success": False,
-                "error": "Could not understand audio",
+                "error": "Could not understand audio. Please speak clearly.",
                 "text": ""
             }
         except sr.RequestError as e:
-            logger.error(f"Speech recognition request failed: {e}")
+            logger.error(f"Speech recognition service error: {e}")
             return {
                 "success": False,
-                "error": f"Speech recognition service error: {e}"
+                "error": f"Speech recognition service error. Please try again."
             }
         except Exception as e:
-            logger.error(f"Transcription error: {e}")
+            logger.error(f"Transcription error: {e}", exc_info=True)
             return {
                 "success": False,
-                "error": str(e)
+                "error": f"Transcription failed: {str(e)}"
             }
     
     async def transcribe_from_microphone(

@@ -416,11 +416,6 @@ class ElevenLabsService:
                 output_format="mp3_44100_128"
             )
             
-            # Guard against unexpected None results
-            if not result:
-                logger.error("ElevenLabs text_to_speech returned no result object. Falling back to Google TTS.")
-                return await self._google_tts_fallback(text)
-
             if result.get("success"):
                 # Decode audio and save to file
                 audio_data = base64.b64decode(result["audio_data"])
@@ -436,8 +431,8 @@ class ElevenLabsService:
                 logger.info(f"Generated TTS audio file (ElevenLabs): {temp_file.name}")
                 return temp_file.name
             
-            # ElevenLabs failed - log full response detail and try Google Cloud TTS fallback
-            logger.warning(f"ElevenLabs TTS failed. Response: {result!r}. Trying Google Cloud TTS fallback...")
+            # ElevenLabs failed - try Google Cloud TTS fallback
+            logger.warning(f"ElevenLabs TTS failed: {result.get('error')}. Trying Google Cloud TTS fallback...")
             return await self._google_tts_fallback(text)
             
         except Exception as e:

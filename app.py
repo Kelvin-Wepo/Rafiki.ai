@@ -22,6 +22,12 @@ project_root = Path(__file__).parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+# Set PYTHONPATH for uvicorn subprocesses (reload mode)
+os.environ["PYTHONPATH"] = str(project_root)
+
+# Change to project root directory so uvicorn subprocesses work correctly
+os.chdir(project_root)
+
 # Load environment variables
 load_dotenv()
 

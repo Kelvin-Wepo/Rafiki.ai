@@ -20,6 +20,7 @@ google-auth==2.26.2
 SpeechRecognition==3.10.1
 pyttsx3==2.90
 pyaudio==0.2.14
+pydub==0.25.1  # Audio format conversion (WebM to WAV, etc.)
 
 # Africa's Talking SMS Integration
 africastalking==1.2.5

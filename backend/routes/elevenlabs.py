@@ -102,11 +102,6 @@ async def text_to_speech(request: TTSRequest):
             model_id=request.model_id
         )
         
-        # Guard against unexpected None responses from the service
-        if not result:
-            logger.error("ElevenLabs service returned no response")
-            return TTSResponse(success=False, error="TTS service returned no response")
-
         if result.get("success"):
             return TTSResponse(
                 success=True,

@@ -252,12 +252,17 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
       stopAudioLevelMonitoring();
       
       if (event.error === 'no-speech') {
+        console.warn('No speech detected - ensure microphone is working and you are speaking clearly');
+        onError?.('No speech detected. Please speak clearly into your microphone.');
         updateState('idle');
       } else if (event.error === 'not-allowed') {
-        onError?.('Microphone access denied. Please allow microphone access.');
+        onError?.('Microphone access denied. Please allow microphone access in your browser settings.');
+        updateState('error');
+      } else if (event.error === 'network') {
+        onError?.('Network error. Check your internet connection.');
         updateState('error');
       } else {
-        onError?.(`Speech recognition error: ${event.error}`);
+        onError?.(`Speech recognition error: ${event.error}. Please try again.`);
         updateState('error');
       }
     };
@@ -285,11 +290,21 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
   // Audio level monitoring
   const startAudioLevelMonitoring = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false, // Disable AGC to monitor actual levels
+        }
+      });
       mediaStreamRef.current = stream;
+      
+      console.log('Microphone access granted');
+      console.log('Audio tracks:', stream.getAudioTracks());
       
       audioContextRef.current = new AudioContext();
       analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.smoothingTimeConstant = 0.8;
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyserRef.current);
       analyserRef.current.fftSize = 256;
@@ -300,14 +315,27 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
           analyserRef.current.getByteFrequencyData(dataArray);
           const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
           setAudioLevel(average);
+          
+          // Debug: log if voice is detected (threshold 30)
+          if (average > 30) {
+            console.debug(`🎤 Voice detected - Level: ${Math.round(average)}`);
+          }
+          
           animationFrameRef.current = requestAnimationFrame(updateLevel);
         }
       };
       updateLevel();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Audio monitoring error:', err);
+      if (err.name === 'NotAllowedError') {
+        onError?.('Microphone access denied. Please grant permission in your browser settings.');
+      } else if (err.name === 'NotFoundError') {
+        onError?.('No microphone found. Please check your audio device.');
+      } else {
+        onError?.(`Audio error: ${err.message}`);
+      }
     }
-  }, [isListening]);
+  }, [isListening, onError]);
 
   const stopAudioLevelMonitoring = useCallback(() => {
     if (animationFrameRef.current) {
