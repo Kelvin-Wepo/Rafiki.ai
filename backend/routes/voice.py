@@ -123,9 +123,31 @@ async def process_input(
             # Determine the response language (sw for Kiswahili, en for English)
             response_language = "sw" if request.language.startswith("sw") else "en"
             
-            # Use Gemini for enhanced responses if needed
+            # Check if this is a knowledge query that should use RAG/Gemini
+            def _is_knowledge_query(text: str) -> bool:
+                """Check if message is a knowledge/information query."""
+                knowledge_patterns = [
+                    'constitution', 'katiba', 'law', 'sheria',
+                    'what does', 'what is', 'what are', 'how do i', 'how can i',
+                    'tell me about', 'explain', 'niambie', 'define',
+                    'citizenship', 'uraia', 'rights', 'haki', 'bill of rights',
+                    'article', 'chapter', 'section', 'sehemu',
+                    'government', 'serikali', 'parliament', 'president',
+                    'freedom', 'uhuru', 'equality', 'usawa', 'justice'
+                ]
+                text_lower = text.lower()
+                return any(pattern in text_lower for pattern in knowledge_patterns)
+            
+            # Use Gemini for knowledge queries OR when dialogflow doesn't match well
             gemini_response = None
-            if dialogflow_result.get("intent") in ["unknown", "fallback"]:
+            is_knowledge = _is_knowledge_query(user_text)
+            use_gemini = (
+                dialogflow_result.get("intent") in ["unknown", "fallback"] or
+                is_knowledge or
+                dialogflow_result.get("confidence", 0) < 0.5
+            )
+            
+            if use_gemini:
                 gemini_response = await gemini_service.process_message(
                     user_text,
                     conversation_history=session.conversation_context.get("history", []),
@@ -136,13 +158,19 @@ async def process_input(
                     language=response_language
                 )
             
-            # Determine final response
-            response_text = dialogflow_result.get("response") or \
-                          (gemini_response.get("text") if gemini_response else None) or \
-                          "I'm not sure how to help with that. Please say 'help' for available options."
-            
-            intent = dialogflow_result.get("intent", "unknown")
-            entities = dialogflow_result.get("entities", {})
+            # Determine final response - prefer Gemini for knowledge queries
+            if is_knowledge and gemini_response:
+                response_text = gemini_response.get("text", "")
+                intent = gemini_response.get("detected_intent", "knowledge_query")
+                entities = gemini_response.get("entities", {})
+                sources = gemini_response.get("sources", [])
+            else:
+                response_text = dialogflow_result.get("response") or \
+                              (gemini_response.get("text") if gemini_response else None) or \
+                              "I'm not sure how to help with that. Please say 'help' for available options."
+                intent = dialogflow_result.get("intent", "unknown")
+                entities = dialogflow_result.get("entities", {})
+                sources = []
             
             # Update session
             await session_manager.update_session(
