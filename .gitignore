@@ -130,3 +130,4 @@ sadtalker/
 # ================================
 .env
 docker-compose.override.yml
+backend/data/chroma_db/
