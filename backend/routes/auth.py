@@ -52,7 +52,7 @@ async def get_current_user(
     auth_service = get_auth_service()
     
     ip, _ = get_client_info(request) if request else (None, None)
-    user_info = auth_service.validate_token(token, ip_address=ip)
+    user_info = await auth_service.validate_token(token, ip_address=ip)
     
     if not user_info:
         raise HTTPException(status_code=401, detail="Invalid or expired token")

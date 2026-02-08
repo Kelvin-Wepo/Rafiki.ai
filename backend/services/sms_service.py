@@ -1,5 +1,12 @@
 """
 SMS service using Africa's Talking API.
+
+Features:
+- Booking confirmations
+- Appointment reminders
+- KRA workflow confirmations
+- Voter information delivery
+- Secure logging (no PII in logs)
 """
 
 from typing import Optional, Dict, Any, List
@@ -22,6 +29,10 @@ except ImportError:
 class SMSService:
     """
     Service for sending SMS notifications via Africa's Talking.
+    
+    Security:
+    - Phone numbers are masked in logs
+    - Messages are not logged in full (only metadata)
     """
     
     def __init__(self):
@@ -29,6 +40,12 @@ class SMSService:
         self.settings = get_settings()
         self._sms_client = None
         self._initialized = False
+    
+    def _mask_phone(self, phone: str) -> str:
+        """Mask phone number for logging."""
+        if len(phone) > 6:
+            return f"{phone[:4]}****{phone[-2:]}"
+        return "****"
     
     def initialize(self) -> bool:
         """
@@ -226,6 +243,122 @@ class SMSService:
             f"Your {service_name} booking (ID: {booking_id}) has been cancelled.\n\n"
             f"If you did not request this cancellation, please contact support.\n"
             f"You can book a new appointment anytime through eCitizen."
+        )
+        
+        return await self.send_sms(phone_number, message)
+    
+    async def send_kra_confirmation(
+        self,
+        phone_number: str,
+        kra_details: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Send KRA workflow confirmation SMS.
+        
+        Args:
+            phone_number: Recipient phone number
+            kra_details: KRA transaction details
+        
+        Returns:
+            SMS send result
+        """
+        service_type = kra_details.get("service_type", "KRA service")
+        reference = kra_details.get("reference_number", "N/A")
+        
+        message = (
+            f"KRA Service Confirmation\n\n"
+            f"Service: {service_type}\n"
+            f"Reference: {reference}\n\n"
+            f"Keep this reference for your records.\n"
+            f"For inquiries, contact KRA."
+        )
+        
+        return await self.send_sms(phone_number, message)
+    
+    async def send_voter_info(
+        self,
+        phone_number: str,
+        voter_details: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Send voter registration information via SMS.
+        
+        Args:
+            phone_number: Recipient phone number
+            voter_details: Voter information
+        
+        Returns:
+            SMS send result
+        """
+        polling_station = voter_details.get("polling_station", "your assigned station")
+        constituency = voter_details.get("constituency", "your constituency")
+        
+        message = (
+            f"IEBC Voter Info\n\n"
+            f"Station: {polling_station}\n"
+            f"Constituency: {constituency}\n\n"
+            f"Present your ID on voting day.\n"
+            f"For more info: www.iebc.or.ke"
+        )
+        
+        return await self.send_sms(phone_number, message)
+    
+    async def send_emergency_acknowledgement(
+        self,
+        phone_number: str,
+        report_details: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Send acknowledgement for emergency reports.
+        
+        Args:
+            phone_number: Recipient phone number  
+            report_details: Report information
+        
+        Returns:
+            SMS send result
+        """
+        report_id = report_details.get("report_id", "N/A")
+        report_type = report_details.get("type", "emergency")
+        
+        message = (
+            f"Report Received\n\n"
+            f"Type: {report_type.title()}\n"
+            f"Reference: {report_id}\n\n"
+            f"Authorities have been notified.\n"
+            f"Emergency? Call 999 or 112."
+        )
+        
+        return await self.send_sms(phone_number, message)
+    
+    async def send_workflow_completion(
+        self,
+        phone_number: str,
+        workflow_type: str,
+        details: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Generic workflow completion SMS.
+        
+        Args:
+            phone_number: Recipient phone number
+            workflow_type: Type of completed workflow
+            details: Workflow details
+        
+        Returns:
+            SMS send result
+        """
+        masked_phone = self._mask_phone(phone_number)
+        logger.info(f"Sending workflow completion SMS for {workflow_type} to {masked_phone}")
+        
+        reference = details.get("reference", details.get("booking_id", "N/A"))
+        
+        message = (
+            f"Rafiki.ai Confirmation\n\n"
+            f"Service: {workflow_type}\n"
+            f"Reference: {reference}\n"
+            f"Status: Complete\n\n"
+            f"Thank you for using eCitizen services."
         )
         
         return await self.send_sms(phone_number, message)
