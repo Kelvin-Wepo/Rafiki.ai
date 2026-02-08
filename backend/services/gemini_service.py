@@ -7,16 +7,37 @@ Features:
 - PII detection and sanitization
 - Bilingual (English/Kiswahili) support
 - Secure input handling
+- RAG integration for government knowledge queries
 """
 
 import json
 from typing import Dict, Any, Optional, List
-import google.genai as genai
+
+# Try new google-genai package first, fall back to old google-generativeai
+try:
+    from google import genai
+    from google.genai import types
+    GENAI_NEW_API = True
+except ImportError:
+    try:
+        import google.generativeai as genai
+        GENAI_NEW_API = False
+    except ImportError:
+        genai = None
+        GENAI_NEW_API = False
 
 from backend.config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
 from backend.utils.logger import get_logger
 from backend.services.intent_service import intent_detector
 from backend.utils.encryption import get_pii_detector, PIIDetector
+
+# RAG service for knowledge queries
+try:
+    from backend.services.rag_service import ConstitutionRAG
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+    ConstitutionRAG = None
 
 logger = get_logger(__name__)
 
@@ -36,12 +57,25 @@ class GeminiService:
         """Initialize Gemini service with API configuration."""
         self.settings = get_settings()
         self._model = None
+        self._client = None  # For new google-genai API
         self._chat = None
         self._initialized = False
         self._pii_detector: Optional[PIIDetector] = None
+        self._rag_service = None
         
         # System context for the assistant
         self._system_context = self._build_system_context()
+        
+        # Initialize RAG service for knowledge queries
+        try:
+            if RAG_AVAILABLE:
+                self._rag_service = ConstitutionRAG()
+                # Load documents on startup
+                self._rag_service.load_all_documents()
+                logger.info("RAG service initialized for Gemini")
+        except Exception as e:
+            logger.warning(f"RAG service not available: {e}")
+            self._rag_service = None
         
         # Initialize PII detector
         try:
@@ -87,6 +121,60 @@ class GeminiService:
         if self._pii_detector:
             return self._pii_detector.mask(text)
         return text
+    
+    def _is_knowledge_query(self, message: str) -> bool:
+        """
+        Check if a message is a knowledge/information query that should use RAG.
+        
+        Args:
+            message: User's message
+            
+        Returns:
+            True if this is a knowledge query
+        """
+        knowledge_patterns = [
+            'constitution', 'katiba', 'law', 'sheria',
+            'what does', 'what is', 'how do i', 'how can i',
+            'tell me about', 'explain', 'niambie',
+            'citizenship', 'uraia', 'rights', 'haki',
+            'kra', 'itax', 'tax', 'nil returns', 'pin',
+            'ecitizen', 'passport', 'id card', 'kitambulisho',
+            'license', 'permit', 'registration', 'usajili',
+            'documents', 'requirements', 'mahitaji',
+            'article', 'chapter', 'section', 'sehemu',
+            'government', 'serikali', 'service', 'huduma'
+        ]
+        
+        message_lower = message.lower()
+        return any(pattern in message_lower for pattern in knowledge_patterns)
+    
+    def _get_rag_context(self, query: str, language: str = 'en') -> Dict[str, Any]:
+        """
+        Get relevant context from RAG service for knowledge queries.
+        
+        Args:
+            query: User's question
+            language: Language for citations
+            
+        Returns:
+            Dictionary with context, citations, and spoken citations
+        """
+        if not self._rag_service:
+            return {'context': '', 'citations': [], 'spoken_citations': []}
+        
+        try:
+            # Query RAG with citations
+            results = self._rag_service.query_with_citations(
+                query_text=query,
+                language=language,
+                top_k=3
+            )
+            
+            logger.info(f"RAG query returned {len(results.get('citations', []))} citations")
+            return results
+        except Exception as e:
+            logger.error(f"RAG query error: {e}")
+            return {'context': '', 'citations': [], 'spoken_citations': []}
     
     def _build_system_context(self, language: str = 'en') -> str:
         """Build the system context prompt for Gemini using Rafiki copilot guidelines."""
@@ -262,42 +350,52 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
                 if not self.settings.GEMINI_API_KEY:
                     logger.warning("Gemini API key not configured; attempting initialization (may be mocked)")
 
-                genai.configure(api_key=self.settings.GEMINI_API_KEY)
+                if GENAI_NEW_API:
+                    # New google-genai package (2024+)
+                    client = genai.Client(api_key=self.settings.GEMINI_API_KEY)
+                    self._client = client
+                    self._model = self.settings.GEMINI_MODEL
+                    self._initialized = True
+                    logger.info("Gemini service initialized with new API")
+                else:
+                    # Old google-generativeai package
+                    genai.configure(api_key=self.settings.GEMINI_API_KEY)
 
-                # Configure the model
-                generation_config = genai.types.GenerationConfig(
-                    temperature=0.7,
-                    top_p=0.9,
-                    top_k=40,
-                    max_output_tokens=500,
-                )
-
-                safety_settings = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-                ]
-
-                # Try with system_instruction first (newer API), fall back to without
-                try:
-                    self._model = genai.GenerativeModel(
-                        model_name=self.settings.GEMINI_MODEL,
-                        generation_config=generation_config,
-                        safety_settings=safety_settings,
-                        system_instruction=self._system_context
+                    # Configure the model
+                    generation_config = genai.types.GenerationConfig(
+                        temperature=0.7,
+                        top_p=0.9,
+                        top_k=40,
+                        max_output_tokens=2048,
                     )
-                except TypeError:
-                    # Older API version doesn't support system_instruction
-                    self._model = genai.GenerativeModel(
-                        model_name=self.settings.GEMINI_MODEL,
-                        generation_config=generation_config,
-                        safety_settings=safety_settings
-                    )
-                    logger.info("Using Gemini without system_instruction (older API)")
 
-                self._initialized = True
-                logger.info("Gemini service initialized successfully")
+                    safety_settings = [
+                        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    ]
+
+                    # Try with system_instruction first (newer API), fall back to without
+                    try:
+                        self._model = genai.GenerativeModel(
+                            model_name=self.settings.GEMINI_MODEL,
+                            generation_config=generation_config,
+                            safety_settings=safety_settings,
+                            system_instruction=self._system_context
+                        )
+                    except TypeError:
+                        # Older API version doesn't support system_instruction
+                        self._model = genai.GenerativeModel(
+                            model_name=self.settings.GEMINI_MODEL,
+                            generation_config=generation_config,
+                            safety_settings=safety_settings
+                        )
+                        logger.info("Using Gemini without system_instruction (older API)")
+
+                    self._initialized = True
+                    logger.info("Gemini service initialized with legacy API")
+                
                 return True
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini service: {e}")
@@ -361,16 +459,23 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
                 session_context=context
             )
             
+            # Check if this is a knowledge query and get RAG context
+            rag_context = {}
+            if self._is_knowledge_query(user_message):
+                rag_context = self._get_rag_context(user_message, language)
+                logger.info(f"Knowledge query detected, RAG context retrieved")
+            
             # Update system context based on detected language
             self._system_context = self._build_system_context(language)
             
-            # Build the prompt with enhanced context
+            # Build the prompt with enhanced context (including RAG)
             prompt = self._build_prompt(
                 user_message,
                 conversation_history,
                 context,
                 language,
-                intent_analysis
+                intent_analysis,
+                rag_context=rag_context
             )
             
             # Generate response from Gemini
@@ -387,11 +492,19 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
             parsed_response['confidence'] = intent_analysis['confidence']
             parsed_response['pii_detected'] = list(pii_detected.keys()) if pii_detected else []
             
+            # Add RAG citations if available
+            if rag_context and rag_context.get('citations'):
+                parsed_response['sources'] = [
+                    c.get('citation', 'Unknown') for c in rag_context['citations']
+                ]
+                parsed_response['verified'] = rag_context.get('verified', False)
+            
             # Log with PII masked
             safe_log_msg = self._get_safe_log_text(user_message)
             logger.info(
                 f"Processed message - Intent: {intent_analysis['intent']}, "
                 f"Confidence: {intent_analysis['confidence']:.2f}, Language: {language}, "
+                f"RAG used: {bool(rag_context and rag_context.get('context'))}, "
                 f"Message: {safe_log_msg[:50]}..."
             )
             return parsed_response
@@ -411,9 +524,10 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
         conversation_history: Optional[List[Dict[str, str]]] = None,
         context: Optional[Dict[str, Any]] = None,
         language: str = 'en',
-        intent_analysis: Optional[Dict[str, Any]] = None
+        intent_analysis: Optional[Dict[str, Any]] = None,
+        rag_context: Optional[Dict[str, Any]] = None
     ):
-        """Build the full prompt including history, context, and detected intent.
+        """Build the full prompt including history, context, RAG knowledge, and detected intent.
 
         This returns an object that is both string-coercible and awaitable so tests can `await service._build_prompt(...)`
         while internal code can pass it directly into the generator (which will cast to str).
@@ -425,6 +539,27 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
             prompt_parts.append("IMPORTANT: Respond in Kiswahili (Swahili) language only. Use natural, friendly Kiswahili.")
         else:
             prompt_parts.append("IMPORTANT: Respond in English language only. Use clear, friendly English with a warm Kenyan tone.")
+        
+        # Add RAG context for knowledge queries (PRIORITY)
+        if rag_context and rag_context.get('context'):
+            prompt_parts.append("=" * 50)
+            prompt_parts.append("IMPORTANT: Use the following VERIFIED KNOWLEDGE from official Kenya government documents to answer the user's question:")
+            prompt_parts.append(rag_context['context'])
+            
+            # Add citations
+            if rag_context.get('citations'):
+                citations_text = "\n".join([
+                    f"- {c.get('citation', 'Unknown source')}" 
+                    for c in rag_context['citations'][:3]
+                ])
+                prompt_parts.append(f"\nSources:\n{citations_text}")
+            
+            # Add spoken citation instruction
+            if rag_context.get('spoken_citations'):
+                prompt_parts.append(f"\nWhen answering, mention the source by saying: \"{rag_context['spoken_citations'][0]}\"")
+            
+            prompt_parts.append("=" * 50)
+            prompt_parts.append("Answer the question based on the above knowledge. Be accurate and cite the source.")
         
         # Add intent context if available
         if intent_analysis:
@@ -526,8 +661,24 @@ CRITICAL GUIDANCE:
                     raise RuntimeError(error_msg)
 
             prompt_text = str(prompt)
-            response = self._model.generate_content(prompt_text)
-            return response.text
+            
+            if GENAI_NEW_API:
+                # New google-genai API
+                response = self._client.models.generate_content(
+                    model=self._model,
+                    contents=prompt_text,
+                    config=types.GenerateContentConfig(
+                        temperature=0.7,
+                        top_p=0.9,
+                        top_k=40,
+                        max_output_tokens=2048,
+                    )
+                )
+                return response.text
+            else:
+                # Legacy google-generativeai API
+                response = self._model.generate_content(prompt_text)
+                return response.text
         except Exception as e:
             logger.error(f"Gemini generation error: {e}")
             raise
@@ -535,16 +686,25 @@ CRITICAL GUIDANCE:
     def _parse_response(self, response: str, original_message: str) -> Dict[str, Any]:
         """Parse Gemini response into structured format."""
         try:
+            # Strip markdown code blocks if present
+            clean_response = response
+            if '```json' in clean_response:
+                clean_response = clean_response.replace('```json', '').replace('```', '')
+            elif '```' in clean_response:
+                clean_response = clean_response.replace('```', '')
+            
+            clean_response = clean_response.strip()
+            
             # Try to extract JSON from response
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
+            json_start = clean_response.find('{')
+            json_end = clean_response.rfind('}') + 1
             
             if json_start >= 0 and json_end > json_start:
-                json_str = response[json_start:json_end]
+                json_str = clean_response[json_start:json_end]
                 parsed = json.loads(json_str)
                 
                 return {
-                    "text": parsed.get("response_text", response),
+                    "text": parsed.get("response_text", clean_response),
                     "intent": parsed.get("intent", "unknown"),
                     "entities": parsed.get("entities", {}),
                     "automation": parsed.get("automation", {"action": "none"}),
@@ -555,7 +715,7 @@ CRITICAL GUIDANCE:
             # Fallback: return raw response with basic intent detection
             intent = self._detect_basic_intent(original_message)
             return {
-                "text": response,
+                "text": clean_response,
                 "intent": intent,
                 "entities": {},
                 "automation": {"action": "none"},
@@ -565,8 +725,16 @@ CRITICAL GUIDANCE:
             
         except json.JSONDecodeError:
             logger.warning("Could not parse JSON from Gemini response")
+            # Clean the response before returning
+            clean_response = response
+            if '```json' in clean_response:
+                clean_response = clean_response.replace('```json', '').replace('```', '')
+            elif '```' in clean_response:
+                clean_response = clean_response.replace('```', '')
+            clean_response = clean_response.strip()
+            
             return {
-                "text": response,
+                "text": clean_response,
                 "intent": self._detect_basic_intent(original_message),
                 "entities": {},
                 "automation": {"action": "none"},

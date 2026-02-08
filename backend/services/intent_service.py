@@ -16,20 +16,39 @@ class IntentDetector:
     Specialized for KRA and government service interactions.
     """
     
-    # Intent categories
+    # Intent categories - KRA
     INTENT_KRA_NIL_RETURNS = "kra_nil_returns"
     INTENT_KRA_PIN_RECOVERY = "kra_pin_recovery"
     INTENT_KRA_PIN_GENERATION = "kra_pin_generation"
     INTENT_KRA_PIN_VERIFICATION = "kra_pin_verification"
     INTENT_KRA_COMPLIANCE_CHECK = "kra_compliance_check"
     INTENT_ITAX_HELP = "itax_help"
+    
+    # Intent categories - IEBC (Voter Services)
+    INTENT_VOTER_VERIFICATION = "voter_verification"
+    INTENT_POLLING_STATION = "polling_station"
+    
+    # Intent categories - Location Services
+    INTENT_HUDUMA_CENTRE = "huduma_centre"
+    INTENT_DIRECTIONS = "directions"
+    INTENT_TRAFFIC = "traffic"
+    
+    # Intent categories - Citizen Feedback/Reporting
+    INTENT_FEEDBACK = "feedback"
+    INTENT_EMERGENCY_REPORT = "emergency_report"
+    INTENT_CORRUPTION_REPORT = "corruption_report"
+    
+    # General intents
     INTENT_SERVICE_INQUIRY = "service_inquiry"
     INTENT_BOOKING = "book_appointment"
+    INTENT_PASSPORT_APPOINTMENT = "passport_appointment"
     INTENT_CONFIRMATION = "confirm"
     INTENT_NAVIGATION = "navigate"
     INTENT_CLARIFICATION = "clarify"
     INTENT_GREETING = "greeting"
     INTENT_HELP = "help"
+    INTENT_THANK_YOU = "thank_you"
+    INTENT_GOODBYE = "goodbye"
     INTENT_UNKNOWN = "unknown"
     
     # KRA-related keywords
@@ -41,14 +60,17 @@ class IntentDetector:
     
     KRA_PIN_RECOVERY_KEYWORDS = [
         'recover pin', 'reset pin', 'forgotten pin', 'lost pin',
-        'pin recovery', 'forgot pin', 'pin reset', 'new pin',
-        'pin help', 'pin issue', 'pin problem'
+        'pin recovery', 'forgot pin', 'pin reset', 'forgot my',
+        'pin help', 'pin issue', 'pin problem', 'lost my pin',
+        'forgot my kra', 'lost my kra', 'cannot remember pin'
     ]
     
     KRA_PIN_GENERATION_KEYWORDS = [
-        'get pin', 'generate pin', 'create pin', 'new pin',
+        'get pin', 'generate pin', 'create pin', 'need a pin',
         'pin application', 'apply for pin', 'register for pin',
-        'kra pin', 'pin number'
+        'pin number', 'new kra pin', 'first pin', 'need kra',
+        'want a pin', 'want kra pin', 'need a kra', 'get a kra',
+        'how do i get', 'obtain pin', 'obtain kra'
     ]
     
     KRA_PIN_VERIFICATION_KEYWORDS = [
@@ -88,6 +110,59 @@ class IntentDetector:
     HELP_KEYWORDS = [
         'help', 'assist', 'support', 'guide', 'explain', 'clarify',
         'how', 'what', 'confused', 'stuck', 'unclear', 'msaada'
+    ]
+    
+    # IEBC/Voter keywords
+    VOTER_KEYWORDS = [
+        'voter', 'vote', 'voting', 'registered to vote', 'voter registration',
+        'check registration', 'mpiga kura', 'usajili wa kura', 'kura'
+    ]
+    
+    POLLING_STATION_KEYWORDS = [
+        'polling station', 'where to vote', 'voting center', 'voting station',
+        'kituo cha kura', 'kituo cha kupiga kura', 'where do i vote'
+    ]
+    
+    # Location keywords
+    HUDUMA_KEYWORDS = [
+        'huduma', 'huduma centre', 'huduma center', 'nearest huduma',
+        'government office', 'kituo cha huduma', 'find huduma'
+    ]
+    
+    DIRECTIONS_KEYWORDS = [
+        'directions', 'how to get', 'route to', 'way to', 'navigate to',
+        'directions to', 'find', 'locate', 'njia', 'wapi'
+    ]
+    
+    TRAFFIC_KEYWORDS = [
+        'traffic', 'congestion', 'jam', 'msongamano', 'barabara',
+        'road conditions', 'traffic update', 'traffic status'
+    ]
+    
+    # Citizen feedback keywords
+    FEEDBACK_KEYWORDS = [
+        'feedback', 'suggestion', 'comment', 'complain', 'complaint',
+        'maoni', 'pendekezo', 'malalamiko', 'review'
+    ]
+    
+    EMERGENCY_KEYWORDS = [
+        'emergency', 'urgent help', 'danger', 'police', 'fire',
+        'ambulance', 'dharura', 'hatari', '999', '112', 'accident',
+        'help me now', 'need help urgently', 'emergency help'
+    ]
+    
+    CORRUPTION_KEYWORDS = [
+        'corruption', 'bribe', 'corrupt', 'ufisadi', 'rushwa',
+        'report corruption', 'whistleblower', 'report bribe'
+    ]
+    
+    # Thank you and goodbye
+    THANK_YOU_KEYWORDS = [
+        'thank', 'thanks', 'asante', 'nashukuru', 'appreciate'
+    ]
+    
+    GOODBYE_KEYWORDS = [
+        'bye', 'goodbye', 'see you', 'exit', 'quit', 'kwaheri', 'end'
     ]
     
     def __init__(self):
@@ -182,7 +257,11 @@ class IntentDetector:
         
         Returns: (intent, confidence_score)
         """
-        # Check KRA-specific intents first
+        # EMERGENCY - Highest priority
+        if self._matches_keywords(normalized, self.EMERGENCY_KEYWORDS):
+            return self.INTENT_EMERGENCY_REPORT, 0.98
+        
+        # Check KRA-specific intents
         if self._matches_keywords(normalized, self.KRA_NIL_RETURNS_KEYWORDS):
             return self.INTENT_KRA_NIL_RETURNS, 0.95
         
@@ -195,18 +274,36 @@ class IntentDetector:
         if self._matches_keywords(normalized, self.ITAX_KEYWORDS):
             return self.INTENT_ITAX_HELP, 0.85
         
-        # General intents
-        if self._matches_keywords(normalized, self.GREETING_KEYWORDS):
-            return self.INTENT_GREETING, 0.90
+        # IEBC/Voter intents
+        if self._matches_keywords(normalized, self.VOTER_KEYWORDS):
+            return self.INTENT_VOTER_VERIFICATION, 0.90
         
-        if self._matches_keywords(normalized, self.HELP_KEYWORDS):
-            return self.INTENT_HELP, 0.85
+        if self._matches_keywords(normalized, self.POLLING_STATION_KEYWORDS):
+            return self.INTENT_POLLING_STATION, 0.90
         
-        if self._matches_keywords(normalized, self.CONFIRMATION_KEYWORDS):
-            return self.INTENT_CONFIRMATION, 0.80
+        # Location intents (check before help since "how" is in help)
+        if self._matches_keywords(normalized, self.HUDUMA_KEYWORDS):
+            return self.INTENT_HUDUMA_CENTRE, 0.90
         
-        if self._matches_keywords(normalized, self.NEGATION_KEYWORDS):
-            return "negate", 0.80
+        if self._matches_keywords(normalized, self.DIRECTIONS_KEYWORDS):
+            return self.INTENT_DIRECTIONS, 0.85
+        
+        if self._matches_keywords(normalized, self.TRAFFIC_KEYWORDS):
+            return self.INTENT_TRAFFIC, 0.85
+        
+        # Citizen feedback/reporting
+        if self._matches_keywords(normalized, self.CORRUPTION_KEYWORDS):
+            return self.INTENT_CORRUPTION_REPORT, 0.92
+        
+        if self._matches_keywords(normalized, self.FEEDBACK_KEYWORDS):
+            return self.INTENT_FEEDBACK, 0.85
+        
+        # Thank you and goodbye (before help)
+        if self._matches_keywords(normalized, self.THANK_YOU_KEYWORDS):
+            return self.INTENT_THANK_YOU, 0.90
+        
+        if self._matches_keywords(normalized, self.GOODBYE_KEYWORDS):
+            return self.INTENT_GOODBYE, 0.90
         
         # Service inquiry detection
         if any(service in normalized for service in ['passport', 'id', 'license', 'permit', 'conduct', 'birth']):
@@ -215,6 +312,21 @@ class IntentDetector:
         # Booking detection
         if self._matches_keywords(normalized, ['book', 'appointment', 'schedule', 'reserve']):
             return self.INTENT_BOOKING, 0.80
+        
+        # General intents (lower priority)
+        if self._matches_keywords(normalized, self.GREETING_KEYWORDS):
+            return self.INTENT_GREETING, 0.90
+        
+        # Only check help if no other specific intent matched and user is clearly asking for help
+        help_specific = ['help', 'assist', 'support', 'guide', 'msaada', 'confused', 'stuck', 'unclear']
+        if self._matches_keywords(normalized, help_specific):
+            return self.INTENT_HELP, 0.85
+        
+        if self._matches_keywords(normalized, self.CONFIRMATION_KEYWORDS):
+            return self.INTENT_CONFIRMATION, 0.80
+        
+        if self._matches_keywords(normalized, self.NEGATION_KEYWORDS):
+            return "negate", 0.80
         
         return self.INTENT_UNKNOWN, 0.5
     
@@ -367,6 +479,127 @@ class IntentDetector:
                 "sms_confirmation": True
             }
         
+        # IEBC/Voter workflows
+        elif intent == self.INTENT_VOTER_VERIFICATION:
+            return {
+                "name": "IEBC Voter Registration Check",
+                "steps": [
+                    "Collect National ID number",
+                    "Query IEBC voter database",
+                    "Return registration status",
+                    "Provide polling station if registered",
+                    "Offer voter registration guidance if not"
+                ],
+                "urls": ["https://orac.iebc.or.ke/verify"],
+                "requires_authentication": False,
+                "sms_confirmation": True
+            }
+        
+        elif intent == self.INTENT_POLLING_STATION:
+            return {
+                "name": "Find Polling Station",
+                "steps": [
+                    "Verify voter registration",
+                    "Look up assigned polling station",
+                    "Provide station name and location",
+                    "Offer directions if needed"
+                ],
+                "urls": ["https://orac.iebc.or.ke/verify"],
+                "requires_authentication": False,
+                "sms_confirmation": True
+            }
+        
+        # Location workflows
+        elif intent == self.INTENT_HUDUMA_CENTRE:
+            return {
+                "name": "Find Nearest Huduma Centre",
+                "steps": [
+                    "Get user location/city",
+                    "Query Huduma Centre database",
+                    "Return nearest centres",
+                    "Provide services available",
+                    "Offer directions"
+                ],
+                "urls": ["https://www.hudumakenya.go.ke"],
+                "requires_authentication": False,
+                "sms_confirmation": False
+            }
+        
+        elif intent == self.INTENT_DIRECTIONS:
+            return {
+                "name": "Get Directions",
+                "steps": [
+                    "Confirm destination",
+                    "Get user starting point",
+                    "Calculate route",
+                    "Provide step-by-step directions"
+                ],
+                "urls": [],
+                "requires_authentication": False,
+                "sms_confirmation": False
+            }
+        
+        elif intent == self.INTENT_TRAFFIC:
+            return {
+                "name": "Traffic Information",
+                "steps": [
+                    "Get route/destination",
+                    "Query traffic conditions",
+                    "Provide current status",
+                    "Suggest alternatives if congested"
+                ],
+                "urls": [],
+                "requires_authentication": False,
+                "sms_confirmation": False
+            }
+        
+        # Citizen feedback/reporting workflows
+        elif intent == self.INTENT_FEEDBACK:
+            return {
+                "name": "Submit Citizen Feedback",
+                "steps": [
+                    "Ask if anonymous submission",
+                    "Collect feedback category",
+                    "Collect feedback message",
+                    "Confirm and submit",
+                    "Provide reference number"
+                ],
+                "urls": [],
+                "requires_authentication": False,
+                "sms_confirmation": True
+            }
+        
+        elif intent == self.INTENT_EMERGENCY_REPORT:
+            return {
+                "name": "Emergency Report",
+                "steps": [
+                    "Provide emergency numbers (999, 112)",
+                    "Identify emergency type",
+                    "Provide immediate guidance",
+                    "Log report for follow-up"
+                ],
+                "urls": [],
+                "requires_authentication": False,
+                "sms_confirmation": False,
+                "is_urgent": True
+            }
+        
+        elif intent == self.INTENT_CORRUPTION_REPORT:
+            return {
+                "name": "Anonymous Corruption Report",
+                "steps": [
+                    "Explain whistleblower protections",
+                    "Collect incident type",
+                    "Collect incident details (encrypted)",
+                    "Submit anonymously",
+                    "Provide reference number"
+                ],
+                "urls": ["https://www.eacc.go.ke"],
+                "requires_authentication": False,
+                "sms_confirmation": False,
+                "is_anonymous": True
+            }
+        
         return None
     
     def _get_suggestions(self, intent: str, workflow: Optional[Dict[str, Any]]) -> List[str]:
@@ -392,25 +625,97 @@ class IntentDetector:
                 "Start the registration process"
             ]
         
+        # IEBC/Voter suggestions
+        elif intent == self.INTENT_VOTER_VERIFICATION:
+            return [
+                "Check my voter status",
+                "Find my polling station",
+                "How do I register to vote?"
+            ]
+        
+        elif intent == self.INTENT_POLLING_STATION:
+            return [
+                "Get directions to my station",
+                "What do I need to vote?",
+                "Check my registration"
+            ]
+        
+        # Location suggestions
+        elif intent == self.INTENT_HUDUMA_CENTRE:
+            return [
+                "Find nearest Huduma Centre",
+                "What services are available?",
+                "Get directions"
+            ]
+        
+        elif intent == self.INTENT_DIRECTIONS:
+            return [
+                "Get directions",
+                "Check traffic first",
+                "Find government offices"
+            ]
+        
+        elif intent == self.INTENT_TRAFFIC:
+            return [
+                "Show traffic updates",
+                "Find alternate route",
+                "Check specific road"
+            ]
+        
+        # Citizen feedback suggestions
+        elif intent == self.INTENT_FEEDBACK:
+            return [
+                "Submit anonymous feedback",
+                "Submit with contact info",
+                "Learn about feedback process"
+            ]
+        
+        elif intent == self.INTENT_EMERGENCY_REPORT:
+            return [
+                "Call 999 (Police/Fire/Ambulance)",
+                "Call 112 (National Emergency)",
+                "Report non-urgent issue"
+            ]
+        
+        elif intent == self.INTENT_CORRUPTION_REPORT:
+            return [
+                "Report anonymously",
+                "Learn about whistleblower protection",
+                "Contact EACC directly"
+            ]
+        
         elif intent == self.INTENT_GREETING:
             return [
                 "File nil returns",
                 "Recover my KRA PIN",
-                "Get a KRA PIN",
-                "Book an appointment"
+                "Check voter registration",
+                "Book an appointment",
+                "Find Huduma Centre"
             ]
         
         elif intent == self.INTENT_HELP:
             return [
-                "Can you help me navigate?",
-                "What services are available?",
-                "Go back to main menu"
+                "KRA services",
+                "Voter services",
+                "Book appointments",
+                "Find government offices",
+                "Report an issue"
             ]
+        
+        elif intent == self.INTENT_THANK_YOU:
+            return [
+                "Need anything else?",
+                "Start a new request",
+                "Goodbye"
+            ]
+        
+        elif intent == self.INTENT_GOODBYE:
+            return []  # No suggestions needed for goodbye
         
         return [
             "Can you clarify that?",
             "Tell me more",
-            "Try again"
+            "Start over"
         ]
     
     def _needs_confirmation(self, intent: str) -> bool:
@@ -420,6 +725,8 @@ class IntentDetector:
             self.INTENT_KRA_NIL_RETURNS,
             self.INTENT_KRA_PIN_RECOVERY,
             self.INTENT_KRA_PIN_GENERATION,
+            self.INTENT_FEEDBACK,
+            self.INTENT_CORRUPTION_REPORT,
         ]
         return intent in confirmation_intents
     
@@ -430,7 +737,9 @@ class IntentDetector:
             self.INTENT_HELP,
             self.INTENT_UNKNOWN,
             self.INTENT_SERVICE_INQUIRY,
-            self.INTENT_CLARIFICATION
+            self.INTENT_CLARIFICATION,
+            self.INTENT_THANK_YOU,
+            self.INTENT_GOODBYE
         ]
 
 
