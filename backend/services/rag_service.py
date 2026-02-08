@@ -201,7 +201,7 @@ class ConstitutionRAG:
         api_key = getattr(settings, 'GOOGLE_API_KEY', None) or getattr(settings, 'GEMINI_API_KEY', '')
         self.embedding_function = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
             api_key=api_key,
-            model_name="models/embedding-001"
+            model_name="models/gemini-embedding-001"
         )
         
         # Get or create collection
