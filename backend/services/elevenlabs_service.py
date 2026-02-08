@@ -23,11 +23,34 @@ class ElevenLabsService:
     
     BASE_URL = "https://api.elevenlabs.io/v1"
     
-    # Warm Kenyan voices available in ElevenLabs
+    # FREE voices available in ElevenLabs (no subscription required)
+    # Note: Library voices (Noah, Aria, etc.) require paid subscription
+    FREE_VOICES = {
+        "adam": {
+            "voice_id": "pNInz6obpgDQGcFmaJgB",  # Adam - FREE default voice
+            "name": "Adam",
+            "description": "Clear, natural male voice - FREE tier compatible",
+            "language": "en",
+            "languages": ["en"],
+            "accent": "American",
+            "tone": "clear, natural, professional"
+        },
+        "rachel": {
+            "voice_id": "21m00Tcm4TlvDq8ikWAM",  # Rachel - FREE default voice
+            "name": "Rachel", 
+            "description": "Warm female voice - FREE tier compatible",
+            "language": "en",
+            "languages": ["en"],
+            "accent": "American",
+            "tone": "warm, clear, helpful"
+        }
+    }
+    
+    # Warm Kenyan voices (REQUIRE PAID SUBSCRIPTION)
     KENYAN_VOICES = {
         # Primary warm male voice from user's account
         "noah": {
-            "voice_id": "iEwEUVNDPmshU0IJrWmj",  # Noah - Conversational and Friendly (from user's ElevenLabs account)
+            "voice_id": "iEwEUVNDPmshU0IJrWmj",  # Noah - Conversational and Friendly (PAID)
             "name": "Noah",
             "description": "Warm, friendly conversational voice - great for welcoming and patient guidance",
             "language": "en",
@@ -36,7 +59,7 @@ class ElevenLabsService:
             "tone": "warm, patient, conversational, chill"
         },
         "aria": {
-            "voice_id": "XB0fDUnXU5powFXDhCwa",  # Warm female voice
+            "voice_id": "XB0fDUnXU5powFXDhCwa",  # Warm female voice (PAID)
             "name": "Aria",
             "description": "Warm, professional female voice with natural Kenyan accent",
             "language": "en-KE",
@@ -45,22 +68,13 @@ class ElevenLabsService:
             "tone": "warm, professional, accessible"
         },
         "sage": {
-            "voice_id": "5ND885W2NyJmB6mcKrFt",  # Mature, warm voice
+            "voice_id": "5ND885W2NyJmB6mcKrFt",  # Mature, warm voice (PAID)
             "name": "Sage",
             "description": "Mature, warm voice perfect for patient guidance and support",
             "language": "en-KE",
             "languages": ["en", "sw"],
             "accent": "Kenyan",
             "tone": "warm, patient, supportive"
-        },
-        "rachel": {
-            "voice_id": "21m00Tcm4TlvDq8ikWAM",  # Default warm voice
-            "name": "Rachel",
-            "description": "Clear, warm voice suitable for government service guidance",
-            "language": "en",
-            "languages": ["en", "sw"],  # Multilingual support
-            "accent": "Neutral",
-            "tone": "warm, clear, helpful"
         }
     }
     
@@ -110,9 +124,10 @@ class ElevenLabsService:
         self.branch_id = getattr(self.settings, 'ELEVENLABS_BRANCH_ID', None)
         self._client = None
         
-        # Set default voice - using Noah (Kenyan male voice for both EN and SW)
-        self.default_voice_id = self.KENYAN_VOICES["noah"]["voice_id"]
-        self.current_voice_name = "Noah"
+        # Set default voice - using Adam (FREE voice that works without subscription)
+        # Switch to KENYAN_VOICES["noah"] if you have a paid subscription
+        self.default_voice_id = self.FREE_VOICES["adam"]["voice_id"]
+        self.current_voice_name = "Adam"
     
     @property
     def client(self) -> httpx.AsyncClient:
@@ -143,31 +158,46 @@ class ElevenLabsService:
         """
         return self.KENYAN_VOICES
     
-    def select_kenyan_voice(self, voice_name: str = "noah") -> Dict[str, Any]:
+    def get_all_voices(self) -> Dict[str, Dict]:
+        """Get all available voices (free + paid)."""
+        all_voices = {}
+        all_voices.update(self.FREE_VOICES)
+        all_voices.update(self.KENYAN_VOICES)
+        return all_voices
+    
+    def select_kenyan_voice(self, voice_name: str = "adam") -> Dict[str, Any]:
         """
-        Select a Kenyan voice by name.
+        Select a voice by name. Checks FREE_VOICES first, then KENYAN_VOICES.
         
         Args:
-            voice_name: Voice name (noah, aria, sage, rachel)
+            voice_name: Voice name (adam, rachel for free; noah, aria, sage for paid)
             
         Returns:
             Dict with voice configuration or error
         """
-        if voice_name.lower() not in self.KENYAN_VOICES:
-            available = ", ".join(self.KENYAN_VOICES.keys())
-            return {
-                "success": False,
-                "error": f"Voice not found. Available: {available}"
-            }
+        voice_key = voice_name.lower()
         
-        voice = self.KENYAN_VOICES[voice_name.lower()]
-        self.default_voice_id = voice["voice_id"]
-        self.current_voice_name = voice["name"]
-        logger.info(f"Selected Kenyan voice: {voice['name']}")
+        # Check free voices first
+        if voice_key in self.FREE_VOICES:
+            voice = self.FREE_VOICES[voice_key]
+            self.default_voice_id = voice["voice_id"]
+            self.current_voice_name = voice["name"]
+            logger.info(f"Selected FREE voice: {voice['name']}")
+            return {"success": True, "voice": voice, "tier": "free"}
         
+        # Then check paid Kenyan voices
+        if voice_key in self.KENYAN_VOICES:
+            voice = self.KENYAN_VOICES[voice_key]
+            self.default_voice_id = voice["voice_id"]
+            self.current_voice_name = voice["name"]
+            logger.info(f"Selected Kenyan voice: {voice['name']} (requires paid subscription)")
+            return {"success": True, "voice": voice, "tier": "paid"}
+        
+        available_free = ", ".join(self.FREE_VOICES.keys())
+        available_paid = ", ".join(self.KENYAN_VOICES.keys())
         return {
-            "success": True,
-            "voice": voice
+            "success": False,
+            "error": f"Voice not found. Free voices: {available_free}. Paid voices: {available_paid}"
         }
     
     def optimize_text_for_speech(self, text: str, content_type: str = "conversational", language: str = "en") -> str:
@@ -298,22 +328,33 @@ class ElevenLabsService:
             Dict with audio data (base64) or error
         """
         try:
-            # Select voice: prefer voice_name for Kenyan voices
+            # Select voice: prefer voice_name, check FREE_VOICES first then KENYAN_VOICES
             target_voice = None
+            voice_display_name = self.current_voice_name
             
-            if voice_name and voice_name.lower() in self.KENYAN_VOICES:
-                # Get voice from KENYAN_VOICES dict
-                voice_config = self.KENYAN_VOICES[voice_name.lower()]
-                target_voice = voice_config["voice_id"]
-                voice_display_name = voice_config["name"]
-                logger.info(f"Selected Kenyan voice: {voice_display_name} for language: {language}")
-            elif voice_id:
-                # Use provided voice_id directly
-                target_voice = voice_id
-            else:
-                # Use default voice from settings (Rachel)
-                target_voice = self.default_voice_id
-                logger.info(f"Using default voice: {self.current_voice_name} for language: {language}")
+            if voice_name:
+                voice_key = voice_name.lower()
+                # Check free voices first
+                if voice_key in self.FREE_VOICES:
+                    voice_config = self.FREE_VOICES[voice_key]
+                    target_voice = voice_config["voice_id"]
+                    voice_display_name = voice_config["name"]
+                    logger.info(f"Selected FREE voice: {voice_display_name} for language: {language}")
+                # Then check paid Kenyan voices
+                elif voice_key in self.KENYAN_VOICES:
+                    voice_config = self.KENYAN_VOICES[voice_key]
+                    target_voice = voice_config["voice_id"]
+                    voice_display_name = voice_config["name"]
+                    logger.info(f"Selected Kenyan voice: {voice_display_name} for language: {language} (requires paid subscription)")
+            
+            if not target_voice:
+                if voice_id:
+                    # Use provided voice_id directly
+                    target_voice = voice_id
+                else:
+                    # Use default voice (Adam - FREE)
+                    target_voice = self.default_voice_id
+                    logger.info(f"Using default voice: {self.current_voice_name} for language: {language}")
             
             # Optimize text for natural speech with language support
             optimized_text = text
@@ -396,7 +437,7 @@ class ElevenLabsService:
         Args:
             text: Text to convert to speech
             language: Language code ('en' or 'sw')
-            voice_name: Optional voice name (defaults to 'noah' for Kenyan accent)
+            voice_name: Optional voice name (defaults to 'adam' for FREE tier)
             
         Returns:
             Path to the generated audio file, or None on error
@@ -404,9 +445,9 @@ class ElevenLabsService:
         try:
             import tempfile
             
-            # Auto-select Noah (Kenyan accent) if no voice specified
+            # Auto-select Adam (FREE voice) if no voice specified
             if not voice_name:
-                voice_name = "noah"  # Default to Kenyan accent voice
+                voice_name = "adam"  # Default to FREE tier voice
             
             # Try ElevenLabs first
             result = await self.text_to_speech(
@@ -505,7 +546,8 @@ class ElevenLabsService:
                 initialized = google_tts_service.initialize()
                 if not initialized:
                     logger.warning("Google Cloud TTS not initialized (missing credentials). Please set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_API_KEY.")
-                    return {"success": False, "error": "google_tts_not_initialized", "message": "Google Cloud credentials not configured"}
+                    # Try pyttsx3 as final fallback
+                    return await self._pyttsx3_text_fallback(text, language)
             
             # Generate audio bytes
             audio_bytes = await google_tts_service.text_to_speech(
@@ -529,10 +571,76 @@ class ElevenLabsService:
                 }
             else:
                 logger.error("Google Cloud TTS returned no audio bytes")
-                return {"success": False, "error": "no_audio", "message": "Google Cloud TTS returned no audio"}
+                # Try pyttsx3 as final fallback
+                return await self._pyttsx3_text_fallback(text, language)
             
         except Exception as e:
             logger.error(f"Google Cloud TTS text fallback error: {e}")
+            # Try pyttsx3 as final fallback
+            return await self._pyttsx3_text_fallback(text, language)
+    
+    async def _pyttsx3_text_fallback(self, text: str, language: str = "en") -> Dict[str, Any]:
+        """
+        Generate TTS audio using pyttsx3 (offline) as final fallback.
+        
+        Args:
+            text: Text to convert to speech
+            language: Language code
+            
+        Returns:
+            Dict with audio data (base64) or error
+        """
+        try:
+            import pyttsx3
+            import tempfile
+            import os
+            
+            logger.info("Using pyttsx3 offline TTS as final fallback...")
+            
+            # Initialize pyttsx3 engine
+            engine = pyttsx3.init()
+            
+            # Set properties for clearer speech
+            engine.setProperty('rate', 150)  # Speed of speech
+            engine.setProperty('volume', 0.9)  # Volume (0.0 to 1.0)
+            
+            # Create temp file
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            try:
+                # Generate speech to file
+                engine.save_to_file(text, temp_path)
+                engine.runAndWait()
+                
+                # Read the file and encode to base64
+                if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                    with open(temp_path, 'rb') as f:
+                        audio_bytes = f.read()
+                    
+                    audio_data = base64.b64encode(audio_bytes).decode('utf-8')
+                    logger.info(f"Generated TTS audio using pyttsx3 fallback. Text: {len(text)} chars")
+                    return {
+                        "success": True,
+                        "audio_data": audio_data,
+                        "content_type": "audio/wav",
+                        "text_length": len(text),
+                        "voice_name": "pyttsx3-offline",
+                        "voice_id": "pyttsx3",
+                        "speech_type": "fallback",
+                        "language": language
+                    }
+                else:
+                    logger.error("pyttsx3 did not generate audio file")
+                    return {"success": False, "error": "pyttsx3_no_audio", "message": "pyttsx3 did not generate audio"}
+                    
+            finally:
+                # Cleanup temp file
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                    
+        except Exception as e:
+            logger.error(f"pyttsx3 fallback error: {e}")
             return {
                 "success": False,
                 "error": f"All TTS methods failed. Last error: {str(e)}"

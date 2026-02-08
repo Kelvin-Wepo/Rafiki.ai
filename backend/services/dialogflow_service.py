@@ -35,14 +35,17 @@ class DialogflowService:
     def _build_fallback_intents(self) -> Dict[str, Dict[str, Any]]:
         """Build fallback intent patterns for when Dialogflow is unavailable."""
         return {
+            # Greetings
             "greeting": {
-                "patterns": ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings"],
+                "patterns": ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings", "habari", "jambo", "mambo", "sasa", "niaje"],
                 "responses": [
-                    "Hello! I'm Wanjiku, your eCitizen booking assistant. How can I help you today?",
-                    "Hi there! I'm here to help you access government services. What would you like to do?"
+                    "Habari! I'm Rafiki, your government services assistant. How can I help you today?",
+                    "Hello! I'm here to help you access government services. What would you like to do?"
                 ],
                 "context": "welcome"
             },
+            
+            # Booking intents
             "book_appointment": {
                 "patterns": ["book", "appointment", "schedule", "reserve", "booking"],
                 "responses": [
@@ -52,8 +55,10 @@ class DialogflowService:
                 "context": "booking_service_selection",
                 "requires_entity": "service_type"
             },
+            
+            # Service selection
             "service_passport": {
-                "patterns": ["passport"],
+                "patterns": ["passport", "pasipoti"],
                 "responses": [
                     "Great! You want to book a passport appointment. "
                     "May I have your full name please?"
@@ -62,7 +67,7 @@ class DialogflowService:
                 "sets_entity": {"service_type": "passport"}
             },
             "service_national_id": {
-                "patterns": ["national id", "id card", "identity card", "id"],
+                "patterns": ["national id", "id card", "identity card", "id", "kitambulisho"],
                 "responses": [
                     "Great! You want to book an appointment for National ID. "
                     "May I have your full name please?"
@@ -71,7 +76,7 @@ class DialogflowService:
                 "sets_entity": {"service_type": "national_id"}
             },
             "service_driving_license": {
-                "patterns": ["driving license", "driver's license", "driving licence", "license"],
+                "patterns": ["driving license", "driver's license", "driving licence", "license", "leseni"],
                 "responses": [
                     "Great! You want to book a driving license appointment. "
                     "May I have your full name please?"
@@ -88,6 +93,112 @@ class DialogflowService:
                 "context": "booking_name",
                 "sets_entity": {"service_type": "good_conduct"}
             },
+            
+            # KRA intents
+            "kra_nil_returns": {
+                "patterns": ["nil returns", "nil return", "zero returns", "file returns", "tax returns", "kufile returns"],
+                "responses": [
+                    "I can help you file nil returns. To do this, you'll need your KRA PIN and access to iTax. "
+                    "Do you have your KRA PIN ready?"
+                ],
+                "context": "kra_nil_returns_start",
+                "sets_entity": {"workflow": "kra_nil_returns"}
+            },
+            "kra_pin_recovery": {
+                "patterns": ["recover pin", "forgot pin", "lost pin", "pin recovery", "reset pin", "kurejesha pin"],
+                "responses": [
+                    "I can help you recover your KRA PIN. You'll need your National ID number "
+                    "and access to your registered email or phone. Do you have your National ID ready?"
+                ],
+                "context": "kra_pin_recovery_start",
+                "sets_entity": {"workflow": "kra_pin_recovery"}
+            },
+            "kra_pin_verification": {
+                "patterns": ["verify pin", "check pin", "validate pin", "pin status", "hakiki pin"],
+                "responses": [
+                    "I can help verify your KRA PIN. Please provide your KRA PIN number. "
+                    "The format is like A123456789B."
+                ],
+                "context": "kra_pin_verify",
+                "sets_entity": {"workflow": "kra_pin_verification"}
+            },
+            
+            # IEBC/Voter intents
+            "voter_verification": {
+                "patterns": ["voter", "registered to vote", "voter registration", "check voter", "mpiga kura", "usajili wa kura"],
+                "responses": [
+                    "I can help verify your voter registration. Please provide your National ID number."
+                ],
+                "context": "voter_verify",
+                "sets_entity": {"workflow": "voter_verification"}
+            },
+            "polling_station": {
+                "patterns": ["polling station", "where do i vote", "voting center", "kituo cha kupiga kura"],
+                "responses": [
+                    "I can help you find your polling station. Please provide your National ID number."
+                ],
+                "context": "polling_lookup",
+                "sets_entity": {"workflow": "polling_station"}
+            },
+            
+            # Location intents
+            "huduma_centre": {
+                "patterns": ["huduma", "huduma centre", "huduma center", "nearest huduma", "kituo cha huduma"],
+                "responses": [
+                    "I can help you find the nearest Huduma Centre. "
+                    "Would you like to share your location, or tell me which city you're in?"
+                ],
+                "context": "huduma_lookup",
+                "sets_entity": {"workflow": "huduma_centre"}
+            },
+            "directions": {
+                "patterns": ["directions", "how to get", "where is", "route to", "njia", "wapi"],
+                "responses": [
+                    "I can help you get directions. Where would you like to go?"
+                ],
+                "context": "directions_lookup",
+                "sets_entity": {"workflow": "directions"}
+            },
+            "traffic": {
+                "patterns": ["traffic", "congestion", "road", "jam", "msongamano", "barabara"],
+                "responses": [
+                    "I can check traffic conditions. Where are you going from and to?"
+                ],
+                "context": "traffic_check",
+                "sets_entity": {"workflow": "traffic"}
+            },
+            
+            # Citizen interaction intents
+            "feedback": {
+                "patterns": ["feedback", "suggestion", "comment", "complain", "maoni", "pendekezo"],
+                "responses": [
+                    "I can help you submit feedback. Would you like to submit anonymously? "
+                    "Your feedback helps improve government services."
+                ],
+                "context": "feedback_start",
+                "sets_entity": {"workflow": "feedback"}
+            },
+            "emergency": {
+                "patterns": ["emergency", "urgent", "help me", "danger", "police", "fire", "ambulance", "dharura", "hatari"],
+                "responses": [
+                    "For emergencies, please call 999 (Police, Fire, Ambulance) or 112 (National Emergency). "
+                    "Are you safe? What type of emergency is this?"
+                ],
+                "context": "emergency_help",
+                "sets_entity": {"workflow": "emergency"},
+                "is_urgent": True
+            },
+            "corruption_report": {
+                "patterns": ["corruption", "bribe", "corrupt", "ufisadi", "rushwa", "report corruption"],
+                "responses": [
+                    "I can help you report corruption anonymously. Your identity will be protected. "
+                    "Would you like to proceed with an anonymous report?"
+                ],
+                "context": "corruption_start",
+                "sets_entity": {"workflow": "corruption_report"}
+            },
+            
+            # Data collection states
             "provide_name": {
                 "patterns": ["my name is", "i am", "call me", "name is"],
                 "context": "booking_phone",
@@ -99,52 +210,62 @@ class DialogflowService:
                 "extract_entity": "phone_number"
             },
             "time_morning": {
-                "patterns": ["morning", "8 to 12", "8-12", "8am", "before noon"],
+                "patterns": ["morning", "8 to 12", "8-12", "8am", "before noon", "asubuhi"],
                 "context": "booking_confirm",
                 "sets_entity": {"time_slot": "08:00-12:00"}
             },
             "time_afternoon": {
-                "patterns": ["afternoon", "2 to 5", "2-5", "2pm", "after noon"],
+                "patterns": ["afternoon", "2 to 5", "2-5", "2pm", "after noon", "alasiri"],
                 "context": "booking_confirm",
                 "sets_entity": {"time_slot": "14:00-17:00"}
             },
+            
+            # Confirmations
             "confirm_yes": {
-                "patterns": ["yes", "confirm", "correct", "right", "okay", "sure", "proceed"],
-                "responses": ["Your appointment has been confirmed. You will receive an SMS shortly."],
-                "context": "booking_complete",
+                "patterns": ["yes", "confirm", "correct", "right", "okay", "sure", "proceed", "ndiyo", "sawa", "ndio"],
+                "responses": ["Great! Let me process that for you."],
+                "context": "processing",
                 "sets_entity": {"confirmation": True}
             },
             "confirm_no": {
-                "patterns": ["no", "cancel", "wrong", "incorrect", "stop"],
-                "responses": ["No problem. Would you like to start over?"],
+                "patterns": ["no", "cancel", "wrong", "incorrect", "stop", "hapana", "sitaki"],
+                "responses": ["No problem. Would you like to start over or try something else?"],
                 "context": "welcome",
                 "sets_entity": {"confirmation": False}
             },
+            
+            # Help and general
             "help": {
-                "patterns": ["help", "assist", "support", "what can you do", "options"],
+                "patterns": ["help", "assist", "support", "what can you do", "options", "msaada", "nisaidie"],
                 "responses": [
                     "I can help you with: "
-                    "1. Booking appointments for Passport, National ID, Driving License, or Good Conduct certificate. "
-                    "2. Checking service requirements. "
-                    "3. Navigating the eCitizen portal. "
-                    "Just tell me what you need!"
+                    "1. KRA services - nil returns, PIN recovery, PIN verification. "
+                    "2. Voter verification and polling station lookup. "
+                    "3. Finding nearest Huduma Centre. "
+                    "4. Booking appointments for Passport, National ID, Driving License, or Good Conduct. "
+                    "5. Directions to government offices. "
+                    "6. Submitting feedback or reporting issues. "
+                    "What would you like help with?"
                 ],
                 "context": "help"
             },
             "services_list": {
                 "patterns": ["services", "what services", "available services", "list services"],
                 "responses": [
-                    "Available services are: "
-                    "1. Passport Application, "
-                    "2. National ID Card, "
-                    "3. Driving License, "
-                    "4. Certificate of Good Conduct. "
+                    "Available services include: "
+                    "1. KRA Nil Returns Filing, "
+                    "2. KRA PIN Recovery and Verification, "
+                    "3. Voter Registration Check, "
+                    "4. Huduma Centre Lookup, "
+                    "5. Appointment Booking (Passport, ID, License, Good Conduct), "
+                    "6. Government Office Directions, "
+                    "7. Feedback and Reporting. "
                     "Which one would you like?"
                 ],
                 "context": "service_selection"
             },
             "thank_you": {
-                "patterns": ["thank", "thanks", "appreciate"],
+                "patterns": ["thank", "thanks", "appreciate", "asante", "nashukuru"],
                 "responses": [
                     "You're welcome! Is there anything else I can help you with?",
                     "My pleasure! Feel free to ask if you need anything else."
@@ -152,10 +273,10 @@ class DialogflowService:
                 "context": "welcome"
             },
             "goodbye": {
-                "patterns": ["bye", "goodbye", "see you", "exit", "quit"],
+                "patterns": ["bye", "goodbye", "see you", "exit", "quit", "kwaheri"],
                 "responses": [
-                    "Goodbye! Thank you for using eCitizen services. Have a great day!",
-                    "Take care! Come back anytime you need help with government services."
+                    "Goodbye! Thank you for using Rafiki. Stay safe and come back anytime!",
+                    "Kwaheri! Take care and reach out anytime you need help with government services."
                 ],
                 "context": "end"
             },
@@ -163,7 +284,8 @@ class DialogflowService:
                 "patterns": [],
                 "responses": [
                     "I'm sorry, I didn't quite understand that. Could you please rephrase?",
-                    "I'm not sure what you mean. You can say 'help' to see what I can do."
+                    "I'm not sure what you mean. You can say 'help' to see what I can do.",
+                    "Samahani, sijaweza kuelewa. Tafadhali sema 'msaada' kuona ninachoweza kusaidia."
                 ],
                 "context": "fallback"
             }
