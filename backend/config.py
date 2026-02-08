@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     AFRICASTALKING_USERNAME: str = ""
     AFRICASTALKING_API_KEY: str = ""
     AFRICASTALKING_SENDER_ID: Optional[str] = None
+    AFRICASTALKING_VIRTUAL_NUMBER: str = "+254711082025"  # Virtual number for voice calls
 
     # OTP/SMS simulation (dev only)
     OTP_SIMULATE: bool = False

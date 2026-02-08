@@ -54,20 +54,29 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
   const animationFrameRef = useRef<number | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize session on mount
+  // Initialize session on mount (non-blocking)
   useEffect(() => {
+    let isMounted = true;
+    
     const initSession = async () => {
       try {
         const session = await sessionApi.create();
-        setSessionId(session.session_id);
-        console.log('Session created:', session.session_id);
+        if (isMounted) {
+          setSessionId(session.session_id);
+          console.log('Session created:', session.session_id);
+        }
       } catch (err) {
         console.error('Failed to create session:', err);
-        // Don't show error - session will be created on first message
+        // Don't block UI - session will be created on first message
       }
     };
     
+    // Initialize session asynchronously without awaiting
     initSession();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Close sidebar on escape key
@@ -187,11 +196,18 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
         };
         updateLevel();
         
-        mediaRecorderRef.current = new MediaRecorder(stream);
+        // Try to use opus codec for better compression, fallback to webm
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+          ? 'audio/webm;codecs=opus' 
+          : 'audio/webm';
+        
+        mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
         audioChunksRef.current = [];
         
         mediaRecorderRef.current.ondataavailable = (e) => {
-          audioChunksRef.current.push(e.data);
+          if (e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
         };
         
         mediaRecorderRef.current.onstop = async () => {
@@ -203,6 +219,14 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
           
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           console.log('Recording complete:', audioBlob.size, 'bytes');
+          
+          // Check minimum recording size (at least 5KB for meaningful audio)
+          if (audioBlob.size < 5000) {
+            console.warn('Recording too short:', audioBlob.size, 'bytes');
+            setError('Recording too short. Please hold the mic button and speak for at least 1-2 seconds.');
+            setVoiceState('idle');
+            return;
+          }
           
           // Process audio
           setVoiceState('processing');
@@ -231,7 +255,8 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
           }
         };
         
-        mediaRecorderRef.current.start();
+        // Start recording with timeslice to capture data every 100ms
+        mediaRecorderRef.current.start(100);
         setIsRecording(true);
         setVoiceState('listening');
       } catch (err) {

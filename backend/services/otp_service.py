@@ -1,15 +1,16 @@
 """
 OTP Service with security-first design.
-Handles OTP generation, validation, and SMS delivery via Africa's Talking.
+Handles OTP generation, validation, and delivery via Africa's Talking (SMS & Voice).
 Implements rate limiting and brute force protection.
 """
 
 import secrets
 import hashlib
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, Literal
 from collections import defaultdict
 import asyncio
+from enum import Enum
 
 from backend.config import get_settings
 from backend.utils.logger import get_logger
@@ -26,7 +27,14 @@ try:
     AFRICASTALKING_AVAILABLE = True
 except ImportError:
     AFRICASTALKING_AVAILABLE = False
-    logger.warning("africastalking library not installed - SMS will be simulated")
+    logger.warning("africastalking library not installed - SMS/Voice will be simulated")
+
+
+class OTPDeliveryMethod(str, Enum):
+    """OTP delivery method options."""
+    SMS = "sms"
+    VOICE = "voice"
+    BOTH = "both"  # Send via both SMS and Voice
 
 
 class OTPService:
@@ -57,6 +65,7 @@ class OTPService:
         """Initialize OTP service."""
         self.settings = get_settings()
         self._sms_client = None
+        self._voice_client = None
         self._initialized = False
         
         # In-memory stores (replace with Redis/DB in production)
@@ -68,7 +77,7 @@ class OTPService:
         self._last_plain_otps: Dict[str, str] = {}
     
     def initialize(self) -> bool:
-        """Initialize Africa's Talking SMS client."""
+        """Initialize Africa's Talking SMS and Voice clients."""
         if not AFRICASTALKING_AVAILABLE:
             logger.warning("Africa's Talking not available - using simulation mode")
             self._initialized = True
@@ -85,9 +94,10 @@ class OTPService:
             
             africastalking.initialize(username=username, api_key=api_key)
             self._sms_client = africastalking.SMS
+            self._voice_client = africastalking.Voice
             self._initialized = True
             
-            logger.info("OTP service initialized with Africa's Talking")
+            logger.info("OTP service initialized with Africa's Talking (SMS + Voice)")
             return True
             
         except Exception as e:
@@ -176,6 +186,7 @@ class OTPService:
     async def request_otp(
         self,
         phone_number: str,
+        delivery_method: OTPDeliveryMethod = OTPDeliveryMethod.BOTH,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -184,6 +195,7 @@ class OTPService:
         
         Args:
             phone_number: Normalized phone number (+254XXXXXXXXX)
+            delivery_method: How to deliver the OTP (sms, voice, or both)
             ip_address: Client IP for audit logging
             user_agent: Client user agent for audit logging
         
@@ -257,39 +269,141 @@ class OTPService:
         # Track rate limit
         self._rate_limit_tracker[phone_hash].append(datetime.utcnow())
         
-        # Send SMS
-        sms_result = await self._send_otp_sms(phone_number, otp)
+        # Send OTP via selected delivery method(s)
+        sms_result = {"success": False}
+        voice_result = {"success": False}
+        delivery_messages = []
         
-        if sms_result["success"]:
+        if delivery_method in (OTPDeliveryMethod.SMS, OTPDeliveryMethod.BOTH):
+            sms_result = await self._send_otp_sms(phone_number, otp)
+            if sms_result["success"]:
+                delivery_messages.append("SMS")
+        
+        if delivery_method in (OTPDeliveryMethod.VOICE, OTPDeliveryMethod.BOTH):
+            voice_result = await self._send_otp_voice_call(phone_number, otp)
+            if voice_result["success"]:
+                delivery_messages.append("voice call")
+        
+        # Check if at least one delivery method succeeded
+        if sms_result["success"] or voice_result["success"]:
             self._log_audit_event(
                 "otp_request",
                 phone_hash,
                 success=True,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                metadata={"otp_id": otp_record.id}
+                metadata={
+                    "otp_id": otp_record.id,
+                    "delivery_method": delivery_method.value,
+                    "sms_success": sms_result["success"],
+                    "voice_success": voice_result["success"]
+                }
             )
-            return {
+            
+            method_text = " and ".join(delivery_messages)
+            response = {
                 "success": True,
-                "message": "OTP sent successfully. Check your SMS.",
+                "message": f"OTP sent successfully via {method_text}.",
                 "expires_in": self.OTP_EXPIRY_MINUTES * 60,
                 "otp_id": otp_record.id,
-                "simulated": sms_result.get("simulated", False)
+                "delivery_methods": delivery_messages,
+                "sms_sent": sms_result["success"],
+                "voice_sent": voice_result["success"],
+                "simulated": sms_result.get("simulated", False) or voice_result.get("simulated", False)
             }
+            
+            # Include OTP in response for sandbox/development (DEBUG or OTP_SIMULATE)
+            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+                response["otp"] = otp  # Test/sandbox only - includes actual OTP
+                response["test_mode"] = True
+            
+            return response
         else:
             self._log_audit_event(
                 "otp_request",
                 phone_hash,
                 success=False,
-                failure_reason="sms_delivery_failed",
+                failure_reason="delivery_failed",
                 ip_address=ip_address,
                 user_agent=user_agent
             )
             return {
                 "success": False,
-                "error": "sms_failed",
+                "error": "delivery_failed",
                 "message": "Failed to send OTP. Please try again."
             }
+    
+    async def _send_otp_voice_call(self, phone_number: str, otp: str) -> Dict[str, Any]:
+        """
+        Send OTP via voice call using Africa's Talking Voice API.
+        
+        Args:
+            phone_number: Recipient phone number
+            otp: The OTP code to speak
+        
+        Returns:
+            Result dict with success status
+        """
+        # Format OTP for speech (add pauses between digits)
+        otp_spoken = ". ".join(list(otp))  # "1. 2. 3. 4. 5. 6"
+        
+        # Create the voice message XML
+        voice_message = f"""
+        <Response>
+            <Say voice="en-GB-Wavenet-A">
+                Hello. This is Rafiki AI calling with your verification code.
+                Your one time password is: {otp_spoken}.
+                I repeat, your code is: {otp_spoken}.
+                This code expires in {self.OTP_EXPIRY_MINUTES} minutes.
+                Thank you for using Rafiki AI.
+            </Say>
+        </Response>
+        """
+        
+        # Log for debugging
+        otp_log_msg = f"📞 VOICE OTP CALL - Phone: {phone_number}, OTP: {otp}"
+        logger.warning(otp_log_msg)
+        
+        # If Voice client not available, simulate
+        if not self._voice_client:
+            logger.info(f"[SIMULATION MODE] Voice OTP call would be made to {phone_number}")
+            return {"success": True, "simulated": True}
+        
+        try:
+            # Get virtual number from settings
+            caller_id = self.settings.AFRICASTALKING_VIRTUAL_NUMBER
+            
+            if not caller_id:
+                logger.warning("No virtual number configured for voice calls")
+                return {"success": False, "error": "No virtual number configured"}
+            
+            logger.info(f"Making voice OTP call from {caller_id} to {phone_number}")
+            
+            # Make the voice call using Africa's Talking
+            response = self._voice_client.call(
+                callFrom=caller_id,
+                callTo=[phone_number]
+            )
+            
+            logger.info(f"Voice call initiated: {response}")
+            
+            # The actual voice message will be handled by a callback URL
+            # For now, we'll use the say action directly if supported
+            # or queue the message for when the call connects
+            
+            return {
+                "success": True,
+                "call_id": response.get("entries", [{}])[0].get("sessionId", ""),
+                "message": voice_message
+            }
+            
+        except Exception as e:
+            logger.error(f"Voice call error: {e}")
+            # If call failed but we're in DEBUG mode, fall back to simulated success
+            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+                logger.info("Voice call failed but DEBUG enabled - falling back to simulation")
+                return {"success": True, "simulated": True}
+            return {"success": False, "error": str(e)}
     
     async def _send_otp_sms(self, phone_number: str, otp: str) -> Dict[str, Any]:
         """

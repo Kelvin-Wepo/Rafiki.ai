@@ -132,9 +132,20 @@ class AuthAuditLog(BaseModel):
 
 # ============== Request/Response Models ==============
 
+class OTPDeliveryMethod(str, Enum):
+    """OTP delivery method options."""
+    SMS = "sms"
+    VOICE = "voice"
+    BOTH = "both"
+
+
 class PhoneAuthRequest(BaseModel):
     """Request to initiate phone authentication."""
     phone_number: str = Field(..., description="Phone number in Kenyan format")
+    delivery_method: OTPDeliveryMethod = Field(
+        default=OTPDeliveryMethod.BOTH,
+        description="How to deliver the OTP: 'sms', 'voice', or 'both'"
+    )
     
     @validator('phone_number')
     def validate_phone(cls, v):

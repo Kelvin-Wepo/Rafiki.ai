@@ -35,87 +35,103 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     
-    # Initialize services
+    # Initialize services in parallel for faster startup
     logger.info("Initializing services...")
     
-    # Initialize Gemini (lazily import to avoid import-time cost)
-    try:
-        from backend.services.gemini_service import gemini_service
-        if settings.GEMINI_API_KEY:
-            gemini_service.initialize()
-        else:
-            logger.warning("Gemini API key not configured")
-    except Exception as e:
-        logger.warning(f"Gemini service unavailable: {e}")
-
-    # Initialize Dialogflow
-    try:
-        from backend.services.dialogflow_service import dialogflow_service
-        dialogflow_service.initialize()
-    except Exception as e:
-        logger.warning(f"Dialogflow service unavailable: {e}")
-
-    # Initialize Voice Service
-    try:
-        from backend.services.voice_service import voice_service
-        voice_service.initialize()
-    except Exception as e:
-        logger.warning(f"Voice service unavailable: {e}")
-
-    # Initialize Google Cloud TTS Service
-    try:
-        from backend.services.google_tts_service import google_tts_service
-        initialized = google_tts_service.initialize()
-        if initialized:
-            logger.info("Google Cloud TTS service initialized successfully")
-        else:
-            logger.warning("Google Cloud TTS service not initialized (credentials missing)")
-    except Exception as e:
-        logger.warning(f"Google Cloud TTS initialization failed: {e}")
-
-    # Initialize ElevenLabs Service (for high-quality TTS)
-    try:
-        from backend.services.elevenlabs_service import elevenlabs_service
-        if settings.ELEVENLABS_API_KEY:
-            logger.info("ElevenLabs service initialized successfully")
-        else:
-            logger.warning("ElevenLabs API key not configured - TTS will use fallback")
-    except Exception as e:
-        logger.warning(f"ElevenLabs service unavailable: {e}")
-
-    # Initialize SMS Service
-    try:
-        from backend.services.sms_service import sms_service
-        if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:
-            sms_service.initialize()
-        else:
-            logger.warning("Africa's Talking credentials not configured")
-    except Exception as e:
-        logger.warning(f"SMS service unavailable: {e}")    
-    # Initialize Database
-    try:
-        from backend.database import init_db
-        await init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        # Continue running - some features may work without DB
-    
-    # Initialize KRA Service
-    if settings.KRA_ENABLED and settings.KRA_CLIENT_ID and settings.KRA_CLIENT_SECRET:
+    async def init_core_services():
+        """Initialize critical services that block app functionality."""
+        # Initialize SMS Service (critical for OTP)
         try:
-            from backend.services.kra_service import kra_service
-            kra_service.initialize(
-                api_url=settings.KRA_API_URL,
-                client_id=settings.KRA_CLIENT_ID,
-                client_secret=settings.KRA_CLIENT_SECRET,
-                api_key=settings.KRA_API_KEY
-            )
-            logger.info("KRA service initialized successfully")
+            from backend.services.sms_service import sms_service
+            if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:
+                sms_service.initialize()
+            else:
+                logger.warning("Africa's Talking credentials not configured")
         except Exception as e:
-            logger.warning(f"KRA service initialization failed: {e}")
-    else:
-        logger.info("KRA service not enabled (configure KRA_ENABLED=true and credentials)")
+            logger.warning(f"SMS service unavailable: {e}")
+        
+        # Initialize Database
+        try:
+            from backend.database import init_db
+            await init_db()
+            logger.info("Database initialized successfully")
+        except Exception as e:
+            logger.error(f"Database initialization failed: {e}")
+    
+    async def init_ai_services():
+        """Initialize AI services (non-blocking)."""
+        # Initialize Gemini
+        try:
+            from backend.services.gemini_service import gemini_service
+            if settings.GEMINI_API_KEY:
+                gemini_service.initialize()
+            else:
+                logger.warning("Gemini API key not configured")
+        except Exception as e:
+            logger.warning(f"Gemini service unavailable: {e}")
+
+        # Initialize Dialogflow
+        try:
+            from backend.services.dialogflow_service import dialogflow_service
+            dialogflow_service.initialize()
+        except Exception as e:
+            logger.warning(f"Dialogflow service unavailable: {e}")
+
+        # Initialize Voice Service
+        try:
+            from backend.services.voice_service import voice_service
+            voice_service.initialize()
+        except Exception as e:
+            logger.warning(f"Voice service unavailable: {e}")
+
+    async def init_tts_services():
+        """Initialize TTS services (non-blocking)."""
+        # Initialize Google Cloud TTS Service
+        try:
+            from backend.services.google_tts_service import google_tts_service
+            initialized = google_tts_service.initialize()
+            if initialized:
+                logger.info("Google Cloud TTS service initialized successfully")
+            else:
+                logger.warning("Google Cloud TTS service not initialized (credentials missing)")
+        except Exception as e:
+            logger.warning(f"Google Cloud TTS initialization failed: {e}")
+
+        # Initialize ElevenLabs Service
+        try:
+            from backend.services.elevenlabs_service import elevenlabs_service
+            if settings.ELEVENLABS_API_KEY:
+                logger.info("ElevenLabs service initialized successfully")
+            else:
+                logger.warning("ElevenLabs API key not configured - TTS will use fallback")
+        except Exception as e:
+            logger.warning(f"ElevenLabs service unavailable: {e}")
+
+    async def init_kra_service():
+        """Initialize KRA service (optional, non-blocking)."""
+        if settings.KRA_ENABLED and settings.KRA_CLIENT_ID and settings.KRA_CLIENT_SECRET:
+            try:
+                from backend.services.kra_service import kra_service
+                kra_service.initialize(
+                    api_url=settings.KRA_API_URL,
+                    client_id=settings.KRA_CLIENT_ID,
+                    client_secret=settings.KRA_CLIENT_SECRET,
+                    api_key=settings.KRA_API_KEY
+                )
+                logger.info("KRA service initialized successfully")
+            except Exception as e:
+                logger.warning(f"KRA service initialization failed: {e}")
+        else:
+            logger.info("KRA service not enabled (configure KRA_ENABLED=true and credentials)")
+
+    # Run critical services first, then non-blocking services in parallel
+    await init_core_services()
+    await asyncio.gather(
+        init_ai_services(),
+        init_tts_services(),
+        init_kra_service(),
+        return_exceptions=True
+    )
 
     # Register routers lazily (reduces import-time overhead)
     try:

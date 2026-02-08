@@ -14,6 +14,10 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    hmr: {
+      host: 'localhost',
+      port: 5173,
+    },
   },
   preview: {
     host: '0.0.0.0',
@@ -22,5 +26,27 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // Optimize chunk size
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['react', 'react-dom', 'react-router-dom'],
+          'api': ['axios'],
+        }
+      }
+    },
+    // Faster minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+      },
+    },
+  },
+  // Optimize dependency pre-bundling
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'axios', 'lucide-react'],
+    exclude: [],
   },
 })
+

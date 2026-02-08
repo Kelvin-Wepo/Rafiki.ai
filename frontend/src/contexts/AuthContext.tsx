@@ -17,7 +17,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import type { User, AuthResponse } from '../services/authService';
+import type { User, AuthResponse, OTPDeliveryMethod } from '../services/authService';
 import {
   initiateLogin,
   verifyOTP,
@@ -40,7 +40,7 @@ interface AuthState {
 // Auth context interface
 interface AuthContextType extends AuthState {
   // Auth actions
-  login: (phoneNumber: string) => Promise<AuthResponse>;
+  login: (phoneNumber: string, deliveryMethod?: OTPDeliveryMethod) => Promise<AuthResponse>;
   verify: (phoneNumber: string, otp: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -50,6 +50,7 @@ interface AuthContextType extends AuthState {
   setPendingPhone: (phone: string | null) => void;
   isVerifying: boolean;
   setIsVerifying: (value: boolean) => void;
+  lastDeliveryMethod: OTPDeliveryMethod | null;
 }
 
 // Create context with undefined initial value
@@ -74,9 +75,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // OTP flow state
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [lastDeliveryMethod, setLastDeliveryMethod] = useState<OTPDeliveryMethod | null>(null);
 
   /**
    * Validate existing token on mount.
+   * Uses parallel API calls to reduce load time.
    */
   useEffect(() => {
     const validateAuth = async () => {
@@ -88,22 +91,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       
       try {
-        const validation = await validateToken();
+        // Parallelize API calls instead of sequential
+        const [validation, userData] = await Promise.all([
+          validateToken().catch(() => null),
+          getCurrentUser().catch(() => null)
+        ]);
         
-        if (validation?.valid) {
-          // Token is valid, fetch user details
-          const userData = await getCurrentUser();
-          if (userData) {
-            setUser(userData);
-            setIsAuthenticated(true);
-          } else {
-            // Could not get user, clear auth
-            clearAuthData();
-            setUser(null);
-            setIsAuthenticated(false);
-          }
+        if (validation?.valid && userData) {
+          setUser(userData);
+          setIsAuthenticated(true);
         } else {
-          // Token invalid
+          // Token invalid or user fetch failed
           clearAuthData();
           setUser(null);
           setIsAuthenticated(false);
@@ -123,17 +121,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Initiate login with phone number.
-   * Sends OTP via SMS.
+   * Sends OTP via SMS, Voice, or Both.
    */
-  const login = useCallback(async (phoneNumber: string): Promise<AuthResponse> => {
+  const login = useCallback(async (
+    phoneNumber: string,
+    deliveryMethod: OTPDeliveryMethod = 'both'
+  ): Promise<AuthResponse> => {
     setError(null);
     setIsLoading(true);
     
     try {
-      const response = await initiateLogin(phoneNumber);
+      const response = await initiateLogin(phoneNumber, deliveryMethod);
       
       if (response.success) {
         setPendingPhone(phoneNumber);
+        setLastDeliveryMethod(deliveryMethod);
         setIsVerifying(true);
       } else {
         setError(response.message || 'Failed to send OTP');
@@ -223,6 +225,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setPendingPhone,
     isVerifying,
     setIsVerifying,
+    lastDeliveryMethod,
   };
 
   return (

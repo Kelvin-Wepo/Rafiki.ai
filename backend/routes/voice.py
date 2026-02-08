@@ -77,15 +77,23 @@ async def process_input(
             user_text = None
             
             if request.input_mode.value == "voice" and request.audio_data:
+                # Log audio info for debugging
+                logger.info(f"🎤 Voice input received: {len(request.audio_data)} chars of base64 data")
+                
                 # Transcribe audio
                 transcription = await voice_service.transcribe_audio(
                     request.audio_data,
                     language=request.language
                 )
                 
+                logger.info(f"🎤 Transcription result: {transcription}")
+                
                 if transcription.get("success"):
                     user_text = transcription.get("text", "")
+                    logger.info(f"🎤 Transcribed text: {user_text}")
                 else:
+                    error_msg = transcription.get("error", "Unknown transcription error")
+                    logger.warning(f"🎤 Transcription failed: {error_msg}")
                     return AssistantResponse(
                         text="I couldn't understand the audio. Please try again or type your message.",
                         session_id=session.session_id,

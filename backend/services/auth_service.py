@@ -125,15 +125,17 @@ class AuthService:
     async def initiate_login(
         self,
         phone_number: str,
+        delivery_method: str = "both",
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Initiate login/registration with phone number.
-        Sends OTP via Africa's Talking.
+        Sends OTP via Africa's Talking (SMS, Voice, or Both).
         
         Args:
             phone_number: Normalized Kenyan phone number
+            delivery_method: How to deliver OTP ('sms', 'voice', or 'both')
             ip_address: Client IP for audit
             user_agent: Client user agent for audit
         
@@ -163,19 +165,27 @@ class AuthService:
             return {"success": False, "error": "rate_limited", "message": "Too many OTP requests. Please try again later."}
 
         # Request OTP (import at call time so tests can patch services.otp_service.get_otp_service)
-        from backend.services.otp_service import get_otp_service as _get_otp_service
+        from backend.services.otp_service import get_otp_service as _get_otp_service, OTPDeliveryMethod
         otp_service = _get_otp_service()
+        
+        # Convert string to enum
+        try:
+            delivery_enum = OTPDeliveryMethod(delivery_method.lower())
+        except ValueError:
+            delivery_enum = OTPDeliveryMethod.BOTH
 
         # Support both `send_otp` (preferred) and `request_otp` method names in OTP implementations
         if hasattr(otp_service, 'send_otp'):
             otp_result = await otp_service.send_otp(
                 phone_number,
+                delivery_method=delivery_enum,
                 ip_address=ip_address,
                 user_agent=user_agent
             )
         elif hasattr(otp_service, 'request_otp'):
             otp_result = await otp_service.request_otp(
                 phone_number,
+                delivery_method=delivery_enum,
                 ip_address=ip_address,
                 user_agent=user_agent
             )
@@ -195,13 +205,18 @@ class AuthService:
                 user_agent=user_agent,
                 metadata={"is_new_user": is_new_user}
             )
-            return {
+            response = {
                 "success": True,
                 "message": otp_result["message"],
                 "is_new_user": is_new_user,
                 "expires_in": otp_result.get("expires_in", 300),
                 "phone_masked": mask_phone_number(phone_number)
             }
+            # Pass through OTP for sandbox/testing
+            if otp_result.get("test_mode") and otp_result.get("otp"):
+                response["otp"] = otp_result["otp"]
+            
+            return response
         else:
             return otp_result
     

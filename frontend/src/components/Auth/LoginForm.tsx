@@ -1,12 +1,14 @@
 /**
  * Login Form Component
  * Phone number input for initiating OTP authentication.
+ * Supports SMS, Voice Call, or Both delivery methods.
  * Perfectly centered modern glass-morphism design.
  */
 
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Phone, AlertCircle, Lock, ArrowRight } from 'lucide-react';
+import type { OTPDeliveryMethod } from '../../services/authService';
+import { Phone, AlertCircle, Lock, ArrowRight, MessageSquare, PhoneCall, Zap } from 'lucide-react';
 import './Auth.css';
 
 interface LoginFormProps {
@@ -16,6 +18,7 @@ interface LoginFormProps {
 export function LoginForm({ onSuccess }: LoginFormProps) {
   const { login, isLoading, error, clearError } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState<OTPDeliveryMethod>('both');
   const [localError, setLocalError] = useState<string | null>(null);
 
   const validatePhoneNumber = (phone: string): boolean => {
@@ -49,7 +52,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
     try {
       const formattedPhone = formatPhoneNumber(phoneNumber);
-      const response = await login(formattedPhone);
+      const response = await login(formattedPhone, deliveryMethod);
       if (response.success) onSuccess?.();
     } catch {
       // Error handled by context
@@ -97,6 +100,48 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 autoFocus
               />
             </div>
+          </div>
+
+          {/* OTP Delivery Method Selection */}
+          <div className="form-group">
+            <label className="form-label">
+              <Zap size={16} />
+              Receive OTP via
+            </label>
+            <div className="delivery-method-group">
+              <button
+                type="button"
+                className={`delivery-option ${deliveryMethod === 'sms' ? 'active' : ''}`}
+                onClick={() => setDeliveryMethod('sms')}
+                disabled={isLoading}
+              >
+                <MessageSquare size={20} />
+                <span>SMS</span>
+              </button>
+              <button
+                type="button"
+                className={`delivery-option ${deliveryMethod === 'voice' ? 'active' : ''}`}
+                onClick={() => setDeliveryMethod('voice')}
+                disabled={isLoading}
+              >
+                <PhoneCall size={20} />
+                <span>Voice Call</span>
+              </button>
+              <button
+                type="button"
+                className={`delivery-option ${deliveryMethod === 'both' ? 'active' : ''}`}
+                onClick={() => setDeliveryMethod('both')}
+                disabled={isLoading}
+              >
+                <Zap size={20} />
+                <span>Both</span>
+              </button>
+            </div>
+            <p className="delivery-hint">
+              {deliveryMethod === 'sms' && '📱 You will receive a text message with your code'}
+              {deliveryMethod === 'voice' && '📞 You will receive a phone call with your code'}
+              {deliveryMethod === 'both' && '📱📞 You will receive both SMS and a phone call'}
+            </p>
           </div>
 
           {/* Error Message */}

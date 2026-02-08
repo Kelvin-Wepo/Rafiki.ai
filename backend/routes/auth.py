@@ -83,10 +83,11 @@ async def initiate_login(
 ):
     """
     Initiate login/registration with phone number.
-    Sends OTP via SMS using Africa's Talking.
+    Sends OTP via SMS and/or Voice Call using Africa's Talking.
     
     - For new users: Creates account after OTP verification
     - For existing users: Logs in after OTP verification
+    - **delivery_method**: 'sms', 'voice', or 'both' (default: 'both')
     
     **Rate Limit:** 3 OTP requests per 5 minutes per phone number
     """
@@ -95,6 +96,7 @@ async def initiate_login(
     
     result = await auth_service.initiate_login(
         phone_number=body.phone_number,
+        delivery_method=body.delivery_method.value,
         ip_address=ip,
         user_agent=user_agent
     )
@@ -385,6 +387,103 @@ async def export_transcript(
             "Content-Disposition": f'attachment; filename="{export_data["filename"]}"'
         }
     )
+
+
+# ============== Africa's Talking Voice Callbacks ==============
+
+@router.post("/voice/callback")
+async def voice_callback(request: Request):
+    """
+    Handle Africa's Talking Voice call callback.
+    This endpoint is called when a voice call connects.
+    Returns TwiML-like XML to speak the OTP to the user.
+    """
+    try:
+        # Parse form data from Africa's Talking
+        form_data = await request.form()
+        
+        session_id = form_data.get("sessionId", "")
+        caller_number = form_data.get("callerNumber", "")
+        destination_number = form_data.get("destinationNumber", "")
+        is_active = form_data.get("isActive", "0")
+        
+        logger.info(f"📞 Voice callback - Session: {session_id}, To: {destination_number}, Active: {is_active}")
+        
+        # Get OTP service to retrieve pending OTP for this number
+        from backend.services.otp_service import get_otp_service
+        from backend.models.user import hash_value
+        
+        otp_service = get_otp_service()
+        phone_hash = hash_value(destination_number)
+        
+        # Retrieve the OTP (stored in debug mode)
+        otp = otp_service._last_plain_otps.get(phone_hash, "")
+        
+        if otp:
+            otp_spoken = ". ".join(list(otp))
+            response_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="en-GB-Wavenet-A" playBeep="false">
+        Hello. This is Rafiki AI calling with your verification code.
+        Your one time password is: {otp_spoken}.
+        I repeat, your code is: {otp_spoken}.
+        This code expires in 5 minutes.
+        Thank you for using Rafiki AI.
+    </Say>
+</Response>"""
+        else:
+            response_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="en-GB-Wavenet-A" playBeep="false">
+        Hello. This is Rafiki AI.
+        Sorry, we could not find a verification code for your number.
+        Please request a new code from the application.
+        Thank you.
+    </Say>
+</Response>"""
+        
+        return Response(
+            content=response_xml,
+            media_type="application/xml"
+        )
+        
+    except Exception as e:
+        logger.error(f"Voice callback error: {e}")
+        return Response(
+            content="""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>Sorry, an error occurred. Please try again later.</Say>
+</Response>""",
+            media_type="application/xml"
+        )
+
+
+@router.post("/voice/event")
+async def voice_event(request: Request):
+    """
+    Handle Africa's Talking Voice call events (hangup, etc.).
+    """
+    try:
+        form_data = await request.form()
+        
+        session_id = form_data.get("sessionId", "")
+        direction = form_data.get("direction", "")
+        destination_number = form_data.get("destinationNumber", "")
+        call_duration = form_data.get("durationInSeconds", "0")
+        currency_code = form_data.get("currencyCode", "")
+        amount = form_data.get("amount", "0")
+        
+        logger.info(
+            f"📞 Voice event - Session: {session_id}, "
+            f"Direction: {direction}, Duration: {call_duration}s, "
+            f"Cost: {currency_code} {amount}"
+        )
+        
+        return {"status": "ok"}
+        
+    except Exception as e:
+        logger.error(f"Voice event error: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 # ============== Security/Admin Endpoints ==============

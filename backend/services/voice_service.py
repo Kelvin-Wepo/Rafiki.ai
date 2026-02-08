@@ -229,18 +229,31 @@ class VoiceService:
                     else:
                         logger.warning("pydub not available - cannot convert WebM format")
                 
-                # Load audio file
+                # Load audio file with energy adjustment
                 with sr.AudioFile(temp_path) as source:
+                    # Adjust for ambient noise if possible (short duration for recorded files)
+                    try:
+                        self._recognizer.adjust_for_ambient_noise(source, duration=0.2)
+                    except Exception:
+                        pass  # Not all audio files support this
                     audio = self._recognizer.record(source)
                 
                 logger.info(f"Audio loaded successfully ({len(audio.frame_data)} bytes)")
                 
+                # Lower energy threshold for recorded audio (may be quieter than live mic)
+                original_threshold = self._recognizer.energy_threshold
+                self._recognizer.energy_threshold = 300  # Lower threshold for recorded audio
+                
                 # Recognize speech
                 lang = language or self.settings.SPEECH_RECOGNITION_LANGUAGE
                 
-                # Try Google Speech Recognition
+                # Try Google Speech Recognition with show_all for debugging
                 logger.info(f"Attempting recognition with language: {lang}")
-                text = self._recognizer.recognize_google(audio, language=lang)
+                try:
+                    text = self._recognizer.recognize_google(audio, language=lang)
+                finally:
+                    # Restore original threshold
+                    self._recognizer.energy_threshold = original_threshold
                 
                 logger.info(f"✅ Transcribed: {text[:50]}...")
                 

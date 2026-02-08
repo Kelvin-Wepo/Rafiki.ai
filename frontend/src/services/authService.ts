@@ -124,14 +124,23 @@ async function apiRequest<T>(
 
 // ============== Authentication API ==============
 
+// OTP Delivery Methods
+export type OTPDeliveryMethod = 'sms' | 'voice' | 'both';
+
 /**
  * Initiate login/registration with phone number.
- * Sends OTP via SMS.
+ * Sends OTP via SMS, Voice Call, or Both.
  */
-export async function initiateLogin(phoneNumber: string): Promise<AuthResponse> {
+export async function initiateLogin(
+  phoneNumber: string,
+  deliveryMethod: OTPDeliveryMethod = 'both'
+): Promise<AuthResponse> {
   return apiRequest<AuthResponse>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ phone_number: phoneNumber }),
+    body: JSON.stringify({ 
+      phone_number: phoneNumber,
+      delivery_method: deliveryMethod
+    }),
   });
 }
 

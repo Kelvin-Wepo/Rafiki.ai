@@ -18,7 +18,7 @@ const OTP_LENGTH = 6;
 const RESEND_COOLDOWN = 60;
 
 export function OTPVerification({ onSuccess, onBack }: OTPVerificationProps) {
-  const { verify, login, pendingPhone, isLoading, error, clearError, setIsVerifying } = useAuth();
+  const { verify, login, pendingPhone, isLoading, error, clearError, setIsVerifying, lastDeliveryMethod } = useAuth();
   
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [localError, setLocalError] = useState<string | null>(null);
@@ -114,7 +114,7 @@ export function OTPVerification({ onSuccess, onBack }: OTPVerificationProps) {
     clearError();
     
     try {
-      await login(pendingPhone);
+      await login(pendingPhone, lastDeliveryMethod || 'both');
       setResendCooldown(RESEND_COOLDOWN);
       setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
@@ -153,10 +153,18 @@ export function OTPVerification({ onSuccess, onBack }: OTPVerificationProps) {
         {/* Header */}
         <div className="auth-header">
           <div className="auth-logo">
-            <div className="auth-logo-icon">📱</div>
+            <div className="auth-logo-icon">
+              {lastDeliveryMethod === 'voice' ? '📞' : lastDeliveryMethod === 'sms' ? '📱' : '📱📞'}
+            </div>
           </div>
           <h1 className="auth-title">Verify Your Phone</h1>
-          <p className="auth-subtitle">Enter the 6-digit code sent to</p>
+          <p className="auth-subtitle">
+            {lastDeliveryMethod === 'voice' 
+              ? 'Listen to the voice call for your code' 
+              : lastDeliveryMethod === 'sms' 
+              ? 'Enter the 6-digit code from SMS'
+              : 'Enter the 6-digit code from SMS or voice call'}
+          </p>
         </div>
 
         {/* Phone Info Box */}
