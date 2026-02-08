@@ -129,6 +129,9 @@ async def lifespan(app: FastAPI):
         from backend.routes.avatar_animation import router as avatar_animation_router
         from backend.routes.kra import router as kra_router
         from backend.routes.rag_routes import router as rag_router
+        from backend.routes.citizen import router as citizen_router
+        from backend.routes.location import router as location_router
+        from backend.routes.iebc import router as iebc_router
 
         app.include_router(auth_router)
         app.include_router(voice_router)
@@ -140,6 +143,9 @@ async def lifespan(app: FastAPI):
         app.include_router(avatar_animation_router)
         app.include_router(kra_router)
         app.include_router(rag_router)
+        app.include_router(citizen_router)
+        app.include_router(location_router)
+        app.include_router(iebc_router)
 
         logger.info("Routers registered")
     except Exception as e:

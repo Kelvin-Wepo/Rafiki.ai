@@ -76,7 +76,7 @@ async def quick_demo():
         
         result = elevenlabs.synthesize_speech(
             text="Hello! I am Rafiki, your AI assistant from Kenya.",
-            voice_name="Habari",
+            voice_name="Rafiki",
             output_path=str(audio_path)
         )
         
