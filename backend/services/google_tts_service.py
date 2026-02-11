@@ -7,8 +7,8 @@ import os
 import tempfile
 from typing import Optional
 from google.cloud import texttospeech
-from backend.config import get_settings
-from backend.utils.logger import get_logger
+from config import get_settings
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
