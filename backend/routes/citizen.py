@@ -16,9 +16,9 @@ from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from backend.utils.logger import get_logger
-from backend.utils.encryption import get_encryption_service
-from backend.services.fraud_service import FraudService
+from utils.logger import get_logger
+from utils.encryption import get_encryption_service
+from services.fraud_service import FraudService
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/citizen", tags=["Citizen Interaction"])
