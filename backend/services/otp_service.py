@@ -12,9 +12,9 @@ from collections import defaultdict
 import asyncio
 from enum import Enum
 
-from backend.config import get_settings
-from backend.utils.logger import get_logger
-from backend.models.user import (
+from config import get_settings
+from utils.logger import get_logger
+from models.user import (
     OTPRecord, OTPStatus, AuthAuditLog,
     hash_value, generate_otp_id, generate_audit_id
 )
