@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
 
-from backend.utils.logger import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
