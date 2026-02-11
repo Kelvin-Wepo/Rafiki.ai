@@ -8,13 +8,13 @@ from fastapi.responses import Response, JSONResponse
 from typing import Optional
 from datetime import datetime
 
-from backend.models.user import (
+from models.user import (
     PhoneAuthRequest, OTPVerifyRequest, AuthResponse,
     TranscriptExport
 )
-from backend.services.auth_service import get_auth_service
-from backend.utils.logger import get_logger
-from backend.config import get_settings
+from services.auth_service import get_auth_service
+from utils.logger import get_logger
+from config import get_settings
 
 logger = get_logger(__name__)
 
@@ -226,7 +226,7 @@ async def debug_last_otp(
     if not (settings.DEBUG or getattr(settings, 'OTP_SIMULATE', False)):
         raise HTTPException(status_code=403, detail="Debug endpoint not allowed")
 
-    from backend.services.otp_service import get_otp_service as _get_otp_service
+    from services.otp_service import get_otp_service as _get_otp_service
     otp_service = _get_otp_service()
     otp = otp_service.get_last_plain_otp(phone)
 
@@ -410,8 +410,8 @@ async def voice_callback(request: Request):
         logger.info(f"📞 Voice callback - Session: {session_id}, To: {destination_number}, Active: {is_active}")
         
         # Get OTP service to retrieve pending OTP for this number
-        from backend.services.otp_service import get_otp_service
-        from backend.models.user import hash_value
+        from services.otp_service import get_otp_service
+        from models.user import hash_value
         
         otp_service = get_otp_service()
         phone_hash = hash_value(destination_number)
