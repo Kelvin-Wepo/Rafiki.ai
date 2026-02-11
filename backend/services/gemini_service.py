@@ -26,14 +26,14 @@ except ImportError:
         genai = None
         GENAI_NEW_API = False
 
-from backend.config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
-from backend.utils.logger import get_logger
-from backend.services.intent_service import intent_detector
-from backend.utils.encryption import get_pii_detector, PIIDetector
+from config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
+from utils.logger import get_logger
+from services.intent_service import intent_detector
+from utils.encryption import get_pii_detector, PIIDetector
 
 # RAG service for knowledge queries
 try:
-    from backend.services.rag_service import ConstitutionRAG
+    from services.rag_service import ConstitutionRAG
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
