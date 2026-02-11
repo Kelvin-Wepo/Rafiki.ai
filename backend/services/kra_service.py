@@ -11,7 +11,7 @@ NOTE: To use this service, you need to:
 import httpx
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
-from backend.utils.logger import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
