@@ -10,9 +10,9 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from backend.services.kra_service import kra_service
-from backend.config import get_settings
-from backend.utils.logger import setup_logging, get_logger
+from services.kra_service import kra_service
+from config import get_settings
+from utils.logger import setup_logging, get_logger
 
 # Setup logging
 setup_logging()
