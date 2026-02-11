@@ -11,8 +11,8 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from backend.services.sadtalker_service import get_sadtalker_service
-from backend.services.elevenlabs_service import get_elevenlabs_service
+from services.sadtalker_service import get_sadtalker_service
+from services.elevenlabs_service import get_elevenlabs_service
 
 async def main():
     """Pre-generate videos for common phrases"""
