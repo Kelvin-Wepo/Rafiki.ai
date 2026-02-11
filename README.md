@@ -8,6 +8,8 @@ A voice-powered AI assistant for Kenya's eCitizen government services platform. 
 - AI-powered natural language understanding using Google Gemini
 - **Talking avatar with realistic lip-sync (SadTalker + Google Colab GPU)**
 - **50-100x faster video generation with T4 GPU acceleration**
+- **📜 Conversation History** - View and manage all past conversations
+- **📄 Transcript Downloads** - Export conversations as TXT or JSON
 - SMS notifications via Africa's Talking
 - Accessible UI with WCAG 2.1 AA compliance
 - Support for multiple government services (Passport, ID, Driving License, etc.)
@@ -586,6 +588,9 @@ See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for complete deployment guide.
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) - Pre-deployment checklist
 - [COLAB_SETUP_GUIDE.md](COLAB_SETUP_GUIDE.md) - GPU acceleration setup
 - [SADTALKER_TROUBLESHOOTING.md](SADTALKER_TROUBLESHOOTING.md) - Troubleshooting guide
+- [HISTORY_TRANSCRIPTS_FEATURE.md](HISTORY_TRANSCRIPTS_FEATURE.md) - Conversation history & transcript download feature documentation
+- [USER_GUIDE_HISTORY_TRANSCRIPTS.md](USER_GUIDE_HISTORY_TRANSCRIPTS.md) - User guide for history and transcript features
+- [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Summary of implementation details
 
 ## Contributing
 
