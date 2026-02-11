@@ -22,7 +22,7 @@ from .encryption import (
     EncryptionService,
     PIIDetector
 )
-from backend.config import get_settings
+from config import get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()
