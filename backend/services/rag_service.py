@@ -32,9 +32,9 @@ except ImportError:
     CHROMADB_AVAILABLE = False
 
 import google.genai as genai
-from backend.utils.constitution_loader import ConstitutionLoader, DocumentChunk
-from backend.config import get_settings
-from backend.utils.encryption import get_encryption_service
+from utils.constitution_loader import ConstitutionLoader, DocumentChunk
+from config import get_settings
+from utils.encryption import get_encryption_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
