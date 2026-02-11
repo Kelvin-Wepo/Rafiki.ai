@@ -17,8 +17,8 @@ from fastapi.responses import FileResponse, JSONResponse
 import tempfile
 from typing import Optional
 
-from backend.services.sadtalker_service import SadTalkerService
-from backend.services.elevenlabs_service import ElevenLabsService
+from services.sadtalker_service import SadTalkerService
+from services.elevenlabs_service import ElevenLabsService
 
 logger = logging.getLogger(__name__)
 
