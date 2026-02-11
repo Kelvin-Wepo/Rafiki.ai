@@ -5,8 +5,8 @@ Dialogflow integration for conversation management.
 import uuid
 from typing import Dict, Any, Optional, List
 
-from backend.config import get_settings, GOVERNMENT_SERVICES
-from backend.utils.logger import get_logger
+from config import get_settings, GOVERNMENT_SERVICES
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
