@@ -12,8 +12,8 @@ from pydantic import BaseModel, Field
 import httpx
 import os
 
-from backend.utils.logger import get_logger
-from backend.config import get_settings
+from utils.logger import get_logger
+from config import get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()
