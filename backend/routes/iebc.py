@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field, validator
 import httpx
 import re
 
-from backend.utils.logger import get_logger
-from backend.services.sms_service import sms_service
+from utils.logger import get_logger
+from services.sms_service import sms_service
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/iebc", tags=["IEBC Voter Services"])
