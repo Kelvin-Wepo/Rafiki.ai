@@ -10,8 +10,9 @@ import AssistantPanel from './AssistantPanel';
 import InteractionArea from './InteractionArea';
 import ChatInput from './ChatInput';
 import SystemMessage from './SystemMessage';
+import { ConversationHistory, TranscriptDownload } from '../Dashboard';
 import type { VoiceState, QuickAction } from '../../lib/types';
-import type { User } from '../../services/authService';
+import type { User, Conversation } from '../../services/authService';
 import { sessionApi, voiceApi, ttsApi, type AssistantResponse } from '../../lib/api';
 
 interface MainLayoutProps {
@@ -40,6 +41,7 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [currentView, setCurrentView] = useState<'chat' | 'history' | 'transcripts'>('chat');
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   
   // Session and conversation state
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -363,67 +365,93 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
           </div>
         )}
 
-        {/* Content */}
-        <div className="flex-1 flex flex-col overflow-y-auto">
-          {/* Assistant Panel */}
-          <AssistantPanel
-            voiceState={voiceState}
-            audioLevel={audioLevel}
-          />
-
-          {/* Last Response Display */}
-          {lastResponse && (
-            <div className="pb-4">
-              <SystemMessage
-                message={lastResponse.text}
-                type="info"
-                dismissible={false}
+        {/* Content - Conditionally render based on currentView */}
+        {currentView === 'chat' ? (
+          <>
+            {/* Chat View */}
+            <div className="flex-1 flex flex-col overflow-y-auto">
+              {/* Assistant Panel */}
+              <AssistantPanel
+                voiceState={voiceState}
+                audioLevel={audioLevel}
               />
-              {lastResponse.suggested_actions && lastResponse.suggested_actions.length > 0 && (
-                <div className="px-4 mt-3 w-full max-w-2xl mx-auto">
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {lastResponse.suggested_actions.map((action: string, index: number) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSendMessage(action)}
-                        className="
-                          px-4 py-2 
-                          bg-slate-800/60 hover:bg-slate-700/60 
-                          text-slate-300 hover:text-white
-                          text-xs font-medium 
-                          rounded-xl
-                          border border-slate-700/50 hover:border-emerald-500/30
-                          transition-all duration-200
-                          hover:scale-[1.02]
-                          focus:outline-none focus:ring-2 focus:ring-emerald-500/30
-                          backdrop-blur-sm
-                        "
-                      >
-                        {action}
-                      </button>
-                    ))}
-                  </div>
+
+              {/* Last Response Display */}
+              {lastResponse && (
+                <div className="pb-4">
+                  <SystemMessage
+                    message={lastResponse.text}
+                    type="info"
+                    dismissible={false}
+                  />
+                  {lastResponse.suggested_actions && lastResponse.suggested_actions.length > 0 && (
+                    <div className="px-4 mt-3 w-full max-w-2xl mx-auto">
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {lastResponse.suggested_actions.map((action: string, index: number) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSendMessage(action)}
+                            className="
+                              px-4 py-2 
+                              bg-slate-800/60 hover:bg-slate-700/60 
+                              text-slate-300 hover:text-white
+                              text-xs font-medium 
+                              rounded-xl
+                              border border-slate-700/50 hover:border-emerald-500/30
+                              transition-all duration-200
+                              hover:scale-[1.02]
+                              focus:outline-none focus:ring-2 focus:ring-emerald-500/30
+                              backdrop-blur-sm
+                            "
+                          >
+                            {action}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Interaction Area */}
+              <InteractionArea
+                voiceState={voiceState}
+                onMicClick={handleMicClick}
+                onQuickAction={handleQuickAction}
+                isRecording={isRecording}
+              />
             </div>
-          )}
 
-          {/* Interaction Area */}
-          <InteractionArea
-            voiceState={voiceState}
-            onMicClick={handleMicClick}
-            onQuickAction={handleQuickAction}
-            isRecording={isRecording}
-          />
-        </div>
-
-        {/* Chat Input - Pinned to bottom */}
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          onMicClick={handleMicClick}
-          voiceState={voiceState}
-          isRecording={isRecording}
-        />
+            {/* Chat Input - Pinned to bottom */}
+            <ChatInput
+              onSendMessage={handleSendMessage}
+              onMicClick={handleMicClick}
+              voiceState={voiceState}
+              isRecording={isRecording}
+            />
+          </>
+        ) : currentView === 'history' ? (
+          /* History View */
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <ConversationHistory
+              onSelectConversation={(conversation) => {
+                setSelectedConversation(conversation);
+                setCurrentView('chat');
+              }}
+              selectedId={selectedConversation?.id}
+              onNewConversation={handleNewChat}
+            />
+          </div>
+        ) : (
+          /* Transcripts View */
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <div className="p-6 max-w-4xl mx-auto w-full">
+              <h2 className="text-2xl font-bold text-white mb-2">Download Transcripts</h2>
+              <p className="text-slate-400 mb-6">Export your conversation transcripts in TXT or JSON format.</p>
+              <TranscriptDownload preSelectedConversation={selectedConversation} />
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
