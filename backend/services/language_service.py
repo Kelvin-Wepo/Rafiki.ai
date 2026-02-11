@@ -5,7 +5,7 @@ Handles automatic language detection and bilingual response generation.
 
 import re
 from typing import Dict, Tuple, Optional, List
-from backend.utils.logger import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
