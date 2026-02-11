@@ -13,13 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from backend.config import get_settings
+from config import get_settings
 # Note: routers and heavyweight services are imported lazily inside the application
 # lifespan and request handlers to reduce module import time during test collection
 # and to speed up application cold start time.
-from backend.utils.logger import setup_logging, get_logger
-from backend.utils.session_manager import session_manager
-from backend.utils.rate_limiter import rate_limiter
+from utils.logger import setup_logging, get_logger
+from utils.session_manager import session_manager
+from utils.rate_limiter import rate_limiter
 
 # Setup logging
 setup_logging()
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
         """Initialize critical services that block app functionality."""
         # Initialize SMS Service (critical for OTP)
         try:
-            from backend.services.sms_service import sms_service
+            from services.sms_service import sms_service
             if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:
                 sms_service.initialize()
             else:
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
         
         # Initialize Database
         try:
-            from backend.database import init_db
+            from database import init_db
             await init_db()
             logger.info("Database initialized successfully")
         except Exception as e:
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
         """Initialize AI services (non-blocking)."""
         # Initialize Gemini
         try:
-            from backend.services.gemini_service import gemini_service
+            from services.gemini_service import gemini_service
             if settings.GEMINI_API_KEY:
                 gemini_service.initialize()
             else:
@@ -72,14 +72,14 @@ async def lifespan(app: FastAPI):
 
         # Initialize Dialogflow
         try:
-            from backend.services.dialogflow_service import dialogflow_service
+            from services.dialogflow_service import dialogflow_service
             dialogflow_service.initialize()
         except Exception as e:
             logger.warning(f"Dialogflow service unavailable: {e}")
 
         # Initialize Voice Service
         try:
-            from backend.services.voice_service import voice_service
+            from services.voice_service import voice_service
             voice_service.initialize()
         except Exception as e:
             logger.warning(f"Voice service unavailable: {e}")
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
         """Initialize TTS services (non-blocking)."""
         # Initialize Google Cloud TTS Service
         try:
-            from backend.services.google_tts_service import google_tts_service
+            from services.google_tts_service import google_tts_service
             initialized = google_tts_service.initialize()
             if initialized:
                 logger.info("Google Cloud TTS service initialized successfully")
@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI):
 
         # Initialize ElevenLabs Service
         try:
-            from backend.services.elevenlabs_service import elevenlabs_service
+            from services.elevenlabs_service import elevenlabs_service
             if settings.ELEVENLABS_API_KEY:
                 logger.info("ElevenLabs service initialized successfully")
             else:
@@ -111,7 +111,7 @@ async def lifespan(app: FastAPI):
         """Initialize KRA service (optional, non-blocking)."""
         if settings.KRA_ENABLED and settings.KRA_CLIENT_ID and settings.KRA_CLIENT_SECRET:
             try:
-                from backend.services.kra_service import kra_service
+                from services.kra_service import kra_service
                 kra_service.initialize(
                     api_url=settings.KRA_API_URL,
                     client_id=settings.KRA_CLIENT_ID,
@@ -135,19 +135,19 @@ async def lifespan(app: FastAPI):
 
     # Register routers lazily (reduces import-time overhead)
     try:
-        from backend.routes.auth import router as auth_router
-        from backend.routes.voice import router as voice_router
-        from backend.routes.booking import router as booking_router
-        from backend.routes.services import router as services_router
-        from backend.routes.session import router as session_router
-        from backend.routes.avatar import router as avatar_router
-        from backend.routes.elevenlabs import router as elevenlabs_router
-        from backend.routes.avatar_animation import router as avatar_animation_router
-        from backend.routes.kra import router as kra_router
-        from backend.routes.rag_routes import router as rag_router
-        from backend.routes.citizen import router as citizen_router
-        from backend.routes.location import router as location_router
-        from backend.routes.iebc import router as iebc_router
+        from routes.auth import router as auth_router
+        from routes.voice import router as voice_router
+        from routes.booking import router as booking_router
+        from routes.services import router as services_router
+        from routes.session import router as session_router
+        from routes.avatar import router as avatar_router
+        from routes.elevenlabs import router as elevenlabs_router
+        from routes.avatar_animation import router as avatar_animation_router
+        from routes.kra import router as kra_router
+        from routes.rag_routes import router as rag_router
+        from routes.citizen import router as citizen_router
+        from routes.location import router as location_router
+        from routes.iebc import router as iebc_router
 
         app.include_router(auth_router)
         app.include_router(voice_router)
@@ -180,7 +180,7 @@ async def lifespan(app: FastAPI):
     
     # Close database connections
     try:
-        from backend.database import close_db
+        from database import close_db
         await close_db()
     except Exception as e:
         logger.warning(f"Database close error: {e}")
@@ -300,25 +300,25 @@ async def health_check():
     services_status = {}
 
     try:
-        from backend.services.gemini_service import gemini_service
+        from services.gemini_service import gemini_service
         services_status["gemini"] = gemini_service._initialized
     except Exception:
         services_status["gemini"] = False
 
     try:
-        from backend.services.dialogflow_service import dialogflow_service
+        from services.dialogflow_service import dialogflow_service
         services_status["dialogflow"] = dialogflow_service._initialized
     except Exception:
         services_status["dialogflow"] = False
 
     try:
-        from backend.services.voice_service import voice_service
+        from services.voice_service import voice_service
         services_status["voice"] = voice_service._initialized
     except Exception:
         services_status["voice"] = False
 
     try:
-        from backend.services.sms_service import sms_service
+        from services.sms_service import sms_service
         services_status["sms"] = sms_service._initialized
     except Exception:
         services_status["sms"] = False
@@ -362,7 +362,7 @@ async def get_welcome_message():
     
     Returns a greeting based on the time of day.
     """
-    from backend.config import ASSISTANT_RESPONSES
+    from config import ASSISTANT_RESPONSES
     
     hour = datetime.now().hour
     
