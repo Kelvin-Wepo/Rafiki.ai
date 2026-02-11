@@ -12,8 +12,8 @@ Features:
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from backend.config import get_settings
-from backend.utils.logger import get_logger
+from config import get_settings
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
