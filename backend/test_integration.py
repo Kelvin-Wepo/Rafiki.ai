@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from services.elevenlabs_service import ElevenLabsService
 from services.sadtalker_service import SadTalkerService
-from backend.config import get_settings
+from config import get_settings
 
 
 async def test_services():
