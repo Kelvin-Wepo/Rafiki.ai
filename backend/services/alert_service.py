@@ -13,9 +13,9 @@ from datetime import datetime
 from dataclasses import dataclass
 import hashlib
 
-from backend.utils.logger import get_logger
-from backend.config import get_settings
-from backend.services.fraud_service import (
+from utils.logger import get_logger
+from config import get_settings
+from services.fraud_service import (
     FraudAlert, RiskLevel, AlertType, get_fraud_service
 )
 
