@@ -81,7 +81,7 @@ async def init_db():
     """Initialize database tables."""
     async with engine.begin() as conn:
         # Import all models here to ensure they're registered
-        from backend.models.db_models import User, OTPRecord, Session, Conversation, Message, AuditLog
+        from models.db_models import User, OTPRecord, Session, Conversation, Message, AuditLog
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
