@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 import logging
 
-from backend.services.rag_service import get_rag_service, initialize_rag
+from services.rag_service import get_rag_service, initialize_rag
 
 logger = logging.getLogger(__name__)
 
