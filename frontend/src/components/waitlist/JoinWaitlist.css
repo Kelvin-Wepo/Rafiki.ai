@@ -1,0 +1,338 @@
+.waitlist-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+.waitlist-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-width: 500px;
+  width: 100%;
+  overflow: hidden;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.waitlist-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.waitlist-header h2 {
+  margin: 0 0 10px 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.waitlist-header p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.waitlist-form {
+  padding: 30px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+.error-message {
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
+  color: #856404;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-submit {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.terms-text {
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+  margin-top: 15px;
+  margin-bottom: 0;
+}
+
+/* Success Message Styles */
+.success-message {
+  padding: 40px 30px;
+  text-align: center;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.success-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin: 0 auto 20px;
+  animation: scaleIn 0.4s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.success-message h3 {
+  margin: 0 0 10px 0;
+  font-size: 22px;
+  color: #333;
+}
+
+.position-text {
+  font-size: 18px;
+  color: #667eea;
+  margin: 15px 0;
+  font-weight: 600;
+}
+
+.position-number {
+  font-size: 32px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.message-text {
+  font-size: 16px;
+  color: #333;
+  margin: 15px 0;
+  line-height: 1.5;
+}
+
+.confirmation-text {
+  font-size: 14px;
+  color: #666;
+  margin: 15px 0;
+  line-height: 1.5;
+}
+
+.btn-again {
+  margin-top: 20px;
+  padding: 12px 24px;
+  background: #f0f0f0;
+  color: #333;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-again:hover {
+  background: #e0e0e0;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+  .waitlist-container {
+    padding: 10px;
+  }
+
+  .waitlist-card {
+    border-radius: 8px;
+  }
+
+  .waitlist-header {
+    padding: 20px 15px;
+  }
+
+  .waitlist-header h2 {
+    font-size: 24px;
+  }
+
+  .waitlist-form {
+    padding: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  .success-message {
+    padding: 30px 20px;
+  }
+
+  .position-number {
+    font-size: 28px;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .waitlist-card {
+    background: #2d2d2d;
+    color: #fff;
+  }
+
+  .form-group label {
+    color: #e0e0e0;
+  }
+
+  .form-group input,
+  .form-group select {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #444;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  }
+
+  .form-group small {
+    color: #aaa;
+  }
+
+  .error-message {
+    background-color: #4a3820;
+    color: #ffb366;
+  }
+
+  .terms-text {
+    color: #888;
+  }
+
+  .success-message h3 {
+    color: #e0e0e0;
+  }
+
+  .message-text,
+  .confirmation-text {
+    color: #aaa;
+  }
+
+  .btn-again {
+    background: #3a3a3a;
+    color: #e0e0e0;
+  }
+
+  .btn-again:hover {
+    background: #4a4a4a;
+  }
+}

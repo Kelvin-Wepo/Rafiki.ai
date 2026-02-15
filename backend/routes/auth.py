@@ -264,7 +264,7 @@ async def list_conversations(
     Get all conversations for current user.
     """
     auth_service = get_auth_service()
-    conversations = auth_service.get_user_conversations(
+    conversations = await auth_service.get_user_conversations(
         user["user_id"],
         include_archived=include_archived
     )

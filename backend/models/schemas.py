@@ -312,3 +312,72 @@ class KRAComplianceCertificateResponse(BaseModel):
     status: Optional[str] = Field(None, description="Request status")
     estimated_time: Optional[str] = Field(None, description="Estimated processing time")
     error: Optional[str] = Field(None, description="Error message if failed")
+
+# ============== Waitlist Models ==============
+
+class WaitlistServiceType(str, Enum):
+    """Waitlist service interest types."""
+    GENERAL = "general"
+    PASSPORT = "passport"
+    NATIONAL_ID = "national_id"
+    DRIVING_LICENSE = "driving_license"
+    GOOD_CONDUCT = "good_conduct"
+    KRA_SERVICES = "kra_services"
+    ECITIZEN_SERVICES = "ecitizen_services"
+
+
+class JoinWaitlistRequest(BaseModel):
+    """Request model for joining the waitlist."""
+    phone_number: str = Field(..., description="Kenyan phone number (e.g., +254712345678 or 0712345678)")
+    email: Optional[str] = Field(None, description="Email address")
+    full_name: Optional[str] = Field(None, description="Full name")
+    service_interest: WaitlistServiceType = Field(default=WaitlistServiceType.GENERAL, description="Service of interest")
+    
+    @validator('phone_number')
+    def validate_phone(cls, v):
+        """Validate Kenyan phone number format."""
+        # Remove common formatting
+        v = v.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        
+        # Support +254, 254, or 0 prefix
+        if v.startswith("+254"):
+            v = "0" + v[4:]
+        elif v.startswith("254"):
+            v = "0" + v[3:]
+        
+        # Validate format: 0712345678 (10 digits starting with 07 or 01)
+        if not re.match(r'^0[17]\d{8}$', v):
+            raise ValueError("Invalid Kenyan phone number format. Use format like 0712345678")
+        
+        return v
+
+
+class WaitlistEntryResponse(BaseModel):
+    """Response model for a waitlist entry."""
+    id: str = Field(..., description="Waitlist entry ID")
+    phone_number: str = Field(..., description="Phone number")
+    email: Optional[str] = Field(None, description="Email address")
+    full_name: Optional[str] = Field(None, description="Full name")
+    service_interest: str = Field(..., description="Service of interest")
+    status: str = Field(..., description="Waitlist status")
+    position: int = Field(..., description="Position in waitlist")
+    joined_at: str = Field(..., description="Timestamp when joined")
+    activated_at: Optional[str] = Field(None, description="Timestamp when activated")
+
+
+class WaitlistListResponse(BaseModel):
+    """Response model for listing waitlist entries."""
+    total: int = Field(..., description="Total waitlist entries")
+    pending: int = Field(..., description="Pending entries")
+    activated: int = Field(..., description="Activated entries")
+    entries: List[WaitlistEntryResponse] = Field(..., description="Waitlist entries")
+
+
+class CheckWaitlistStatusResponse(BaseModel):
+    """Response model for checking waitlist status."""
+    phone_number: str = Field(..., description="Phone number")
+    status: str = Field(..., description="Waitlist status")
+    position: Optional[int] = Field(None, description="Position in waitlist (if pending)")
+    joined_at: str = Field(..., description="Timestamp when joined")
+    activated_at: Optional[str] = Field(None, description="Timestamp when activated")
+    message: str = Field(..., description="Status message")

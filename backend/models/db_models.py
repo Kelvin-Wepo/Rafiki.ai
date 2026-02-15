@@ -242,3 +242,37 @@ class ServiceBooking(Base):
     __table_args__ = (
         Index("ix_bookings_user_status", "user_id", "status"),
     )
+
+
+class WaitlistStatus(str, enum.Enum):
+    """Waitlist entry status."""
+    PENDING = "pending"
+    ACTIVATED = "activated"
+    CANCELLED = "cancelled"
+
+
+class Waitlist(Base):
+    """Waitlist entry model for feature/service access."""
+    __tablename__ = "waitlist"
+    
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), 
+        primary_key=True, 
+        default=lambda: str(uuid.uuid4())
+    )
+    phone_number: Mapped[str] = mapped_column(String(20), nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    service_interest: Mapped[str] = mapped_column(String(100), default="general")  # passport, id, license, general, etc.
+    status: Mapped[WaitlistStatus] = mapped_column(SQLEnum(WaitlistStatus), default=WaitlistStatus.PENDING)
+    priority: Mapped[int] = mapped_column(Integer, default=0)  # Higher priority = higher in queue
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    activated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Index for lookups
+    __table_args__ = (
+        Index("ix_waitlist_phone", "phone_number"),
+        Index("ix_waitlist_status", "status"),
+        Index("ix_waitlist_service", "service_interest"),
+    )
