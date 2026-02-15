@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from config import get_settings
+from rafiki_settings import get_settings
 # Note: routers and heavyweight services are imported lazily inside the application
 # lifespan and request handlers to reduce module import time during test collection
 # and to speed up application cold start time.
@@ -165,7 +165,7 @@ async def lifespan(app: FastAPI):
 
         logger.info("Routers registered")
     except Exception as e:
-        logger.warning(f"Router registration failed at startup: {e}")
+        logger.error(f"Router registration failed at startup: {e}", exc_info=True)
 
     # Start session cleanup task
     await session_manager.start_cleanup_task()
@@ -362,7 +362,7 @@ async def get_welcome_message():
     
     Returns a greeting based on the time of day.
     """
-    from config import ASSISTANT_RESPONSES
+    from .config import ASSISTANT_RESPONSES
     
     hour = datetime.now().hour
     

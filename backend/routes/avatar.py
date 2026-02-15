@@ -13,7 +13,6 @@ import logging
 import aiofiles
 
 from services.sadtalker_service import get_sadtalker_service
-from services.wav2lip_service import get_wav2lip_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/avatar", tags=["avatar"])
@@ -274,6 +273,7 @@ async def generate_lip_sync_video(
         
         # Generate video using Wav2Lip
         logger.info("Starting Wav2Lip video generation...")
+        from services.wav2lip_service import get_wav2lip_service
         wav2lip = get_wav2lip_service()
         
         video_path = await wav2lip.generate_video(
@@ -347,6 +347,7 @@ async def get_lip_sync_status():
         Service status, available device (CPU/GPU), cached videos count
     """
     try:
+        from services.wav2lip_service import get_wav2lip_service
         service = get_wav2lip_service()
         status = service.get_status()
         

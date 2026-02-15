@@ -8,7 +8,7 @@ import httpx
 import base64
 import re
 from typing import Optional, Dict, Any, List
-from config import get_settings
+from rafiki_settings import get_settings
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

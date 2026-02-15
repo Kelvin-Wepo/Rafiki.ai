@@ -26,7 +26,7 @@ except ImportError:
         genai = None
         GENAI_NEW_API = False
 
-from config import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
+from rafiki_settings import get_settings, GOVERNMENT_SERVICES, ASSISTANT_RESPONSES
 from utils.logger import get_logger
 from services.intent_service import intent_detector
 from utils.encryption import get_pii_detector, PIIDetector

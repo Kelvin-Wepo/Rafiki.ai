@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional, List
 
-from config import get_settings, GOVERNMENT_SERVICES
+from rafiki_settings import get_settings, GOVERNMENT_SERVICES
 from models.schemas import ServiceType, TimeSlot, BookingStatus
 from utils.logger import get_logger
 from services.sms_service import sms_service

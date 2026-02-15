@@ -12,7 +12,7 @@ from collections import defaultdict
 import asyncio
 from enum import Enum
 
-from config import get_settings
+from rafiki_settings import get_settings
 from utils.logger import get_logger
 from models.user import (
     OTPRecord, OTPStatus, AuthAuditLog,

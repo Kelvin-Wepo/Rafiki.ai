@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from jose import jwt, JWTError
 
-from config import get_settings
+from rafiki_settings import get_settings
 from utils.logger import get_logger
 from models.user import (
     User, Session, Conversation, UserStatus, AuthProvider,

@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 import tempfile
 import os
 
-from config import get_settings
+from rafiki_settings import get_settings
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

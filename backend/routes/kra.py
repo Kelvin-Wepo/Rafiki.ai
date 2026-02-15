@@ -14,7 +14,7 @@ from models.schemas import (
     KRAComplianceCertificateRequest, KRAComplianceCertificateResponse
 )
 from services.kra_service import kra_service
-from config import get_settings
+from rafiki_settings import get_settings
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

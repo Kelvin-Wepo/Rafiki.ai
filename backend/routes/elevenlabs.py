@@ -172,7 +172,7 @@ async def get_agent_info(
 )
 async def health_check():
     """Check ElevenLabs service health."""
-    from config import get_settings
+    from rafiki_settings import get_settings
     settings = get_settings()
     
     return {

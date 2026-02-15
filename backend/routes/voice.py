@@ -22,7 +22,7 @@ from services.booking_service import booking_service
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
 from utils.logger import get_logger, RequestLogger
-from config import ASSISTANT_RESPONSES
+from rafiki_settings import ASSISTANT_RESPONSES
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/voice", tags=["Voice Processing"])

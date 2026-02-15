@@ -13,7 +13,7 @@ import httpx
 import os
 
 from utils.logger import get_logger
-from config import get_settings
+from rafiki_settings import get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()

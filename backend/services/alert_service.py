@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import hashlib
 
 from utils.logger import get_logger
-from config import get_settings
+from rafiki_settings import get_settings
 from services.fraud_service import (
     FraudAlert, RiskLevel, AlertType, get_fraud_service
 )

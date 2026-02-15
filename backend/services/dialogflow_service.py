@@ -5,7 +5,7 @@ Dialogflow integration for conversation management.
 import uuid
 from typing import Dict, Any, Optional, List
 
-from config import get_settings, GOVERNMENT_SERVICES
+from rafiki_settings import get_settings, GOVERNMENT_SERVICES
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

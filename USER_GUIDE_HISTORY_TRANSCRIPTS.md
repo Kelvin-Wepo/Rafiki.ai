@@ -2,7 +2,7 @@
 
 ## Quick Start
 
-Your conversation history and transcript download features are now fully integrated into the Rafiki AI Assistant. Here's how to use them.
+Conversation history and transcript download features are now fully integrated into the Rafiki AI Assistant. Here's how to use them.
 
 ## Accessing Your Features
 

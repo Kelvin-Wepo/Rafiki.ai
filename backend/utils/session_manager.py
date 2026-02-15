@@ -15,14 +15,14 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 
-from .logger import get_logger
-from .encryption import (
+from utils.logger import get_logger
+from utils.encryption import (
     get_encryption_service, 
     get_pii_detector,
     EncryptionService,
     PIIDetector
 )
-from config import get_settings
+from rafiki_settings import get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()

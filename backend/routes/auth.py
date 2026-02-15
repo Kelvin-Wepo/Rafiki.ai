@@ -14,7 +14,7 @@ from models.user import (
 )
 from services.auth_service import get_auth_service
 from utils.logger import get_logger
-from config import get_settings
+from rafiki_settings import get_settings
 
 logger = get_logger(__name__)
 

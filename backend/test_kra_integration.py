@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from services.kra_service import kra_service
-from config import get_settings
+from ..config import get_settings
 from utils.logger import setup_logging, get_logger
 
 # Setup logging

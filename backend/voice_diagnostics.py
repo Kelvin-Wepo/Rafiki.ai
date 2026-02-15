@@ -12,7 +12,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from services.voice_service import voice_service, SPEECH_RECOGNITION_AVAILABLE, PYTTSX3_AVAILABLE
-from config import get_settings
+from ..config import get_settings
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

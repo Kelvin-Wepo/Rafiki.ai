@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from models.schemas import ServiceType, ServiceInfoResponse, ServicesListResponse
 from services.booking_service import booking_service
-from config import GOVERNMENT_SERVICES
+from rafiki_settings import GOVERNMENT_SERVICES
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -132,7 +132,7 @@ async def get_ecitizen_info(service_type: ServiceType):
     
     Returns the eCitizen URL and navigation instructions.
     """
-    from config import get_settings
+    from rafiki_settings import get_settings
     
     settings = get_settings()
     service_data = GOVERNMENT_SERVICES.get(service_type.value)

@@ -7,7 +7,7 @@ import os
 import tempfile
 from typing import Optional
 from google.cloud import texttospeech
-from config import get_settings
+from rafiki_settings import get_settings
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

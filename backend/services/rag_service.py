@@ -33,7 +33,7 @@ except ImportError:
 
 import google.genai as genai
 from utils.constitution_loader import ConstitutionLoader, DocumentChunk
-from config import get_settings
+from rafiki_settings import get_settings
 from utils.encryption import get_encryption_service
 
 logger = logging.getLogger(__name__)
