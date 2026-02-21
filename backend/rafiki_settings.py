@@ -126,6 +126,74 @@ def get_settings() -> Settings:
     return Settings()
 
 
+# Supported agencies (top-level)
+SUPPORTED_AGENCIES = {
+    "ntsa": {
+        "name": "NTSA",
+        "full_name": "National Transport and Safety Authority",
+        "description": "Vehicle registration, driving licenses, logbook services",
+        "services": ["driving_license", "vehicle_registration", "logbook_search"],
+        "contact": "0800 723 473"
+    },
+    "kra": {
+        "name": "KRA",
+        "full_name": "Kenya Revenue Authority",
+        "description": "Tax services, KRA PIN, nil returns, compliance certificates",
+        "services": ["kra_pin", "nil_returns", "tax_compliance"],
+        "contact": "0800 724 253"
+    },
+    "nrb": {
+        "name": "NRB",
+        "full_name": "National Registration Bureau",
+        "description": "National ID cards, ID replacement",
+        "services": ["national_id"],
+        "contact": "0800 221 199"
+    },
+    "dcrs": {
+        "name": "DCRS",
+        "full_name": "Department of Civil Registration Services",
+        "description": "Birth certificates, death certificates, marriage certificates",
+        "services": ["birth_certificate"],
+        "contact": "0800 221 199"
+    },
+    "brs": {
+        "name": "BRS",
+        "full_name": "Business Registration Service",
+        "description": "Company registration, business names, partnerships",
+        "services": ["business_registration"],
+        "contact": "0800 221 199"
+    },
+    "dci": {
+        "name": "DCI",
+        "full_name": "Directorate of Criminal Investigations",
+        "description": "Certificate of Good Conduct, police clearance",
+        "services": ["good_conduct"],
+        "contact": "0800 722 203"
+    },
+    "cpb": {
+        "name": "Counsellors and Psychologists Board",
+        "full_name": "Counsellors and Psychologists Board",
+        "description": "Professional licensing for counsellors and psychologists",
+        "services": [],
+        "contact": "020 271 9510"
+    },
+    "moh": {
+        "name": "Ministry of Health",
+        "full_name": "Ministry of Health Services",
+        "description": "Health records, medical certifications, facility services",
+        "services": ["health_records"],
+        "contact": "0800 720 990"
+    },
+    "county": {
+        "name": "County Services",
+        "full_name": "County Government Services",
+        "description": "Local permits, land rates, county-specific services",
+        "services": [],
+        "contact": "Varies by county"
+    }
+}
+
+
 # Available government services
 GOVERNMENT_SERVICES = {
     "passport": {
@@ -184,12 +252,16 @@ GOVERNMENT_SERVICES = {
 # Assistant responses for accessibility
 ASSISTANT_RESPONSES = {
     "greeting": {
-        "morning": "Good morning! I am Rafiki, your eCitizen booking assistant. I am here to help you access government services. How may I assist you today?",
-        "afternoon": "Good afternoon! I am Rafiki, your eCitizen booking assistant. I am here to help you access government services. How may I assist you today?",
-        "evening": "Good evening! I am Rafiki, your eCitizen booking assistant. I am here to help you access government services. How may I assist you today?"
+        "morning": "Good morning! I am Rafiki, your AI government assistant. How can I help you today? The supported agencies are NTSA, KRA, National Registration Bureau (NRB), Department of Civil Registration Services (DCRS), Business Registration Service (BRS), Directorate of Criminal Investigations (DCI), Counsellors and Psychologists Board, Ministry of Health services, and County services.",
+        "afternoon": "Good afternoon! I am Rafiki, your AI government assistant. How can I help you today? The supported agencies are NTSA, KRA, National Registration Bureau (NRB), Department of Civil Registration Services (DCRS), Business Registration Service (BRS), Directorate of Criminal Investigations (DCI), Counsellors and Psychologists Board, Ministry of Health services, and County services.",
+        "evening": "Good evening! I am Rafiki, your AI government assistant. How can I help you today? The supported agencies are NTSA, KRA, National Registration Bureau (NRB), Department of Civil Registration Services (DCRS), Business Registration Service (BRS), Directorate of Criminal Investigations (DCI), Counsellors and Psychologists Board, Ministry of Health services, and County services.",
+        "default": "Hi, I am Rafiki your AI government assistant. How can I help you today? The supported agencies are NTSA, KRA, National Registration Bureau (NRB), Department of Civil Registration Services (DCRS), Business Registration Service (BRS), Directorate of Criminal Investigations (DCI), Counsellors and Psychologists Board, Ministry of Health services, and County services."
     },
-    "services_list": "I can help you with the following services: Passport application, National ID application, Driving license, and Certificate of Good Conduct. Which service would you like to access?",
+    "agencies_list": "The supported agencies are: NTSA for transport and driving licenses, KRA for tax services, NRB for National ID, DCRS for birth and death certificates, BRS for business registration, DCI for good conduct certificates, Counsellors and Psychologists Board for professional licensing, Ministry of Health for health services, and County services for local government needs. Which agency would you like to access?",
+    "services_list": "I can help you with: booking appointments, managing appointments, checking appointment status, getting directions to Huduma Centres, answering constitutional questions, submitting anonymous feedback, reporting emergencies, and reporting corruption anonymously. What would you like to do?",
     "booking_confirmed": "Your appointment has been successfully booked. You will receive an SMS confirmation shortly.",
     "error_generic": "I apologize, but I encountered an error. Please try again or say 'help' for assistance.",
-    "help": "You can say things like: 'Book a passport appointment', 'Check my appointment status', 'What services are available', or 'Navigate to eCitizen'. How can I help you?"
+    "rag_fallback": "I'm unable to retrieve that information right now. Please try again or rephrase your question.",
+    "unsupported_agency": "I'm sorry, that agency is not currently supported. The supported agencies are: NTSA, KRA, NRB, DCRS, BRS, DCI, Counsellors and Psychologists Board, Ministry of Health, and County services.",
+    "help": "You can say things like: 'Book an appointment with KRA', 'Check my appointment status', 'Directions to nearest Huduma Centre', 'What is the bill of rights?', 'I want to report corruption', or 'Help me with an emergency'. How can I help you?"
 }

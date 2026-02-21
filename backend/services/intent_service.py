@@ -41,6 +41,10 @@ class IntentDetector:
     # General intents
     INTENT_SERVICE_INQUIRY = "service_inquiry"
     INTENT_BOOKING = "book_appointment"
+    INTENT_MANAGE_APPOINTMENT = "manage_appointment"
+    INTENT_CHECK_APPOINTMENT_STATUS = "check_appointment_status"
+    INTENT_LIST_AGENCIES = "list_supported_agencies"
+    INTENT_CONSTITUTIONAL_QA = "constitutional_qa_rag"
     INTENT_PASSPORT_APPOINTMENT = "passport_appointment"
     INTENT_CONFIRMATION = "confirm"
     INTENT_NAVIGATION = "navigate"
@@ -50,6 +54,45 @@ class IntentDetector:
     INTENT_THANK_YOU = "thank_you"
     INTENT_GOODBYE = "goodbye"
     INTENT_UNKNOWN = "unknown"
+    
+    # Agency keywords mapping
+    AGENCY_KEYWORDS = {
+        'ntsa': ['ntsa', 'transport', 'driving', 'vehicle', 'logbook', 'license', 'leseni'],
+        'kra': ['kra', 'tax', 'itax', 'pin', 'returns', 'revenue'],
+        'nrb': ['nrb', 'national id', 'id card', 'kitambulisho', 'identity'],
+        'dcrs': ['dcrs', 'birth certificate', 'death certificate', 'marriage certificate', 'civil registration'],
+        'brs': ['brs', 'business registration', 'company', 'partnership'],
+        'dci': ['dci', 'good conduct', 'police clearance', 'criminal investigation'],
+        'cpb': ['counsellor', 'psychologist', 'therapist', 'mental health professional'],
+        'moh': ['ministry of health', 'health', 'medical', 'hospital'],
+        'county': ['county', 'local government', 'rates', 'permits']
+    }
+    
+    # Keywords for listing agencies
+    LIST_AGENCIES_KEYWORDS = [
+        'what agencies', 'which agencies', 'supported agencies', 'list agencies',
+        'available agencies', 'what services', 'which services', 'show agencies',
+        'tell me agencies', 'what can you do', 'how can you help'
+    ]
+    
+    # Keywords for appointment management
+    MANAGE_APPOINTMENT_KEYWORDS = [
+        'reschedule', 'cancel appointment', 'change appointment', 'modify booking',
+        'update appointment', 'postpone', 'move appointment'
+    ]
+    
+    # Keywords for checking appointment status
+    CHECK_STATUS_KEYWORDS = [
+        'check status', 'appointment status', 'booking status', 'my appointment',
+        'is my appointment', 'when is my', 'check my booking'
+    ]
+    
+    # Constitutional/RAG query keywords
+    CONSTITUTIONAL_KEYWORDS = [
+        'constitution', 'katiba', 'bill of rights', 'article', 'chapter',
+        'what does the constitution', 'constitutional', 'rights', 'haki',
+        'law says', 'legal', 'amendment'
+    ]
     
     # KRA-related keywords
     KRA_NIL_RETURNS_KEYWORDS = [
@@ -260,6 +303,21 @@ class IntentDetector:
         # EMERGENCY - Highest priority
         if self._matches_keywords(normalized, self.EMERGENCY_KEYWORDS):
             return self.INTENT_EMERGENCY_REPORT, 0.98
+        
+        # Constitutional Q&A - high priority for specific queries
+        if self._matches_keywords(normalized, self.CONSTITUTIONAL_KEYWORDS):
+            return self.INTENT_CONSTITUTIONAL_QA, 0.95
+        
+        # List agencies intent
+        if self._matches_keywords(normalized, self.LIST_AGENCIES_KEYWORDS):
+            return self.INTENT_LIST_AGENCIES, 0.95
+        
+        # Appointment management intents
+        if self._matches_keywords(normalized, self.MANAGE_APPOINTMENT_KEYWORDS):
+            return self.INTENT_MANAGE_APPOINTMENT, 0.93
+        
+        if self._matches_keywords(normalized, self.CHECK_STATUS_KEYWORDS):
+            return self.INTENT_CHECK_APPOINTMENT_STATUS, 0.93
         
         # Check KRA-specific intents
         if self._matches_keywords(normalized, self.KRA_NIL_RETURNS_KEYWORDS):

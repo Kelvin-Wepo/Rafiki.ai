@@ -112,6 +112,9 @@ async def process_input(
                     suggested_actions=["Speak", "Type a message"]
                 )
             
+            # === STRUCTURED LOGGING: Start of intent pipeline ===
+            logger.info(f"[PIPELINE] Session: {session.session_id} | Input: '{user_text[:100]}...' | Mode: {request.input_mode.value}")
+            
             # Process with Dialogflow for conversation management
             dialogflow_result = await dialogflow_service.detect_intent(
                 user_text,
@@ -121,6 +124,12 @@ async def process_input(
                     "entities": session.booking_state
                 }
             )
+            
+            # === STRUCTURED LOGGING: Intent detection result ===
+            detected_intent = dialogflow_result.get("intent", "unknown")
+            confidence = dialogflow_result.get("confidence", 0)
+            entities = dialogflow_result.get("entities", {})
+            logger.info(f"[PIPELINE] Intent: {detected_intent} | Confidence: {confidence:.2f} | Entities: {entities}")
             
             # Check if we need to complete a booking
             if dialogflow_result.get("action") == "complete_booking":
@@ -180,6 +189,10 @@ async def process_input(
                 entities = dialogflow_result.get("entities", {})
                 sources = []
             
+            # === STRUCTURED LOGGING: Final response ===
+            logger.info(f"[PIPELINE] Final Intent: {intent} | Response length: {len(response_text)} chars | Sources: {len(sources)}")
+            logger.debug(f"[PIPELINE] Response preview: '{response_text[:150]}...'")
+            
             # Update session
             await session_manager.update_session(
                 session.session_id,
@@ -200,6 +213,8 @@ async def process_input(
                 "entities": entities or session.booking_state
             })
             
+            logger.info(f"[PIPELINE] Session updated | Context: {dialogflow_result.get('context', 'welcome')}")
+            
             return AssistantResponse(
                 text=response_text,
                 session_id=session.session_id,
@@ -214,7 +229,7 @@ async def process_input(
             )
             
         except Exception as e:
-            logger.error(f"Error processing input: {e}")
+            logger.error(f"[PIPELINE] ERROR: {type(e).__name__}: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
 

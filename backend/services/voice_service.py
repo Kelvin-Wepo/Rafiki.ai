@@ -388,14 +388,11 @@ class VoiceService:
         Returns:
             Audio data in base64 format
         """
-        if not PYTTSX3_AVAILABLE or not self._tts_engine:
+        if not PYTTSX3_AVAILABLE:
             return {
                 "success": False,
                 "error": "Text-to-speech not available"
             }
-        
-        if not self._initialized:
-            self.initialize()
         
         try:
             # Create temp file for audio output
@@ -406,9 +403,19 @@ class VoiceService:
                 temp_path = temp_file.name
             
             try:
+                # Create a fresh engine for each synthesis to avoid weak reference issues
+                # This is more reliable than reusing the engine with espeak driver
+                engine = pyttsx3.init('espeak')
+                engine.setProperty('rate', self.settings.TTS_RATE)
+                
                 # Generate speech to file
-                self._tts_engine.save_to_file(text, temp_path)
-                self._tts_engine.runAndWait()
+                engine.save_to_file(text, temp_path)
+                engine.runAndWait()
+                
+                # Explicitly stop the engine to prevent callback issues
+                engine.stop()
+                
+                print(f"Audio saved to {temp_path}")
                 
                 # Read the file
                 with open(temp_path, 'rb') as f:
@@ -446,16 +453,17 @@ class VoiceService:
         Returns:
             True if successful
         """
-        if not PYTTSX3_AVAILABLE or not self._tts_engine:
+        if not PYTTSX3_AVAILABLE:
             logger.warning("TTS not available for speaking")
             return False
         
-        if not self._initialized:
-            self.initialize()
-        
         try:
-            self._tts_engine.say(text)
-            self._tts_engine.runAndWait()
+            # Create fresh engine to avoid weak reference issues
+            engine = pyttsx3.init('espeak')
+            engine.setProperty('rate', self.settings.TTS_RATE)
+            engine.say(text)
+            engine.runAndWait()
+            engine.stop()
             return True
         except Exception as e:
             logger.error(f"Error speaking text: {e}")

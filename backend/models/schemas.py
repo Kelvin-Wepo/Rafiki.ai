@@ -9,12 +9,38 @@ from enum import Enum
 import re
 
 
+class Agency(str, Enum):
+    """Supported government agencies."""
+    NTSA = "ntsa"  # National Transport and Safety Authority
+    KRA = "kra"  # Kenya Revenue Authority
+    NRB = "nrb"  # National Registration Bureau
+    DCRS = "dcrs"  # Department of Civil Registration Services
+    BRS = "brs"  # Business Registration Service
+    DCI = "dci"  # Directorate of Criminal Investigations
+    CPB = "cpb"  # Counsellors and Psychologists Board
+    MOH = "moh"  # Ministry of Health
+    COUNTY = "county"  # County Services
+
+
 class ServiceType(str, Enum):
     """Available government services."""
     PASSPORT = "passport"
     NATIONAL_ID = "national_id"
     DRIVING_LICENSE = "driving_license"
     GOOD_CONDUCT = "good_conduct"
+    # NTSA services
+    VEHICLE_REGISTRATION = "vehicle_registration"
+    LOGBOOK_SEARCH = "logbook_search"
+    # KRA services
+    KRA_PIN = "kra_pin"
+    NIL_RETURNS = "nil_returns"
+    TAX_COMPLIANCE = "tax_compliance"
+    # NRB services
+    BIRTH_CERTIFICATE = "birth_certificate"
+    # BRS services
+    BUSINESS_REGISTRATION = "business_registration"
+    # MOH services
+    HEALTH_RECORDS = "health_records"
 
 
 class TimeSlot(str, Enum):

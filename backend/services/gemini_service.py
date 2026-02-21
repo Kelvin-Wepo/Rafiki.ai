@@ -160,9 +160,12 @@ class GeminiService:
             Dictionary with context, citations, and spoken citations
         """
         if not self._rag_service:
-            return {'context': '', 'citations': [], 'spoken_citations': []}
+            logger.warning("RAG service not available - returning empty context")
+            return {'context': '', 'citations': [], 'spoken_citations': [], 'rag_available': False}
         
         try:
+            logger.info(f"[RAG] Querying for: '{query[:100]}...' in language: {language}")
+            
             # Query RAG with citations
             results = self._rag_service.query_with_citations(
                 query_text=query,
@@ -170,11 +173,26 @@ class GeminiService:
                 top_k=3
             )
             
-            logger.info(f"RAG query returned {len(results.get('citations', []))} citations")
+            citation_count = len(results.get('citations', []))
+            context_length = len(results.get('context', ''))
+            
+            logger.info(f"[RAG] Query successful - {citation_count} citations, {context_length} chars context")
+            
+            if citation_count == 0:
+                logger.warning(f"[RAG] No citations found for query: '{query[:50]}...'")
+            
+            results['rag_available'] = True
             return results
+            
         except Exception as e:
-            logger.error(f"RAG query error: {e}")
-            return {'context': '', 'citations': [], 'spoken_citations': []}
+            logger.error(f"[RAG] Query FAILED for '{query[:50]}...': {type(e).__name__}: {e}", exc_info=True)
+            return {
+                'context': '', 
+                'citations': [], 
+                'spoken_citations': [], 
+                'rag_available': True,
+                'rag_error': str(e)
+            }
     
     def _build_system_context(self, language: str = 'en') -> str:
         """Build the system context prompt for Gemini using Rafiki copilot guidelines."""

@@ -198,6 +198,46 @@ class DialogflowService:
                 "sets_entity": {"workflow": "corruption_report"}
             },
             
+            # List agencies intent
+            "list_agencies": {
+                "patterns": ["what agencies", "which agencies", "supported agencies", "list agencies", "available agencies", "what services", "which services", "show agencies", "tell me agencies", "what can you do", "how can you help"],
+                "responses": [
+                    "The supported agencies are: NTSA for transport and driving licenses, KRA for tax services, NRB for National ID, DCRS for birth and death certificates, BRS for business registration, DCI for good conduct certificates, Counsellors and Psychologists Board for professional licensing, Ministry of Health for health services, and County services for local government needs. Which agency would you like to access?"
+                ],
+                "context": "agency_selection",
+                "sets_entity": {"workflow": "list_agencies"}
+            },
+            
+            # Manage appointment intent
+            "manage_appointment": {
+                "patterns": ["reschedule", "cancel appointment", "change appointment", "modify booking", "update appointment", "postpone", "move appointment"],
+                "responses": [
+                    "I can help you manage your appointment. Please provide your booking reference number or the phone number you used to book."
+                ],
+                "context": "manage_appointment",
+                "sets_entity": {"workflow": "manage_appointment"}
+            },
+            
+            # Check appointment status intent
+            "check_appointment_status": {
+                "patterns": ["check status", "appointment status", "booking status", "my appointment", "is my appointment", "when is my", "check my booking"],
+                "responses": [
+                    "I can check your appointment status. Please provide your booking reference number or the phone number you used to book."
+                ],
+                "context": "check_status",
+                "sets_entity": {"workflow": "check_status"}
+            },
+            
+            # Constitutional Q&A intent
+            "constitutional_qa": {
+                "patterns": ["constitution", "katiba", "bill of rights", "article", "chapter", "what does the constitution", "constitutional", "rights", "haki", "law says", "legal", "amendment"],
+                "responses": [
+                    "I can help you with questions about the Kenyan Constitution. What would you like to know?"
+                ],
+                "context": "constitutional_qa",
+                "sets_entity": {"workflow": "constitutional_qa"}
+            },
+            
             # Data collection states
             "provide_name": {
                 "patterns": ["my name is", "i am", "call me", "name is"],
@@ -239,12 +279,13 @@ class DialogflowService:
                 "patterns": ["help", "assist", "support", "what can you do", "options", "msaada", "nisaidie"],
                 "responses": [
                     "I can help you with: "
-                    "1. KRA services - nil returns, PIN recovery, PIN verification. "
-                    "2. Voter verification and polling station lookup. "
-                    "3. Finding nearest Huduma Centre. "
-                    "4. Booking appointments for Passport, National ID, Driving License, or Good Conduct. "
-                    "5. Directions to government offices. "
-                    "6. Submitting feedback or reporting issues. "
+                    "1. Booking, managing, or checking appointment status with government agencies. "
+                    "2. KRA services - nil returns, PIN recovery, tax compliance. "
+                    "3. Voter verification and polling station lookup. "
+                    "4. Directions to nearest Huduma Centres. "
+                    "5. Answering questions about the Kenyan Constitution. "
+                    "6. Anonymous feedback, emergency reports, and corruption reports. "
+                    "The supported agencies are NTSA, KRA, NRB, DCRS, BRS, DCI, Counsellors Board, Ministry of Health, and County services. "
                     "What would you like help with?"
                 ],
                 "context": "help"

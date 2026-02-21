@@ -151,7 +151,8 @@ class Conversation(Base):
     language: Mapped[str] = mapped_column(String(10), default="en")
     service_category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # 'metadata' is reserved in SQLAlchemy, use 'conversation_metadata' instead
+    conversation_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
     
     # Relationships
     user: Mapped["User"] = relationship(back_populates="conversations")
@@ -180,7 +181,8 @@ class Message(Base):
     language: Mapped[str] = mapped_column(String(10), default="en")
     intent: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     confidence: Mapped[Optional[float]] = mapped_column(nullable=True)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # 'metadata' is reserved in SQLAlchemy, use 'message_metadata' instead
+    message_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
     
     # Relationship
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
@@ -236,7 +238,8 @@ class ServiceBooking(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # 'metadata' is reserved in SQLAlchemy, use 'booking_metadata' instead
+    booking_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
     
     # Index for user lookups
     __table_args__ = (
