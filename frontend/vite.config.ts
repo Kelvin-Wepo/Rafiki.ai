@@ -40,8 +40,8 @@ export default defineConfig({
     terserOptions: {
       compress: {
         drop_console: true,
-      },
-    },
+      } as unknown,
+    } as Record<string, unknown>,
   },
   // Optimize dependency pre-bundling
   optimizeDeps: {

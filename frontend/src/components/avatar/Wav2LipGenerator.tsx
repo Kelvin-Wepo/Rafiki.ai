@@ -7,8 +7,7 @@ import React, { useState, useCallback } from 'react';
 import {
   generateLipSyncVideo,
   checkLipSyncStatus,
-  type LipSyncStatus,
-  type GenerateVideoParams
+  type LipSyncStatus
 } from '../../services/wav2lipService';
 import './Wav2LipGenerator.css';
 
