@@ -104,7 +104,7 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
     };
   }, []);
 
-  // Play TTS audio response
+  // Play TTS audio response with audio level analysis for lip-sync
   const playTTSResponse = useCallback(async (text: string) => {
     try {
       setVoiceState('talking');
@@ -122,14 +122,59 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
           audioPlayerRef.current.pause();
         }
         audioPlayerRef.current = new Audio(audioUrl);
-        audioPlayerRef.current.onended = () => {
-          setVoiceState('idle');
-          URL.revokeObjectURL(audioUrl);
-        };
-        audioPlayerRef.current.onerror = () => {
-          setVoiceState('idle');
-          URL.revokeObjectURL(audioUrl);
-        };
+        
+        // Set up audio analysis for lip-sync during TTS playback
+        try {
+          const ttsAudioContext = new AudioContext();
+          const ttsAnalyser = ttsAudioContext.createAnalyser();
+          ttsAnalyser.fftSize = 256;
+          
+          const source = ttsAudioContext.createMediaElementSource(audioPlayerRef.current);
+          source.connect(ttsAnalyser);
+          ttsAnalyser.connect(ttsAudioContext.destination);
+          
+          const updateTTSLevel = () => {
+            if (ttsAnalyser && audioPlayerRef.current && !audioPlayerRef.current.paused) {
+              const dataArray = new Uint8Array(ttsAnalyser.frequencyBinCount);
+              ttsAnalyser.getByteFrequencyData(dataArray);
+              const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+              setAudioLevel(average * 1.5); // Amplify for better lip movement
+              requestAnimationFrame(updateTTSLevel);
+            } else {
+              setAudioLevel(0);
+            }
+          };
+          
+          audioPlayerRef.current.onplay = () => {
+            updateTTSLevel();
+          };
+          
+          audioPlayerRef.current.onended = () => {
+            setVoiceState('idle');
+            setAudioLevel(0);
+            ttsAudioContext.close();
+            URL.revokeObjectURL(audioUrl);
+          };
+          
+          audioPlayerRef.current.onerror = () => {
+            setVoiceState('idle');
+            setAudioLevel(0);
+            ttsAudioContext.close();
+            URL.revokeObjectURL(audioUrl);
+          };
+        } catch (audioErr) {
+          console.warn('Could not set up audio analysis:', audioErr);
+          // Fallback without audio analysis
+          audioPlayerRef.current.onended = () => {
+            setVoiceState('idle');
+            URL.revokeObjectURL(audioUrl);
+          };
+          audioPlayerRef.current.onerror = () => {
+            setVoiceState('idle');
+            URL.revokeObjectURL(audioUrl);
+          };
+        }
+        
         await audioPlayerRef.current.play();
       } else {
         const utterance = new SpeechSynthesisUtterance(text);
@@ -325,14 +370,8 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
   }, [sessionId, processResponse]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Background Pattern */}
-      <div className="fixed inset-0 opacity-30 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-transparent to-transparent" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-cyan-900/20 via-transparent to-transparent" />
-      </div>
-
-      {/* Sidebar */}
+    <div className="flex h-screen overflow-hidden bg-[var(--ke-gray-50)]">
+      {/* Sidebar - Old style for voice mode (uses dark theme) */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

@@ -1,45 +1,47 @@
 @import "tailwindcss";
+@import "./styles/theme.css";
 
 /* ========================================
    RAFIKI AI - Global Styles
-   Modern, sleek design system
+   Kenya National Design System
+   Government-grade, accessible UI
    ======================================== */
 
-/* CSS Custom Properties */
+/* Legacy CSS Custom Properties (for backward compatibility) */
 :root {
-  /* Primary Palette */
-  --color-primary: #10b981;
-  --color-primary-light: #34d399;
-  --color-primary-dark: #059669;
+  /* Primary Palette - mapped to Kenya theme */
+  --color-primary: var(--ke-green);
+  --color-primary-light: var(--ke-green-light);
+  --color-primary-dark: var(--ke-green-dark);
   
   /* Secondary */
-  --color-secondary: #06b6d4;
-  --color-secondary-light: #22d3ee;
+  --color-secondary: var(--ke-info);
+  --color-secondary-light: var(--ke-info-light);
   --color-secondary-dark: #0891b2;
   
-  /* Backgrounds */
-  --color-bg-primary: #0f172a;
-  --color-bg-secondary: #1e293b;
-  --color-bg-tertiary: #334155;
+  /* Backgrounds - Light theme for government */
+  --color-bg-primary: var(--ke-white);
+  --color-bg-secondary: var(--ke-gray-50);
+  --color-bg-tertiary: var(--ke-gray-100);
   
   /* Text */
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
+  --color-text-primary: var(--ke-gray-900);
+  --color-text-secondary: var(--ke-gray-600);
+  --color-text-muted: var(--ke-gray-500);
   
   /* Status */
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
+  --color-success: var(--ke-green);
+  --color-warning: var(--ke-warning);
+  --color-error: var(--ke-red);
+  --color-info: var(--ke-info);
   
   /* Gradients */
-  --gradient-primary: linear-gradient(135deg, #10b981, #06b6d4);
-  --gradient-accent: linear-gradient(135deg, #8b5cf6, #ec4899);
+  --gradient-primary: linear-gradient(135deg, var(--ke-green), var(--ke-green-light));
+  --gradient-accent: linear-gradient(135deg, var(--ke-green), var(--ke-info));
   
   /* Shadows */
-  --shadow-glow: 0 0 40px rgba(16, 185, 129, 0.3);
-  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-glow: 0 0 40px rgba(0, 102, 0, 0.2);
+  --shadow-card: var(--shadow-md);
 }
 
 /* Base Reset */
@@ -56,14 +58,21 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
-  color: var(--color-text-primary);
-  line-height: 1.6;
+  font-family: var(--font-sans);
+  background: var(--ke-gray-50);
+  color: var(--ke-gray-900);
+  line-height: var(--leading-normal);
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode for voice interface */
+[data-theme="dark"] body,
+.theme-dark {
+  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  color: #f8fafc;
 }
 
 #root {
