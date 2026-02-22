@@ -1,12 +1,12 @@
 /**
  * AssistantPanel Component - Revamped
- * Central panel showing Rafiki avatar with improved animations and styling
+ * Central panel showing Rafiki avatar with lip-sync animation
  */
 
 import { useMemo, useEffect, useState } from 'react';
 import type { VoiceState } from '../../lib/types';
 import { VOICE_STATE_CONFIG } from '../../lib/types';
-import avatarImage from '../../assets/rafiki_avatar.png';
+import LipSyncAvatar from '../Avatar/LipSyncAvatar';
 
 interface AssistantPanelProps {
   voiceState: VoiceState;
@@ -110,10 +110,11 @@ export default function AssistantPanel({ voiceState, audioLevel = 0 }: Assistant
           {/* Gradient border */}
           <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${getStateGradient()} p-1`}>
             <div className="w-full h-full rounded-full overflow-hidden bg-slate-900">
-              <img
-                src={avatarImage}
-                alt="Rafiki AI Assistant"
-                className="w-full h-full object-cover"
+              <LipSyncAvatar
+                audioLevel={animatedLevel}
+                isSpeaking={voiceState === 'talking'}
+                isListening={voiceState === 'listening'}
+                size={280}
               />
             </div>
           </div>
