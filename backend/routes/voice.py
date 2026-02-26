@@ -19,6 +19,7 @@ from services.voice_service import voice_service
 from services.gemini_service import gemini_service
 from services.dialogflow_service import dialogflow_service
 from services.booking_service import booking_service
+from services.workflow_integration import get_workflow_integration
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
 from utils.logger import get_logger, RequestLogger
@@ -131,7 +132,53 @@ async def process_input(
             entities = dialogflow_result.get("entities", {})
             logger.info(f"[PIPELINE] Intent: {detected_intent} | Confidence: {confidence:.2f} | Entities: {entities}")
             
-            # Check if we need to complete a booking
+            # === WORKFLOW ENGINE INTEGRATION ===
+            # Check if this should be handled by workflow engine
+            workflow_integration = get_workflow_integration()
+            response_language = "sw" if request.language.startswith("sw") else "en"
+            
+            workflow_handled, workflow_response = await workflow_integration.handle_voice_input(
+                user_text=user_text,
+                session_id=session.session_id,
+                language=response_language,
+                current_intent=detected_intent,
+                intent_confidence=confidence
+            )
+            
+            if workflow_handled:
+                logger.info(f"[PIPELINE] Handled by workflow engine: {workflow_response.get('intent', 'workflow')}")
+                
+                # Update session with workflow context
+                await session_manager.update_session(
+                    session.session_id,
+                    conversation_context={
+                        "context": "workflow_active",
+                        "last_intent": workflow_response.get("intent"),
+                        "workflow_context": workflow_response.get("workflow_context", {}),
+                        "history": session.conversation_context.get("history", [])[-10:] + [
+                            {"role": "user", "content": user_text},
+                            {"role": "assistant", "content": workflow_response.get("text", "")}
+                        ]
+                    }
+                )
+                
+                return AssistantResponse(
+                    text=workflow_response.get("text", ""),
+                    session_id=session.session_id,
+                    intent=workflow_response.get("intent", "workflow"),
+                    entities=workflow_response.get("entities", {}),
+                    requires_input=workflow_response.get("requires_input", True),
+                    suggested_actions=workflow_response.get("suggested_actions", []),
+                    context={
+                        "workflow_active": workflow_response.get("workflow_active", False),
+                        "workflow_context": workflow_response.get("workflow_context", {}),
+                        "transcribed_text": user_text
+                    }
+                )
+            
+            # === END WORKFLOW ENGINE INTEGRATION ===
+            
+            # Check if we need to complete a booking (legacy path)
             if dialogflow_result.get("action") == "complete_booking":
                 booking_result = await _complete_booking(session)
                 if booking_result:
@@ -547,3 +594,74 @@ eCitizen URLs:
     except Exception as e:
         logger.error(f"Error analyzing automation: {e}")
         return {"automation": {"action": "none"}, "entities": {}}
+
+
+# ============== Workflow Control Endpoints ==============
+
+@router.post(
+    "/workflow/cancel",
+    summary="Cancel active workflow",
+    description="Cancel the current workflow for a session"
+)
+async def cancel_session_workflow(request: dict):
+    """
+    Cancel the active workflow for a session.
+    
+    - **session_id**: Session to cancel workflow for
+    """
+    session_id = request.get("session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id is required")
+    
+    workflow_integration = get_workflow_integration()
+    result = await workflow_integration.cancel_workflow(session_id)
+    
+    return result
+
+
+@router.get(
+    "/workflow/status/{session_id}",
+    summary="Get workflow status",
+    description="Check if a session has an active workflow"
+)
+async def get_workflow_status(session_id: str):
+    """
+    Get workflow status for a session.
+    """
+    workflow_integration = get_workflow_integration()
+    
+    has_active = workflow_integration.has_active_workflow(session_id)
+    execution_id = workflow_integration.get_active_execution_id(session_id)
+    
+    result = {
+        "session_id": session_id,
+        "has_active_workflow": has_active,
+        "execution_id": execution_id
+    }
+    
+    if has_active and execution_id:
+        state = workflow_integration.engine.get_execution(execution_id)
+        if state:
+            result["workflow_id"] = state.workflow_id
+            result["current_step"] = state.current_step
+            result["status"] = state.status.value
+            result["entities"] = state.entities
+    
+    return result
+
+
+@router.get(
+    "/workflow/available",
+    summary="List available workflows",
+    description="Get list of all available government service workflows"
+)
+async def list_available_workflows():
+    """
+    List all available workflows.
+    """
+    workflow_integration = get_workflow_integration()
+    return {
+        "workflows": workflow_integration.get_available_workflows()
+    }
+
