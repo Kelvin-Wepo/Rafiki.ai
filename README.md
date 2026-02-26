@@ -1,19 +1,41 @@
-# Rafiki.ai - eCitizen Voice Assistant
+# Rafiki.ai - Kenya Government Voice Assistant
 
-A voice-powered AI assistant for Kenya's eCitizen government services platform. Features natural language understanding, GPU-accelerated talking avatar animation, and accessible design for all users.
+A production-grade, accessible voice assistant helping citizens navigate Kenya government services via voice in **English**, **Kiswahili**, and **Mixed/Code-Switching**.
 
-## Features
+## 🎯 Features
 
-- Voice-based interaction with speech recognition and text-to-speech
-- AI-powered natural language understanding using Google Gemini
-- **Talking avatar with realistic lip-sync (SadTalker + Google Colab GPU)**
-- **50-100x faster video generation with T4 GPU acceleration**
-- **📜 Conversation History** - View and manage all past conversations
-- **📄 Transcript Downloads** - Export conversations as TXT or JSON
-- SMS notifications via Africa's Talking
-- Accessible UI with WCAG 2.1 AA compliance
-- Support for multiple government services (Passport, ID, Driving License, etc.)
-- Docker support for clean deployment
+### Core Voice Assistant
+- 🎤 **Voice-based interaction** with speech recognition and text-to-speech
+- 🤖 **AI-powered NLU** using Google Gemini with RAG (citations included)
+- 🇰🇪 **Bilingual support** - English, Kiswahili, and code-switching
+- 🗣️ **Talking avatar** with realistic lip-sync (SadTalker + Google Colab GPU)
+- ⚡ **50-100x faster** video generation with T4 GPU acceleration
+
+### Government Services Workflow Engine
+- 📋 **7 Pre-built Workflows** for common government services:
+  - NTSA Driving License appointment booking
+  - KRA Nil Returns filing guidance
+  - DCI Good Conduct Certificate application
+  - Huduma Centre location finder
+  - Constitutional knowledge Q&A
+  - Feedback submission
+  - Emergency reporting
+- ✅ **Built-in validators** for Kenya-specific data:
+  - Phone numbers (07xx, +254xx)
+  - National ID (7-8 digits)
+  - KRA PIN (A###########B format)
+- 🔄 **State machine** with pause/resume/cancel support
+
+### Security & Compliance
+- 🔐 **Immutable audit logging** with SHA-256 hash chaining
+- 🕵️ **PII auto-redaction** in logs
+- 🚨 **Fraud detection** with rate limiting
+- 📱 **SMS confirmations** via Africa's Talking
+
+### Accessibility
+- ♿ **WCAG 2.1 AA compliant** UI
+- 📜 **Conversation history** with transcript downloads
+- 🗺️ **Huduma Centre locator** with directions
 
 ## Architecture
 
@@ -21,12 +43,11 @@ A voice-powered AI assistant for Kenya's eCitizen government services platform. 
 Frontend (React/TypeScript)     Backend (FastAPI)           External Services
 -------------------------       -----------------           -----------------
 - Vite dev server               - REST API                  - Google Gemini AI
-- Avatar components             - Session management        - ElevenLabs TTS
-- useSadTalker hook             - Video caching             - Africa's Talking SMS
-- Audio visualization           - Multi-backend support:    - Google Colab GPU
-- Emotion system                  * Colab GPU (fast)        - SadTalker API
-                                  * Local CPU (slow)
-                                  * Audio-only fallback
+- Avatar components             - Workflow Engine           - ElevenLabs TTS
+- useSadTalker hook             - RAG with ChromaDB         - Africa's Talking SMS
+- Audio visualization           - Session management        - Google Colab GPU
+- Emotion system                - Audit logging             - SadTalker API
+                                - Maps service
 ```
 
 ## Prerequisites
@@ -579,6 +600,90 @@ See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for complete deployment guide.
 - Verify backend is running: `curl http://localhost:8000/health`
 - Check CORS settings in backend/config.py
 - Verify ports are not blocked
+
+## Workflow Engine API
+
+The workflow engine provides step-by-step guidance for government services.
+
+### Available Workflows
+
+| Workflow ID | Service | Agency |
+|-------------|---------|--------|
+| `ntsa_driving_license` | Driving License Appointment | NTSA |
+| `kra_nil_returns` | Nil Returns Filing | KRA |
+| `dci_good_conduct` | Good Conduct Certificate | DCI |
+| `huduma_centre_lookup` | Find Nearest Huduma Centre | Huduma Kenya |
+| `constitution_query` | Constitutional Knowledge Q&A | - |
+| `feedback_submission` | Submit Feedback | - |
+| `emergency_report` | Report Emergency | - |
+
+### Workflow API Endpoints
+
+```bash
+# List all workflows
+GET /api/workflows/
+
+# Start a workflow
+POST /api/workflows/start
+{
+  "workflow_id": "ntsa_driving_license",
+  "session_id": "user-session-123",
+  "language": "en"  # or "sw" for Kiswahili
+}
+
+# Process user input
+POST /api/workflows/input
+{
+  "execution_id": "exec-uuid",
+  "input": "John Doe",
+  "session_id": "user-session-123"
+}
+
+# Pause/Resume/Cancel
+POST /api/workflows/execution/{execution_id}/pause
+POST /api/workflows/execution/{execution_id}/resume
+DELETE /api/workflows/execution/{execution_id}
+```
+
+### Example Conversation
+
+```
+User: I want to book a driving license appointment
+Bot: Welcome to NTSA driving license appointment booking. 
+     Please tell me your full name as it appears on your National ID.
+User: John Kamau Mwangi
+Bot: Thank you John. Please provide your 7 or 8 digit National ID number.
+User: 12345678
+Bot: Got it. Please provide your phone number for SMS confirmation.
+User: 0712345678
+Bot: Great! I have the following details:
+     Name: John Kamau Mwangi
+     ID: 12345678
+     Phone: 0712345678
+     Please confirm (Yes/No)
+User: Yes
+Bot: ✅ Appointment booked! You'll receive SMS confirmation shortly.
+     Reference: NTSA-2024-0001
+```
+
+## Running Tests
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test suites
+python -m pytest tests/test_workflows.py -v  # Workflow engine tests (23 tests)
+python -m pytest tests/test_audit.py -v       # Audit service tests (18 tests)
+python -m pytest tests/test_maps.py -v        # Maps service tests (19 tests)
+
+# Run with coverage (requires pytest-cov)
+pip install pytest-cov
+python -m pytest tests/ --cov=. --cov-report=html
+```
 
 ## Documentation
 
