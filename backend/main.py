@@ -150,6 +150,7 @@ async def lifespan(app: FastAPI):
         from routes.iebc import router as iebc_router
         from routes.waitlist import router as waitlist_router
         from routes.workflows import router as workflows_router
+        from routes.agencies import router as agencies_router
 
         app.include_router(auth_router)
         app.include_router(voice_router)
@@ -166,6 +167,7 @@ async def lifespan(app: FastAPI):
         app.include_router(iebc_router)
         app.include_router(waitlist_router)
         app.include_router(workflows_router)
+        app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
 
         logger.info("Routers registered")
     except Exception as e:

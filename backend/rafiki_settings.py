@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     KRA_API_KEY: Optional[str] = None
     KRA_ENABLED: bool = False
     
+    # Paystack Payment Integration (M-PESA)
+    PAYSTACK_SECRET_KEY: str = ""
+    
     # Database Settings
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rafiki"
     DB_POOL_SIZE: int = 5
