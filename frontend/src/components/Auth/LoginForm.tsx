@@ -62,22 +62,26 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const displayError = localError || error;
 
   return (
-    <div className="auth-container">
+    <div className="auth-container" role="main" aria-label="Login page">
       <div className="auth-card">
         {/* Header */}
         <div className="auth-header">
           <div className="auth-logo">
-            <div className="auth-logo-icon">🛡️</div>
+            <div className="auth-logo-icon" aria-hidden="true">🛡️</div>
             <span className="auth-logo-text">Rafiki.ai</span>
           </div>
-          <h1 className="auth-title">Welcome Back</h1>
+          <h1 className="auth-title">Karibu Nyumbani 🇰🇪</h1>
           <p className="auth-subtitle">
-            Sign in to access government services with your verified phone number
+            Huduma za Serikali kwa <strong>kila</strong> Mkenya.
+            <span className="accessibility-note">Sema. Sikiliza. Pata Msaada.</span>
+          </p>
+          <p className="auth-tagline">
+            Government services at your fingertips — just speak!
           </p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" aria-label="Phone number login form">
           <div className="form-group">
             <label htmlFor="phone" className="form-label">
               <Phone size={16} />

@@ -5,7 +5,8 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { LoginForm, OTPVerification } from './components/Auth';
+import { OTPVerification } from './components/Auth';
+import { RegisterPage } from './components/Auth/v2';
 import { MainLayout } from './components/Layout';
 
 /**
@@ -74,7 +75,7 @@ function AppRouter() {
         path="/login"
         element={
           <AuthRoute>
-            <LoginForm />
+            <RegisterPage />
           </AuthRoute>
         }
       />
