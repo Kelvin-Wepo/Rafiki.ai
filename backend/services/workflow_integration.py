@@ -3,6 +3,9 @@ Workflow Integration Service
 
 Bridges voice processing with the workflow engine.
 Detects workflow intents and routes input to appropriate workflows.
+
+Now also integrates with the new agency_workflows system for
+NTSA, KRA, and other government services with M-PESA payments.
 """
 
 from typing import Dict, Any, Optional, Tuple, List
@@ -11,6 +14,8 @@ import re
 
 from workflows.engine import get_workflow_engine, WorkflowContext, WorkflowStatus
 from workflows.definitions import list_workflows
+# Import new agency workflows
+from services.agency_workflows import handle_message, get_or_create_session, _sessions
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -305,10 +310,43 @@ class WorkflowIntegrationService:
         """
         Main entry point for voice input handling.
         
+        Now routes to the new agency_workflows system for government services.
+        
         Returns:
             Tuple of (handled_by_workflow, response_dict)
         """
-        # 1. Check for active workflow first
+        # 0. Check if this should use the NEW agency workflow system
+        # Keywords that trigger agency workflow
+        agency_keywords = [
+            'agency', 'agencies', 'ntsa', 'kra', 'dci', 'brs', 'immigration',
+            'driving license', 'driving licence', 'leseni', 'huduma', 'constitution',
+            'emergency', 'boma yangu', 'health', 'ministry', 'county services',
+            'government service', 'serikali', 'apply for', 'renew', 'book appointment',
+            'ncpwd', 'disability', 'tax', 'returns', 'passport', 'id card'
+        ]
+        
+        text_lower = user_text.lower().strip()
+        
+        # Check if session already has an agency workflow active
+        agency_session = _sessions.get(session_id)
+        if agency_session and agency_session.step not in ["WELCOME", "SESSION_END"]:
+            # Route to agency workflow
+            logger.info(f"[AGENCY] Routing to agency workflow for session '{session_id}' at step '{agency_session.step}'")
+            response_text = handle_message(session_id, user_text)
+            agency_state = get_or_create_session(session_id)
+            
+            return True, self._format_agency_response(response_text, agency_state, language)
+        
+        # Check if input contains agency keywords - start agency workflow
+        if any(kw in text_lower for kw in agency_keywords):
+            logger.info(f"[AGENCY] Starting agency workflow for session '{session_id}'")
+            # Initialize agency session with welcome flow
+            response_text = handle_message(session_id, user_text)
+            agency_state = get_or_create_session(session_id)
+            
+            return True, self._format_agency_response(response_text, agency_state, language)
+        
+        # 1. Check for active OLD workflow first
         if self.has_active_workflow(session_id):
             logger.info(f"[WORKFLOW] Active workflow for session '{session_id}', routing input")
             result = await self.process_input(session_id, user_text, language)
@@ -333,6 +371,45 @@ class WorkflowIntegrationService:
         
         # 3. Not a workflow request
         return False, {}
+    
+    def _format_agency_response(
+        self,
+        response_text: str,
+        state: Any,
+        language: str
+    ) -> Dict[str, Any]:
+        """Format agency workflow response for voice output."""
+        return {
+            "text": response_text,
+            "intent": f"agency_{state.agency or 'welcome'}".lower().replace(" ", "_"),
+            "requires_input": state.step not in ["SESSION_END"],
+            "workflow_active": state.step not in ["WELCOME", "SESSION_END"],
+            "workflow_context": {
+                "step": state.step,
+                "agency": state.agency,
+                "service": state.service,
+                "awaiting_payment": state.awaiting_payment,
+                "payment_amount": state.payment_amount,
+            },
+            "suggested_actions": self._get_suggested_actions(state),
+        }
+    
+    def _get_suggested_actions(self, state: Any) -> List[str]:
+        """Get suggested actions based on current state."""
+        step = state.step
+        
+        if "CONFIRM" in step:
+            return ["Yes", "No"]
+        if step == "MAIN_MENU":
+            return ["Agencies", "Emergency", "Huduma", "Constitution"]
+        if step == "AGENCY_MENU":
+            return ["NTSA", "KRA", "DCI", "BRS", "Immigration"]
+        if "MENU" in step:
+            return ["1", "2", "3", "Back to menu"]
+        if state.awaiting_payment:
+            return ["Confirm payment", "Cancel"]
+        
+        return ["Continue", "Menu", "Help"]
     
     def _format_workflow_response(
         self,
