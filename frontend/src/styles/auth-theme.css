@@ -1,0 +1,53 @@
+/**
+ * Rafiki.ai Auth Theme Extensions
+ * Custom colors as specified in design
+ */
+
+/* Extend Tailwind with Rafiki colors */
+@layer base {
+  :root {
+    /* Primary Greens */
+    --rafiki-green: #0F6B3E;
+    --rafiki-green-accent: #1F9D55;
+    --rafiki-green-dark: #0A4F2A;
+    
+    /* Neutrals */
+    --rafiki-dark: #1E1E1E;
+    --rafiki-medium: #6B7280;
+    --rafiki-bg: #F7F9F8;
+    --rafiki-white: #FFFFFF;
+    
+    /* Kenya Flag */
+    --kenya-black: #000000;
+    --kenya-red: #BB0000;
+    --kenya-green: #006600;
+  }
+}
+
+/* Custom utility classes for Rafiki theme */
+@layer utilities {
+  .bg-rafiki-green {
+    background-color: var(--rafiki-green);
+  }
+  .bg-rafiki-green-accent {
+    background-color: var(--rafiki-green-accent);
+  }
+  .bg-rafiki-green-dark {
+    background-color: var(--rafiki-green-dark);
+  }
+  .bg-rafiki-bg {
+    background-color: var(--rafiki-bg);
+  }
+  .text-rafiki-green {
+    color: var(--rafiki-green);
+  }
+  .text-rafiki-dark {
+    color: var(--rafiki-dark);
+  }
+  .text-rafiki-medium {
+    color: var(--rafiki-medium);
+  }
+  .border-rafiki-green {
+    border-color: var(--rafiki-green);
+  }
+}
