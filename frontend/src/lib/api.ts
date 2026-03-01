@@ -499,6 +499,108 @@ export const bookingApi = {
 // Export the axios instance for custom requests
 export { apiClient };
 
+// ============================================
+// AGENCIES API - Maps to /api/agencies/* endpoints
+// ============================================
+
+export interface AgenciesChatRequest {
+  session_id?: string;
+  message: string;
+}
+
+export interface AgenciesChatResponse {
+  session_id: string;
+  response: string;
+  step: string;
+  agency: string | null;
+  service: string | null;
+  awaiting_payment: boolean;
+  payment_amount: number | null;
+}
+
+export interface PaymentInitRequest {
+  session_id: string;
+  phone: string;
+  amount_ksh: number;
+  service: string;
+  email?: string;
+}
+
+export interface PaymentVerifyResponse {
+  success: boolean;
+  paid: boolean;
+  status?: string;
+  amount_ksh?: number;
+  message: string;
+}
+
+export const agenciesApi = {
+  /**
+   * Start a new chat session with Rafiki
+   * POST /api/agencies/chat/start
+   */
+  startChat: async (): Promise<AgenciesChatResponse> => {
+    const response = await apiClient.post('/api/agencies/chat/start');
+    return response.data;
+  },
+
+  /**
+   * Send a message in the chat flow
+   * POST /api/agencies/chat
+   */
+  chat: async (request: AgenciesChatRequest): Promise<AgenciesChatResponse> => {
+    const response = await apiClient.post('/api/agencies/chat', request);
+    return response.data;
+  },
+
+  /**
+   * Send a message with an existing session
+   */
+  sendMessage: async (sessionId: string, message: string): Promise<AgenciesChatResponse> => {
+    return agenciesApi.chat({ session_id: sessionId, message });
+  },
+
+  /**
+   * Initiate M-PESA payment
+   * POST /api/agencies/payment/initiate
+   */
+  initiatePayment: async (request: PaymentInitRequest): Promise<{
+    reference: string;
+    message: string;
+    display_text: string;
+  }> => {
+    const response = await apiClient.post('/api/agencies/payment/initiate', request);
+    return response.data;
+  },
+
+  /**
+   * Verify payment status
+   * POST /api/agencies/payment/verify
+   */
+  verifyPayment: async (reference: string): Promise<PaymentVerifyResponse> => {
+    const response = await apiClient.post('/api/agencies/payment/verify', { reference });
+    return response.data;
+  },
+
+  /**
+   * Get payment status for session
+   * GET /api/agencies/payment/status/{session_id}
+   */
+  getPaymentStatus: async (sessionId: string): Promise<PaymentVerifyResponse> => {
+    const response = await apiClient.get(`/api/agencies/payment/status/${sessionId}`);
+    return response.data;
+  },
+
+  /**
+   * End/clear a session
+   * DELETE /api/agencies/chat/{session_id}
+   */
+  endSession: async (sessionId: string): Promise<{ message: string }> => {
+    const response = await apiClient.delete(`/api/agencies/chat/${sessionId}`);
+    return response.data;
+  },
+};
+
 // Default export with all APIs
 const api = {
   auth: authApi,
@@ -508,6 +610,7 @@ const api = {
   avatar: avatarApi,
   services: servicesApi,
   booking: bookingApi,
+  agencies: agenciesApi,
 };
 
 export default api;
