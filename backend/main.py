@@ -149,7 +149,8 @@ async def lifespan(app: FastAPI):
         from routes.location import router as location_router
         from routes.iebc import router as iebc_router
         from routes.waitlist import router as waitlist_router
-        from routes.workflows import router as workflows_router
+        # DEPRECATED: Old workflow system - use /api/agencies/* instead
+        # from routes.workflows import router as workflows_router
         from routes.agencies import router as agencies_router
 
         app.include_router(auth_router)
@@ -166,7 +167,8 @@ async def lifespan(app: FastAPI):
         app.include_router(location_router)
         app.include_router(iebc_router)
         app.include_router(waitlist_router)
-        app.include_router(workflows_router)
+        # DEPRECATED: Old workflow system replaced by agencies router
+        # app.include_router(workflows_router)
         app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
 
         logger.info("Routers registered")
