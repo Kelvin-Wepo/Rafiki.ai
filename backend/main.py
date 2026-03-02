@@ -138,16 +138,14 @@ async def lifespan(app: FastAPI):
         from routes.auth import router as auth_router
         from routes.voice import router as voice_router
         from routes.booking import router as booking_router
-        from routes.services import router as services_router
+        # from routes.services import router as services_router  # File doesn't exist
         from routes.session import router as session_router
         from routes.avatar import router as avatar_router
         from routes.elevenlabs import router as elevenlabs_router
         from routes.avatar_animation import router as avatar_animation_router
-        from routes.kra import router as kra_router
         from routes.rag_routes import router as rag_router
         from routes.citizen import router as citizen_router
         from routes.location import router as location_router
-        from routes.iebc import router as iebc_router
         from routes.waitlist import router as waitlist_router
         # DEPRECATED: Old workflow system - use /api/agencies/* instead
         # from routes.workflows import router as workflows_router
@@ -156,16 +154,15 @@ async def lifespan(app: FastAPI):
         app.include_router(auth_router)
         app.include_router(voice_router)
         app.include_router(booking_router)
-        app.include_router(services_router)
+        # app.include_router(services_router)  # File doesn't exist
         app.include_router(session_router)
         app.include_router(avatar_router)
         app.include_router(elevenlabs_router)
         app.include_router(avatar_animation_router)
-        app.include_router(kra_router)
+    
         app.include_router(rag_router)
         app.include_router(citizen_router)
         app.include_router(location_router)
-        app.include_router(iebc_router)
         app.include_router(waitlist_router)
         # DEPRECATED: Old workflow system replaced by agencies router
         # app.include_router(workflows_router)
