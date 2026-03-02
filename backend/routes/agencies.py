@@ -20,6 +20,7 @@ from services.paystack_service import (
     verify_payment,
     generate_reference,
 )
+from services.sms_service import sms_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -54,6 +55,74 @@ class PaymentInitRequest(BaseModel):
 
 class PaymentVerifyRequest(BaseModel):
     reference: str
+
+
+# ---------------------------------------------------------------------------
+# SMS Notification Helpers
+# ---------------------------------------------------------------------------
+
+async def send_payment_initiated_sms(phone: str, service: str, amount: int, reference: str):
+    """Send SMS when STK push is initiated."""
+    try:
+        message = (
+            f"Rafiki.ai Payment Request\n\n"
+            f"Service: {service}\n"
+            f"Amount: KES {amount:,}\n"
+            f"Ref: {reference}\n\n"
+            f"Please enter your M-PESA PIN when prompted to complete payment."
+        )
+        result = await sms_service.send_sms(phone, message)
+        if result.get("success"):
+            logger.info(f"Payment initiated SMS sent to {phone[:4]}****")
+        else:
+            logger.warning(f"Failed to send payment initiated SMS: {result.get('error')}")
+    except Exception as e:
+        logger.error(f"SMS send error: {e}")
+
+
+async def send_payment_confirmed_sms(phone: str, service: str, amount: int, reference: str):
+    """Send SMS when payment is confirmed."""
+    try:
+        message = (
+            f"Rafiki.ai Payment Confirmed! ✅\n\n"
+            f"Service: {service}\n"
+            f"Amount: KES {amount:,}\n"
+            f"Ref: {reference}\n\n"
+            f"Your payment has been received. You can download your receipt "
+            f"from the Transcripts section on Rafiki.ai.\n\n"
+            f"Thank you for using Rafiki!"
+        )
+        result = await sms_service.send_sms(phone, message)
+        if result.get("success"):
+            logger.info(f"Payment confirmed SMS sent to {phone[:4]}****")
+        else:
+            logger.warning(f"Failed to send payment confirmed SMS: {result.get('error')}")
+    except Exception as e:
+        logger.error(f"SMS send error: {e}")
+
+
+async def send_booking_sms(phone: str, service: str, details: dict):
+    """Send SMS for service booking confirmation."""
+    try:
+        name = details.get("name", "Customer")
+        agency = details.get("agency", "Government Agency")
+        
+        message = (
+            f"Rafiki.ai Booking Confirmed! ✅\n\n"
+            f"Dear {name},\n"
+            f"Agency: {agency}\n"
+            f"Service: {service}\n\n"
+            f"Please visit the relevant office with your National ID "
+            f"and payment receipt for verification.\n\n"
+            f"Thank you for using Rafiki!"
+        )
+        result = await sms_service.send_sms(phone, message)
+        if result.get("success"):
+            logger.info(f"Booking SMS sent to {phone[:4]}****")
+        else:
+            logger.warning(f"Failed to send booking SMS: {result.get('error')}")
+    except Exception as e:
+        logger.error(f"SMS send error: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +174,13 @@ async def chat(req: ChatRequest):
                 
                 if payment_result.get("success"):
                     logger.info(f"STK push sent: session={session_id}, ref={reference}, amount={state.payment_amount}")
+                    # Send SMS notification for payment initiation
+                    await send_payment_initiated_sms(
+                        phone=mpesa_number,
+                        service=service_name,
+                        amount=state.payment_amount,
+                        reference=reference
+                    )
                 else:
                     logger.warning(f"STK push failed: {payment_result.get('message')}")
                     
@@ -183,23 +259,77 @@ async def verify_payment_endpoint(req: PaymentVerifyRequest):
     """
     Verify an M-PESA payment by reference.
     Poll this after initiating the STK push (every 5 seconds, up to 60 seconds).
+    Sends SMS notification when payment is confirmed.
     """
     result = await verify_payment(req.reference)
 
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
 
+    # Send SMS when payment is confirmed
+    if result.get("paid"):
+        # Find the session with this reference to get phone and service details
+        from services.agency_workflows import _sessions
+        for session_id, state in _sessions.items():
+            if state.payment_ref == req.reference:
+                phone = state.data.get("mpesa") or state.data.get("phone", "")
+                service = state.service or state.agency or "Government Service"
+                amount = result.get("amount_ksh", state.payment_amount or 0)
+                
+                if phone:
+                    await send_payment_confirmed_sms(
+                        phone=phone,
+                        service=service,
+                        amount=amount,
+                        reference=req.reference
+                    )
+                    # Also send booking confirmation SMS
+                    await send_booking_sms(
+                        phone=phone,
+                        service=service,
+                        details={
+                            "name": state.data.get("name", "Customer"),
+                            "agency": state.agency or "Government Agency",
+                        }
+                    )
+                break
+
     return result
 
 
 @router.get("/payment/status/{session_id}")
 async def payment_status(session_id: str):
-    """Check payment status for an active session."""
+    """Check payment status for an active session. Sends SMS on first confirmation."""
     state = get_or_create_session(session_id)
     if not state.payment_ref:
         return {"paid": False, "message": "No payment initiated for this session."}
 
     result = await verify_payment(state.payment_ref)
+    
+    # Send SMS when payment is confirmed (only if not already sent)
+    if result.get("paid") and not state.data.get("sms_sent"):
+        phone = state.data.get("mpesa") or state.data.get("phone", "")
+        service = state.service or state.agency or "Government Service"
+        amount = result.get("amount_ksh", state.payment_amount or 0)
+        
+        if phone:
+            await send_payment_confirmed_sms(
+                phone=phone,
+                service=service,
+                amount=amount,
+                reference=state.payment_ref
+            )
+            await send_booking_sms(
+                phone=phone,
+                service=service,
+                details={
+                    "name": state.data.get("name", "Customer"),
+                    "agency": state.agency or "Government Agency",
+                }
+            )
+            # Mark SMS as sent to avoid duplicates
+            state.data["sms_sent"] = True
+    
     return result
 
 
