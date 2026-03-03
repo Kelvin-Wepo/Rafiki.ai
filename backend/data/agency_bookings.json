@@ -1,0 +1,37 @@
+{
+  "BK-NTS-20260303101702-2F5A98": {
+    "booking_ref": "BK-NTS-20260303101702-2F5A98",
+    "session_id": "test-session-456",
+    "agency": "NTSA",
+    "service": "Driving Test Booking",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "Test User",
+      "id_number": "12345678",
+      "phone": "0712345678",
+      "email": "",
+      "county": "Nairobi"
+    },
+    "appointment": {
+      "date": "2026-03-09",
+      "time": "09:00",
+      "day": "Monday",
+      "office": "NTSA Times Tower, Nairobi CBD",
+      "office_address": "NTSA Times Tower, Nairobi CBD"
+    },
+    "payment": {
+      "reference": "PAY-TEST-002",
+      "amount": 1000,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "name": "Test User",
+      "id": "12345678",
+      "mpesa": "0712345678",
+      "county": "Nairobi"
+    },
+    "created_at": "2026-03-03T10:17:02.479478",
+    "updated_at": "2026-03-03T10:17:02.479484"
+  }
+}

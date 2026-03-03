@@ -403,3 +403,191 @@ class BookingService:
 
 # Global service instance
 booking_service = BookingService()
+
+
+# ---------------------------------------------------------------------------
+# Agency Workflow Integration - JSON persistence for bookings
+# ---------------------------------------------------------------------------
+import json
+from pathlib import Path
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+AGENCY_BOOKINGS_FILE = DATA_DIR / "agency_bookings.json"
+
+
+def _ensure_data_dir():
+    """Ensure the data directory exists."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if not AGENCY_BOOKINGS_FILE.exists():
+        with open(AGENCY_BOOKINGS_FILE, "w") as f:
+            json.dump({}, f)
+
+
+def _load_agency_bookings() -> Dict[str, Any]:
+    """Load all agency bookings from storage."""
+    _ensure_data_dir()
+    try:
+        with open(AGENCY_BOOKINGS_FILE, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {}
+
+
+def _save_agency_bookings(data: Dict[str, Any]):
+    """Save agency bookings to storage."""
+    _ensure_data_dir()
+    with open(AGENCY_BOOKINGS_FILE, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+
+
+def generate_booking_ref(agency: str, service: str) -> str:
+    """Generate a unique booking reference."""
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    short_id = str(uuid.uuid4())[:6].upper()
+    agency_code = agency[:3].upper() if agency else "RAF"
+    return f"BK-{agency_code}-{timestamp}-{short_id}"
+
+
+def get_next_available_slot(agency: str, service: str, county: str = None) -> Dict[str, Any]:
+    """
+    Get the next available appointment slot.
+    In production, this would integrate with agency booking systems.
+    """
+    import random
+    days_ahead = random.randint(2, 5)
+    appointment_date = datetime.now() + timedelta(days=days_ahead)
+    
+    while appointment_date.weekday() >= 5:
+        appointment_date += timedelta(days=1)
+    
+    time_slots = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"]
+    appointment_time = random.choice(time_slots)
+    
+    office_map = {
+        "NTSA": {
+            "default": "NTSA Head Office, Hill Plaza, Nairobi",
+            "Nairobi": "NTSA Times Tower, Nairobi CBD",
+            "Mombasa": "NTSA Mombasa Office, Moi Avenue",
+            "Kisumu": "NTSA Kisumu Office, Oginga Odinga Street",
+        },
+        "KRA": {
+            "default": "KRA Times Tower, Nairobi",
+            "Nairobi": "KRA Times Tower, Haile Selassie Avenue",
+            "Mombasa": "KRA Mombasa Office, Customs House",
+        },
+        "DCI": {
+            "default": "DCI Headquarters, Kiambu Road, Nairobi",
+        },
+    }
+    
+    agency_offices = office_map.get(agency, {"default": "Huduma Centre, Nairobi"})
+    office = agency_offices.get(county, agency_offices.get("default"))
+    
+    return {
+        "date": appointment_date.strftime("%Y-%m-%d"),
+        "time": appointment_time,
+        "day": appointment_date.strftime("%A"),
+        "office": office,
+        "office_address": office,
+    }
+
+
+def create_agency_booking(
+    session_id: str,
+    agency: str,
+    service: str,
+    applicant_data: Dict[str, Any],
+    payment_ref: Optional[str] = None,
+    amount: Optional[int] = None,
+    appointment_slot: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Create a new booking/appointment record for agency workflows.
+    """
+    bookings = _load_agency_bookings()
+    
+    booking_ref = generate_booking_ref(agency, service)
+    
+    if not appointment_slot:
+        appointment_slot = get_next_available_slot(
+            agency=agency,
+            service=service,
+            county=applicant_data.get("county"),
+        )
+    
+    booking = {
+        "booking_ref": booking_ref,
+        "session_id": session_id,
+        "agency": agency,
+        "service": service,
+        "status": "pending_payment" if payment_ref else "draft",
+        "applicant": {
+            "name": applicant_data.get("name", ""),
+            "id_number": applicant_data.get("id", ""),
+            "phone": applicant_data.get("phone", "") or applicant_data.get("mpesa", ""),
+            "email": applicant_data.get("email", ""),
+            "county": applicant_data.get("county", ""),
+        },
+        "appointment": appointment_slot,
+        "payment": {
+            "reference": payment_ref,
+            "amount": amount,
+            "status": "pending" if payment_ref else None,
+            "paid_at": None,
+        },
+        "metadata": applicant_data,
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat(),
+    }
+    
+    bookings[booking_ref] = booking
+    _save_agency_bookings(bookings)
+    
+    logger.info(f"Agency booking created: ref={booking_ref}, agency={agency}")
+    return booking
+
+
+def get_agency_booking(booking_ref: str) -> Optional[Dict[str, Any]]:
+    """Get an agency booking by reference."""
+    bookings = _load_agency_bookings()
+    return bookings.get(booking_ref)
+
+
+def get_agency_booking_by_payment_ref(payment_ref: str) -> Optional[Dict[str, Any]]:
+    """Get an agency booking by payment reference."""
+    bookings = _load_agency_bookings()
+    
+    for booking in bookings.values():
+        if booking.get("payment", {}).get("reference") == payment_ref:
+            return booking
+    
+    return None
+
+
+def mark_agency_booking_paid(
+    payment_ref: str,
+    transaction_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Mark an agency booking as paid when payment is confirmed."""
+    booking = get_agency_booking_by_payment_ref(payment_ref)
+    
+    if not booking:
+        logger.warning(f"No booking found for payment ref: {payment_ref}")
+        return None
+    
+    bookings = _load_agency_bookings()
+    booking_ref = booking["booking_ref"]
+    
+    bookings[booking_ref]["status"] = "confirmed"
+    bookings[booking_ref]["payment"]["status"] = "paid"
+    bookings[booking_ref]["payment"]["paid_at"] = datetime.now().isoformat()
+    
+    if transaction_id:
+        bookings[booking_ref]["payment"]["transaction_id"] = transaction_id
+    
+    bookings[booking_ref]["updated_at"] = datetime.now().isoformat()
+    
+    _save_agency_bookings(bookings)
+    
+    logger.info(f"Agency booking marked paid: ref={booking_ref}")
+    return bookings[booking_ref]
