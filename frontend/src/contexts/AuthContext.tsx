@@ -17,7 +17,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import type { User, AuthResponse, OTPDeliveryMethod } from '../services/authService';
+import type { User, AuthResponse, OTPDeliveryMethod, PasswordLoginResponse } from '../services/authService';
 import {
   initiateLogin,
   verifyOTP,
@@ -27,6 +27,7 @@ import {
   getStoredToken,
   getStoredUser,
   clearAuthData,
+  passwordLogin as passwordLoginApi,
 } from '../services/authService';
 
 // Auth state interface
@@ -41,6 +42,7 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   // Auth actions
   login: (phoneNumber: string, deliveryMethod?: OTPDeliveryMethod) => Promise<AuthResponse>;
+  passwordLogin: (identifier: string, password: string) => Promise<PasswordLoginResponse>;
   verify: (phoneNumber: string, otp: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -205,6 +207,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   /**
+   * Login with email/phone and password.
+   */
+  const passwordLogin = useCallback(async (
+    identifier: string,
+    password: string
+  ): Promise<PasswordLoginResponse> => {
+    setError(null);
+    setIsLoading(true);
+    
+    try {
+      const response = await passwordLoginApi(identifier, password);
+      
+      if (response.success && response.user) {
+        setUser(response.user);
+        setIsAuthenticated(true);
+      } else if (response.success) {
+        // Login successful but no user object returned - still mark as authenticated
+        setIsAuthenticated(true);
+      } else {
+        setError(response.message || 'Login failed');
+      }
+      
+      return response;
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string; error?: string; detail?: string };
+      const errorMessage = errorObj?.message || errorObj?.detail || errorObj?.error || 'Login failed';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  /**
    * Clear error message.
    */
   const clearError = useCallback(() => {
@@ -218,6 +254,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     error,
     login,
+    passwordLogin,
     verify,
     logout,
     clearError,

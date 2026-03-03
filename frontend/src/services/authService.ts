@@ -48,11 +48,14 @@ export function storeUser(user: User): void {
 
 // Types
 export interface User {
-  user_id: string;
-  phone_masked: string;
-  status: string;
-  created_at: string;
-  last_login: string | null;
+  id?: string;
+  user_id?: string;
+  full_name?: string;
+  email_masked?: string;
+  phone_masked?: string;
+  status?: string;
+  created_at?: string;
+  last_login?: string | null;
 }
 
 export interface AuthResponse {
@@ -183,6 +186,41 @@ export async function logout(): Promise<{ success: boolean; message: string }> {
     clearAuthData();
     return { success: true, message: 'Logged out locally' };
   }
+}
+
+/**
+ * Password-based login with email or phone.
+ */
+export interface PasswordLoginResponse {
+  success: boolean;
+  message: string;
+  access_token?: string;
+  session_id?: string;
+  user?: User;
+  error?: string;
+}
+
+export async function passwordLogin(
+  identifier: string,
+  password: string
+): Promise<PasswordLoginResponse> {
+  const response = await apiRequest<PasswordLoginResponse>('/auth/login/password', {
+    method: 'POST',
+    body: JSON.stringify({ identifier, password }),
+  });
+  
+  // Store token and user on success
+  if (response.success && response.access_token) {
+    storeToken(response.access_token);
+    if (response.user) {
+      storeUser(response.user);
+    }
+    if (response.session_id) {
+      localStorage.setItem('rafiki_session_id', response.session_id);
+    }
+  }
+  
+  return response;
 }
 
 /**
