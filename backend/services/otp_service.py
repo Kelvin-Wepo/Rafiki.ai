@@ -1,6 +1,6 @@
 """
 OTP Service with security-first design.
-Handles OTP generation, validation, and delivery via Africa's Talking (SMS & Voice).
+Handles OTP generation, validation, and delivery via Africa's Talking (SMS & Voice) and Email.
 Implements rate limiting and brute force protection.
 """
 
@@ -34,7 +34,9 @@ class OTPDeliveryMethod(str, Enum):
     """OTP delivery method options."""
     SMS = "sms"
     VOICE = "voice"
+    EMAIL = "email"
     BOTH = "both"  # Send via both SMS and Voice
+    ALL = "all"  # Send via SMS, Voice, and Email
 
 
 class OTPService:
@@ -272,20 +274,21 @@ class OTPService:
         # Send OTP via selected delivery method(s)
         sms_result = {"success": False}
         voice_result = {"success": False}
+        email_result = {"success": False}
         delivery_messages = []
         
-        if delivery_method in (OTPDeliveryMethod.SMS, OTPDeliveryMethod.BOTH):
+        if delivery_method in (OTPDeliveryMethod.SMS, OTPDeliveryMethod.BOTH, OTPDeliveryMethod.ALL):
             sms_result = await self._send_otp_sms(phone_number, otp)
             if sms_result["success"]:
                 delivery_messages.append("SMS")
         
-        if delivery_method in (OTPDeliveryMethod.VOICE, OTPDeliveryMethod.BOTH):
+        if delivery_method in (OTPDeliveryMethod.VOICE, OTPDeliveryMethod.BOTH, OTPDeliveryMethod.ALL):
             voice_result = await self._send_otp_voice_call(phone_number, otp)
             if voice_result["success"]:
                 delivery_messages.append("voice call")
         
         # Check if at least one delivery method succeeded
-        if sms_result["success"] or voice_result["success"]:
+        if sms_result["success"] or voice_result["success"] or email_result["success"]:
             self._log_audit_event(
                 "otp_request",
                 phone_hash,
@@ -296,7 +299,8 @@ class OTPService:
                     "otp_id": otp_record.id,
                     "delivery_method": delivery_method.value,
                     "sms_success": sms_result["success"],
-                    "voice_success": voice_result["success"]
+                    "voice_success": voice_result["success"],
+                    "email_success": email_result["success"]
                 }
             )
             
@@ -646,26 +650,295 @@ class OTPService:
             return None
         phone_hash = hash_value(phone_number)
         return self._last_plain_otps.get(phone_hash)
+
+    async def _send_otp_email(self, email: str, otp: str) -> Dict[str, Any]:
         """
-        Get audit logs for security review.
+        Send OTP via email.
         
         Args:
-            phone_hash: Filter by phone number hash
-            event_type: Filter by event type
-            limit: Maximum number of records
+            email: Recipient email address
+            otp: The OTP code to send
         
         Returns:
-            List of audit log records
+            Result dict with success status
         """
-        logs = self._audit_logs
+        try:
+            from services.email_service import get_email_service
+            email_service = get_email_service()
+            return await email_service.send_otp_email(email, otp, self.OTP_EXPIRY_MINUTES)
+        except Exception as e:
+            logger.error(f"Email OTP send error: {e}")
+            # Fallback to simulated success in debug mode
+            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+                logger.info("Email send failed but DEBUG enabled - simulating success")
+                return {"success": True, "simulated": True}
+            return {"success": False, "error": str(e)}
+
+    async def request_otp_for_email(
+        self,
+        email: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Request OTP for email-based authentication.
         
-        if phone_hash:
-            logs = [l for l in logs if l.phone_number_hash == phone_hash]
+        Args:
+            email: Email address to send OTP to
+            ip_address: Client IP for audit logging
+            user_agent: Client user agent for audit logging
         
-        if event_type:
-            logs = [l for l in logs if l.event_type == event_type]
+        Returns:
+            Result dict with success status and message
+        """
+        if not self._initialized:
+            self.initialize()
         
-        return sorted(logs, key=lambda x: x.timestamp, reverse=True)[:limit]
+        email_hash = hash_value(email.lower())
+        
+        # Check lockout
+        is_locked, lockout_seconds = self._is_locked_out(email_hash)
+        if is_locked:
+            self._log_audit_event(
+                "otp_request_email",
+                email_hash,
+                success=False,
+                failure_reason="account_locked",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "too_many_attempts",
+                "message": f"Too many failed attempts. Try again in {lockout_seconds} seconds.",
+                "retry_after": lockout_seconds
+            }
+        
+        # Check rate limit
+        is_limited, reset_seconds = self._is_rate_limited(email_hash)
+        if is_limited:
+            self._log_audit_event(
+                "otp_request_email",
+                email_hash,
+                success=False,
+                failure_reason="rate_limited",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "rate_limited",
+                "message": f"Too many OTP requests. Try again in {reset_seconds} seconds.",
+                "retry_after": reset_seconds
+            }
+        
+        # Generate OTP
+        otp = self._generate_otp()
+        otp_hash = hash_value(otp)
+        
+        # Create OTP record (use email_hash as identifier)
+        otp_record = OTPRecord(
+            id=generate_otp_id(),
+            user_id="",  # Set after user lookup/creation
+            phone_number_hash=email_hash,  # Reusing field for email hash
+            otp_hash=otp_hash,
+            status=OTPStatus.PENDING,
+            expires_at=datetime.utcnow() + timedelta(minutes=self.OTP_EXPIRY_MINUTES),
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        # Store OTP record
+        self._otp_records[email_hash] = otp_record
+        
+        # Save plaintext OTP for debugging
+        if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+            self._last_plain_otps[email_hash] = otp
+        
+        # Track rate limit
+        self._rate_limit_tracker[email_hash].append(datetime.utcnow())
+        
+        # Send OTP via email
+        email_result = await self._send_otp_email(email, otp)
+        
+        if email_result["success"]:
+            self._log_audit_event(
+                "otp_request_email",
+                email_hash,
+                success=True,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                metadata={
+                    "otp_id": otp_record.id,
+                    "delivery_method": "email"
+                }
+            )
+            
+            response = {
+                "success": True,
+                "message": "OTP sent successfully via email.",
+                "expires_in": self.OTP_EXPIRY_MINUTES * 60,
+                "otp_id": otp_record.id,
+                "delivery_methods": ["email"],
+                "email_sent": True,
+                "simulated": email_result.get("simulated", False)
+            }
+            
+            # Include OTP in response for sandbox/development
+            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
+                response["otp"] = otp
+                response["test_mode"] = True
+            
+            return response
+        else:
+            self._log_audit_event(
+                "otp_request_email",
+                email_hash,
+                success=False,
+                failure_reason="delivery_failed",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "delivery_failed",
+                "message": "Failed to send OTP email. Please try again."
+            }
+
+    async def verify_otp_for_email(
+        self,
+        email: str,
+        otp: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Verify OTP for email address.
+        
+        Args:
+            email: Email address that received OTP
+            otp: OTP code to verify
+            ip_address: Client IP for audit logging
+            user_agent: Client user agent for audit logging
+        
+        Returns:
+            Result dict with verification status
+        """
+        email_hash = hash_value(email.lower())
+        otp_hash = hash_value(otp)
+        
+        # Check lockout
+        is_locked, lockout_seconds = self._is_locked_out(email_hash)
+        if is_locked:
+            self._log_audit_event(
+                "otp_verify_email",
+                email_hash,
+                success=False,
+                failure_reason="account_locked",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "account_locked",
+                "message": f"Account temporarily locked. Try again in {lockout_seconds} seconds.",
+                "retry_after": lockout_seconds
+            }
+        
+        # Get OTP record
+        otp_record = self._otp_records.get(email_hash)
+        
+        if not otp_record:
+            self._log_audit_event(
+                "otp_verify_email",
+                email_hash,
+                success=False,
+                failure_reason="no_otp",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "no_otp",
+                "message": "No OTP found. Please request a new code."
+            }
+        
+        # Check expiration
+        if otp_record.is_expired():
+            otp_record.status = OTPStatus.EXPIRED
+            self._log_audit_event(
+                "otp_verify_email",
+                email_hash,
+                success=False,
+                failure_reason="otp_expired",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "otp_expired",
+                "message": "OTP has expired. Please request a new code."
+            }
+        
+        # Increment attempt counter
+        otp_record.attempts += 1
+        
+        # Check if max attempts reached
+        if otp_record.is_max_attempts():
+            otp_record.status = OTPStatus.FAILED
+            self._lockout_tracker[email_hash] = datetime.utcnow() + timedelta(minutes=self.LOCKOUT_MINUTES)
+            
+            self._log_audit_event(
+                "otp_verify_email",
+                email_hash,
+                success=False,
+                failure_reason="max_attempts",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "max_attempts",
+                "message": f"Too many attempts. Account locked for {self.LOCKOUT_MINUTES} minutes."
+            }
+        
+        # Verify OTP
+        if otp_record.otp_hash != otp_hash:
+            remaining = otp_record.max_attempts - otp_record.attempts
+            self._log_audit_event(
+                "otp_verify_email",
+                email_hash,
+                success=False,
+                failure_reason="invalid_otp",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "invalid_otp",
+                "message": f"Invalid OTP. {remaining} attempts remaining."
+            }
+        
+        # Success - mark as verified
+        otp_record.status = OTPStatus.VERIFIED
+        
+        # Clean up
+        del self._otp_records[email_hash]
+        if email_hash in self._last_plain_otps:
+            del self._last_plain_otps[email_hash]
+        
+        self._log_audit_event(
+            "otp_verify_email",
+            email_hash,
+            success=True,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        return {
+            "success": True,
+            "message": "OTP verified successfully."
+        }
 
 
 # Singleton instance
