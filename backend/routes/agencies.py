@@ -21,6 +21,19 @@ from services.paystack_service import (
     generate_reference,
 )
 from services.sms_service import sms_service
+from services.application_service import (
+    save_application,
+    update_application_status,
+    get_application,
+    get_application_by_payment_ref,
+    mark_application_paid,
+)
+from services.booking_service import (
+    create_agency_booking,
+    get_agency_booking,
+    get_agency_booking_by_payment_ref,
+    mark_agency_booking_paid,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -43,6 +56,8 @@ class ChatResponse(BaseModel):
     service: Optional[str] = None
     awaiting_payment: bool = False          # Signals frontend to initiate payment
     payment_amount: Optional[int] = None    # Amount in KES
+    payment_description: Optional[str] = None  # Service description for payment
+    payment_mpesa: Optional[str] = None     # M-PESA number for STK push
 
 
 class PaymentInitRequest(BaseModel):
@@ -155,13 +170,39 @@ async def chat(req: ChatRequest):
 
     # Auto-trigger Paystack STK push when payment is awaited
     if state.awaiting_payment and state.payment_amount:
-        mpesa_number = state.data.get("mpesa", "")
-        service_name = state.service or state.agency or "Government Service"
+        mpesa_number = state.payment_mpesa or state.data.get("mpesa", "")
+        service_name = state.payment_description or state.service or state.agency or "Government Service"
         
         if mpesa_number:
             try:
                 reference = generate_reference(session_id, service_name)
                 state.payment_ref = reference
+                
+                # Save application/booking record BEFORE payment
+                is_booking = "Test" in service_name or "Appointment" in service_name or "Booking" in service_name
+                
+                if is_booking:
+                    # Create booking record
+                    booking = create_agency_booking(
+                        session_id=session_id,
+                        agency=state.agency or "NTSA",
+                        service=service_name,
+                        applicant_data=state.data,
+                        payment_ref=reference,
+                        amount=state.payment_amount,
+                    )
+                    logger.info(f"Booking created: {booking.get('booking_ref')}")
+                else:
+                    # Create application record
+                    application = save_application(
+                        session_id=session_id,
+                        agency=state.agency or "NTSA",
+                        service=service_name,
+                        applicant_data=state.data,
+                        payment_ref=reference,
+                        amount=state.payment_amount,
+                    )
+                    logger.info(f"Application saved: {application.get('application_ref')}")
                 
                 # Initiate the STK push via Paystack
                 payment_result = await initiate_stk_push(
@@ -195,6 +236,8 @@ async def chat(req: ChatRequest):
         service=state.service,
         awaiting_payment=state.awaiting_payment,
         payment_amount=state.payment_amount,
+        payment_description=state.payment_description,
+        payment_mpesa=state.payment_mpesa,
     )
 
 
@@ -216,6 +259,8 @@ async def start_chat():
         service=state.service,
         awaiting_payment=state.awaiting_payment,
         payment_amount=state.payment_amount,
+        payment_description=state.payment_description,
+        payment_mpesa=state.payment_mpesa,
     )
 
 
@@ -273,8 +318,17 @@ async def verify_payment_endpoint(req: PaymentVerifyRequest):
         for session_id, state in _sessions.items():
             if state.payment_ref == req.reference:
                 phone = state.data.get("mpesa") or state.data.get("phone", "")
-                service = state.service or state.agency or "Government Service"
+                service = state.payment_description or state.service or state.agency or "Government Service"
                 amount = result.get("amount_ksh", state.payment_amount or 0)
+                
+                # Mark application or booking as paid
+                app_updated = mark_application_paid(req.reference, result.get("transaction_id"))
+                booking_updated = mark_agency_booking_paid(req.reference, result.get("transaction_id"))
+                
+                if app_updated:
+                    logger.info(f"Application marked paid: {app_updated.get('application_ref')}")
+                if booking_updated:
+                    logger.info(f"Booking marked paid: {booking_updated.get('booking_ref')}")
                 
                 if phone:
                     await send_payment_confirmed_sms(
@@ -346,3 +400,193 @@ async def get_session_info(session_id: str):
         "payment_ref": state.payment_ref,
         "data_keys": list(state.data.keys()),
     }
+
+
+# ---------------------------------------------------------------------------
+# New Endpoints for Application/Booking lookup and manual operations
+# ---------------------------------------------------------------------------
+
+class AutoInitiatePaymentRequest(BaseModel):
+    session_id: str
+
+
+class ConfirmationRequest(BaseModel):
+    phone: str
+    service: str
+    reference: str
+    amount: int
+
+
+@router.post("/payment/auto-initiate")
+async def auto_initiate_payment(req: AutoInitiatePaymentRequest):
+    """
+    Auto-initiate payment from session state.
+    Call this when frontend detects awaiting_payment=True.
+    Returns payment reference and status.
+    """
+    state = get_or_create_session(req.session_id)
+    
+    if not state.awaiting_payment or not state.payment_amount:
+        return {
+            "success": False,
+            "message": "No payment awaiting for this session.",
+            "awaiting_payment": state.awaiting_payment,
+        }
+    
+    mpesa_number = state.payment_mpesa or state.data.get("mpesa", "")
+    if not mpesa_number:
+        return {
+            "success": False,
+            "message": "No M-PESA number found in session.",
+        }
+    
+    service_name = state.payment_description or state.service or state.agency or "Government Service"
+    
+    try:
+        # Generate reference if not already set
+        if not state.payment_ref:
+            state.payment_ref = generate_reference(req.session_id, service_name)
+        
+        reference = state.payment_ref
+        
+        # Save application/booking if not already saved
+        is_booking = "Test" in service_name or "Appointment" in service_name or "Booking" in service_name
+        
+        # Check if already saved
+        existing_app = get_application_by_payment_ref(reference)
+        existing_booking = get_agency_booking_by_payment_ref(reference)
+        
+        if not existing_app and not existing_booking:
+            if is_booking:
+                booking = create_agency_booking(
+                    session_id=req.session_id,
+                    agency=state.agency or "NTSA",
+                    service=service_name,
+                    applicant_data=state.data,
+                    payment_ref=reference,
+                    amount=state.payment_amount,
+                )
+                logger.info(f"Booking created: {booking.get('booking_ref')}")
+            else:
+                application = save_application(
+                    session_id=req.session_id,
+                    agency=state.agency or "NTSA",
+                    service=service_name,
+                    applicant_data=state.data,
+                    payment_ref=reference,
+                    amount=state.payment_amount,
+                )
+                logger.info(f"Application saved: {application.get('application_ref')}")
+        
+        # Initiate STK push
+        payment_result = await initiate_stk_push(
+            phone=mpesa_number,
+            amount_ksh=state.payment_amount,
+            email=f"user_{req.session_id[:8]}@rafiki.ai",
+            reference=reference,
+            description=f"Rafiki.ai - {service_name}",
+        )
+        
+        if payment_result.get("success"):
+            # Send SMS notification
+            await send_payment_initiated_sms(
+                phone=mpesa_number,
+                service=service_name,
+                amount=state.payment_amount,
+                reference=reference
+            )
+            
+            return {
+                "success": True,
+                "reference": reference,
+                "amount": state.payment_amount,
+                "phone": mpesa_number,
+                "message": "STK push sent. Check your phone.",
+            }
+        else:
+            return {
+                "success": False,
+                "reference": reference,
+                "message": payment_result.get("message", "Failed to initiate payment"),
+            }
+            
+    except Exception as e:
+        logger.error(f"Auto-initiate payment error: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Payment error: {str(e)}",
+        }
+
+
+@router.post("/confirmation/send")
+async def send_confirmation_sms(req: ConfirmationRequest):
+    """
+    Manually send confirmation SMS.
+    Use this to resend confirmation or send custom confirmations.
+    """
+    try:
+        await send_payment_confirmed_sms(
+            phone=req.phone,
+            service=req.service,
+            amount=req.amount,
+            reference=req.reference
+        )
+        return {"success": True, "message": f"Confirmation SMS sent to {req.phone[:4]}****"}
+    except Exception as e:
+        logger.error(f"Failed to send confirmation SMS: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/application/{ref}")
+async def get_application_endpoint(ref: str):
+    """
+    Get application details by reference.
+    """
+    application = get_application(ref)
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    return {"success": True, "application": application}
+
+
+@router.get("/booking/{ref}")
+async def get_booking_endpoint(ref: str):
+    """
+    Get booking details by reference.
+    """
+    booking = get_agency_booking(ref)
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    return {"success": True, "booking": booking}
+
+
+@router.get("/applications")
+async def list_applications_endpoint(agency: Optional[str] = None, status: Optional[str] = None):
+    """
+    List all applications with optional filters.
+    """
+    from services.application_service import list_applications
+    apps = list_applications(agency=agency, status=status)
+    return {"success": True, "applications": apps, "count": len(apps)}
+
+
+@router.get("/bookings")
+async def list_bookings_endpoint(agency: Optional[str] = None, status: Optional[str] = None):
+    """
+    List all bookings with optional filters.
+    """
+    from services.booking_service import _load_agency_bookings
+    bookings = _load_agency_bookings()
+    
+    results = list(bookings.values())
+    
+    if agency:
+        results = [b for b in results if b.get("agency") == agency]
+    if status:
+        results = [b for b in results if b.get("status") == status]
+    
+    results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"success": True, "bookings": results, "count": len(results)}

@@ -1,0 +1,30 @@
+{
+  "NTS-20260303101702-A4E4A91A": {
+    "application_ref": "NTS-20260303101702-A4E4A91A",
+    "session_id": "test-session-123",
+    "agency": "NTSA",
+    "service": "Driving Licence Application",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "Test User",
+      "id_number": "12345678",
+      "phone": "0712345678",
+      "email": "",
+      "county": "",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "PAY-TEST-001",
+      "amount": 6530,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "name": "Test User",
+      "id": "12345678",
+      "mpesa": "0712345678"
+    },
+    "created_at": "2026-03-03T10:17:02.478899",
+    "updated_at": "2026-03-03T10:17:02.478907"
+  }
+}
