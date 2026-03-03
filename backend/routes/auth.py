@@ -1,16 +1,19 @@
 """
 Authentication API routes with security controls.
 Implements phone-based OTP authentication via Africa's Talking.
+Supports password-based registration and login.
 """
 
 from fastapi import APIRouter, HTTPException, Request, Depends, Header
 from fastapi.responses import Response, JSONResponse
 from typing import Optional
 from datetime import datetime
+from pydantic import BaseModel, Field, validator
+import re
 
 from models.user import (
     PhoneAuthRequest, OTPVerifyRequest, AuthResponse,
-    TranscriptExport
+    TranscriptExport, OTPDeliveryMethod as UserOTPDeliveryMethod
 )
 from services.auth_service import get_auth_service
 from utils.logger import get_logger
@@ -19,6 +22,100 @@ from rafiki_settings import get_settings
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+# ============== Request Models ==============
+
+class RegisterRequest(BaseModel):
+    """User registration request."""
+    full_name: str = Field(..., min_length=3, max_length=200)
+    email: str = Field(...)
+    phone: str = Field(...)
+    id_number: str = Field(..., min_length=7, max_length=8)
+    password: str = Field(..., min_length=8)
+    has_disability: bool = Field(default=False)
+    otp_delivery: str = Field(default="sms", description="OTP delivery method: sms, voice, email, both, all")
+    
+    @validator('email')
+    def validate_email(cls, v):
+        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', v):
+            raise ValueError('Invalid email address')
+        return v.lower().strip()
+    
+    @validator('phone')
+    def validate_phone(cls, v):
+        v = re.sub(r'[\s\-]', '', v)
+        if not re.match(r'^(\+254|254|0)?[17]\d{8}$', v):
+            raise ValueError('Invalid Kenyan phone number')
+        # Normalize to +254 format
+        if v.startswith('0'):
+            v = '+254' + v[1:]
+        elif v.startswith('254'):
+            v = '+' + v
+        elif not v.startswith('+'):
+            v = '+254' + v
+        return v
+    
+    @validator('id_number')
+    def validate_id_number(cls, v):
+        if not re.match(r'^\d{7,8}$', v):
+            raise ValueError('ID number must be 7-8 digits')
+        return v
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not re.search(r'\d', v):
+            raise ValueError('Password must contain at least one number')
+        return v
+
+
+class VerifyRegistrationRequest(BaseModel):
+    """Verify OTP to complete registration."""
+    email: str = Field(...)
+    phone: str = Field(...)
+    otp: str = Field(..., min_length=6, max_length=6)
+    
+    @validator('otp')
+    def validate_otp(cls, v):
+        if not re.match(r'^\d{6}$', v):
+            raise ValueError('OTP must be exactly 6 digits')
+        return v
+
+
+class PasswordLoginRequest(BaseModel):
+    """Password-based login request."""
+    identifier: str = Field(..., description="Email or phone number")
+    password: str = Field(...)
+    
+    @validator('identifier')
+    def validate_identifier(cls, v):
+        v = v.strip()
+        # Check if it's an email
+        if '@' in v:
+            if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', v):
+                raise ValueError('Invalid email address')
+            return v.lower()
+        # Otherwise treat as phone
+        v = re.sub(r'[\s\-]', '', v)
+        if re.match(r'^(\+254|254|0)?[17]\d{8}$', v):
+            if v.startswith('0'):
+                v = '+254' + v[1:]
+            elif v.startswith('254'):
+                v = '+' + v
+            elif not v.startswith('+'):
+                v = '+254' + v
+        return v
+
+
+class ResendOTPRequest(BaseModel):
+    """Request to resend OTP."""
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    delivery_method: str = Field(default="sms")
 
 
 def get_client_info(request: Request) -> tuple:
@@ -146,6 +243,156 @@ async def verify_otp(
     return result
 
 
+# ============== Password-Based Registration & Login ==============
+
+@router.post("/register", response_model=dict)
+async def register_user(
+    request: Request,
+    body: RegisterRequest
+):
+    """
+    Register a new user with full profile data.
+    Sends OTP for verification via selected method (sms, voice, email, both, all).
+    
+    After registration, user must verify their phone/email with /verify-registration.
+    
+    **Fields:**
+    - full_name: User's full name as on National ID
+    - email: Valid email address
+    - phone: Kenyan phone number (+254XXXXXXXXX)
+    - id_number: 7-8 digit National ID number
+    - password: At least 8 chars, 1 uppercase, 1 number
+    - has_disability: Optional disability flag
+    - otp_delivery: How to send OTP (sms, voice, email, both, all)
+    """
+    ip, user_agent = get_client_info(request)
+    auth_service = get_auth_service()
+    
+    result = await auth_service.register_user(
+        full_name=body.full_name,
+        email=body.email,
+        phone=body.phone,
+        id_number=body.id_number,
+        password=body.password,
+        has_disability=body.has_disability,
+        otp_delivery=body.otp_delivery,
+        ip_address=ip,
+        user_agent=user_agent
+    )
+    
+    if not result["success"]:
+        error = result.get("error", "registration_failed")
+        if error == "rate_limited":
+            status_code = 429
+        elif error in ["email_exists", "phone_exists", "id_exists"]:
+            status_code = 409
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=result)
+    
+    return result
+
+
+@router.post("/verify-registration", response_model=dict)
+async def verify_registration(
+    request: Request,
+    body: VerifyRegistrationRequest
+):
+    """
+    Verify OTP and complete user registration.
+    
+    Returns JWT access token and session_id on success.
+    """
+    ip, user_agent = get_client_info(request)
+    auth_service = get_auth_service()
+    
+    result = await auth_service.verify_registration(
+        email=body.email,
+        phone=body.phone,
+        otp=body.otp,
+        ip_address=ip,
+        user_agent=user_agent
+    )
+    
+    if not result["success"]:
+        error = result.get("error", "verification_failed")
+        if error in ["account_locked", "max_attempts"]:
+            status_code = 429
+        elif error in ["otp_expired", "no_otp", "user_not_found"]:
+            status_code = 400
+        else:
+            status_code = 401
+        raise HTTPException(status_code=status_code, detail=result)
+    
+    return result
+
+
+@router.post("/login/password", response_model=dict)
+async def password_login(
+    request: Request,
+    body: PasswordLoginRequest
+):
+    """
+    Login with email/phone and password.
+    
+    Returns JWT access token and session_id on success.
+    
+    **Security:**
+    - Account locked after 5 failed attempts for 15 minutes
+    """
+    ip, user_agent = get_client_info(request)
+    auth_service = get_auth_service()
+    
+    result = await auth_service.login_with_password(
+        identifier=body.identifier,
+        password=body.password,
+        ip_address=ip,
+        user_agent=user_agent
+    )
+    
+    if not result["success"]:
+        error = result.get("error", "login_failed")
+        if error == "account_locked":
+            status_code = 429
+        elif error == "invalid_credentials":
+            status_code = 401
+        elif error == "account_pending":
+            status_code = 403
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=result)
+    
+    return result
+
+
+@router.post("/resend-otp", response_model=dict)
+async def resend_otp(
+    request: Request,
+    body: ResendOTPRequest
+):
+    """
+    Resend OTP to email or phone.
+    
+    **Rate Limit:** 3 OTP requests per 5 minutes
+    """
+    ip, user_agent = get_client_info(request)
+    auth_service = get_auth_service()
+    
+    result = await auth_service.resend_otp(
+        email=body.email,
+        phone=body.phone,
+        delivery_method=body.delivery_method,
+        ip_address=ip,
+        user_agent=user_agent
+    )
+    
+    if not result["success"]:
+        status_code = 429 if result.get("error") == "rate_limited" else 400
+        raise HTTPException(status_code=status_code, detail=result)
+    
+    return result
+
+
 @router.post("/logout")
 async def logout(
     request: Request,
@@ -191,7 +438,9 @@ async def get_current_user_profile(
     
     return {
         "user_id": profile.user_id,
+        "full_name": profile.full_name,
         "phone_masked": profile.phone_masked,
+        "email_masked": profile.email_masked,
         "status": profile.status,
         "created_at": profile.created_at.isoformat(),
         "last_login": profile.last_login.isoformat() if profile.last_login else None

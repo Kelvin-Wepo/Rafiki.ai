@@ -10,17 +10,50 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from jose import jwt, JWTError
 
+# Password hashing
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except ImportError:
+    BCRYPT_AVAILABLE = False
+    import hashlib as fallback_hash
+
 from rafiki_settings import get_settings
 from utils.logger import get_logger
 from models.user import (
     User, Session, Conversation, UserStatus, AuthProvider,
     UserProfile, ConversationSummary, AuthAuditLog,
-    hash_value, mask_phone_number,
+    hash_value, mask_phone_number, mask_email,
     generate_user_id, generate_session_id, generate_conversation_id, generate_audit_id
 )
 from services.otp_service import get_otp_service
 
 logger = get_logger(__name__)
+
+
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt or fallback to SHA-256."""
+    if BCRYPT_AVAILABLE:
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    else:
+        # Fallback - less secure but functional
+        salt = secrets.token_hex(16)
+        hashed = hashlib.sha256((salt + password).encode()).hexdigest()
+        return f"sha256:{salt}:{hashed}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify password against hash."""
+    if BCRYPT_AVAILABLE and password_hash.startswith("$2"):
+        return bcrypt.checkpw(password.encode(), password_hash.encode())
+    elif password_hash.startswith("sha256:"):
+        parts = password_hash.split(":")
+        if len(parts) == 3:
+            salt = parts[1]
+            expected = parts[2]
+            actual = hashlib.sha256((salt + password).encode()).hexdigest()
+            return actual == expected
+    return False
 
 
 class AuthService:
@@ -49,6 +82,9 @@ class AuthService:
         # In-memory stores (replace with database in production)
         self._users: Dict[str, User] = {}  # user_id -> User
         self._users_by_phone: Dict[str, str] = {}  # phone_hash -> user_id
+        self._users_by_email: Dict[str, str] = {}  # email_hash -> user_id
+        self._users_by_id_number: Dict[str, str] = {}  # id_number_hash -> user_id
+        self._pending_registrations: Dict[str, Dict] = {}  # email_hash -> registration data
         self._sessions: Dict[str, Session] = {}  # session_id -> Session
         self._conversations: Dict[str, Conversation] = {}  # conv_id -> Conversation
         self._user_conversations: Dict[str, List[str]] = {}  # user_id -> [conv_ids]
@@ -412,6 +448,524 @@ class AuthService:
         
         return {"success": True, "message": "Logged out successfully"}
     
+    # ============== Password-Based Registration & Login ==============
+    
+    async def register_user(
+        self,
+        full_name: str,
+        email: str,
+        phone: str,
+        id_number: str,
+        password: str,
+        has_disability: bool = False,
+        otp_delivery: str = "sms",
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Register a new user with full profile data.
+        Sends OTP for verification.
+        
+        Args:
+            full_name: User's full name
+            email: Email address
+            phone: Phone number (normalized to +254)
+            id_number: National ID number
+            password: Plain text password (will be hashed)
+            has_disability: Disability flag
+            otp_delivery: OTP delivery method
+            ip_address: Client IP
+            user_agent: Client user agent
+        
+        Returns:
+            Registration result with OTP status
+        """
+        email_hash = hash_value(email.lower())
+        phone_hash = hash_value(phone)
+        id_hash = hash_value(id_number)
+        
+        # Check for existing accounts
+        if email_hash in self._users_by_email:
+            return {
+                "success": False,
+                "error": "email_exists",
+                "message": "An account with this email already exists."
+            }
+        
+        if phone_hash in self._users_by_phone:
+            return {
+                "success": False,
+                "error": "phone_exists",
+                "message": "An account with this phone number already exists."
+            }
+        
+        if id_hash in self._users_by_id_number:
+            return {
+                "success": False,
+                "error": "id_exists",
+                "message": "An account with this ID number already exists."
+            }
+        
+        # Hash password
+        password_hashed = hash_password(password)
+        
+        # Store pending registration
+        self._pending_registrations[email_hash] = {
+            "full_name": full_name,
+            "email": email.lower(),
+            "email_hash": email_hash,
+            "phone": phone,
+            "phone_hash": phone_hash,
+            "id_number_hash": id_hash,
+            "password_hash": password_hashed,
+            "has_disability": has_disability,
+            "created_at": datetime.utcnow(),
+            "ip_address": ip_address,
+            "user_agent": user_agent
+        }
+        
+        # Send OTP based on delivery method
+        from services.otp_service import get_otp_service as _get_otp_service, OTPDeliveryMethod
+        otp_service = _get_otp_service()
+        
+        delivery_method = otp_delivery.lower()
+        otp_result = None
+        
+        if delivery_method == "email":
+            # Send OTP via email only
+            otp_result = await otp_service.request_otp_for_email(
+                email,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+        elif delivery_method in ["sms", "voice", "both"]:
+            # Send OTP via phone
+            try:
+                dm = OTPDeliveryMethod(delivery_method)
+            except ValueError:
+                dm = OTPDeliveryMethod.SMS
+            
+            otp_result = await otp_service.request_otp(
+                phone,
+                delivery_method=dm,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+        elif delivery_method == "all":
+            # Send via both phone and email
+            phone_result = await otp_service.request_otp(
+                phone,
+                delivery_method=OTPDeliveryMethod.BOTH,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            email_result = await otp_service.request_otp_for_email(
+                email,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            otp_result = {
+                "success": phone_result.get("success", False) or email_result.get("success", False),
+                "message": "OTP sent via SMS, voice, and email.",
+                "phone_sent": phone_result.get("success", False),
+                "email_sent": email_result.get("success", False),
+                "expires_in": phone_result.get("expires_in", 300)
+            }
+            if phone_result.get("otp"):
+                otp_result["otp"] = phone_result["otp"]
+                otp_result["test_mode"] = True
+        else:
+            # Default to SMS
+            otp_result = await otp_service.request_otp(
+                phone,
+                delivery_method=OTPDeliveryMethod.SMS,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+        
+        if otp_result and otp_result.get("success"):
+            self._log_audit_event(
+                "registration_initiated",
+                phone_hash=phone_hash,
+                success=True,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                metadata={"email_hash": email_hash, "otp_delivery": otp_delivery}
+            )
+            
+            response = {
+                "success": True,
+                "message": otp_result.get("message", "OTP sent. Please verify to complete registration."),
+                "requires_verification": True,
+                "expires_in": otp_result.get("expires_in", 300),
+                "email_masked": mask_email(email),
+                "phone_masked": mask_phone_number(phone)
+            }
+            
+            # Pass through OTP for testing
+            if otp_result.get("test_mode") and otp_result.get("otp"):
+                response["otp"] = otp_result["otp"]
+                response["test_mode"] = True
+            
+            return response
+        else:
+            return {
+                "success": False,
+                "error": "otp_failed",
+                "message": otp_result.get("message", "Failed to send verification code.")
+            }
+    
+    async def verify_registration(
+        self,
+        email: str,
+        phone: str,
+        otp: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Verify OTP and complete user registration.
+        
+        Args:
+            email: User's email
+            phone: User's phone number
+            otp: OTP code
+            ip_address: Client IP
+            user_agent: Client user agent
+        
+        Returns:
+            Auth result with JWT token
+        """
+        email_hash = hash_value(email.lower())
+        phone_hash = hash_value(phone)
+        
+        # Get pending registration
+        pending = self._pending_registrations.get(email_hash)
+        
+        if not pending:
+            return {
+                "success": False,
+                "error": "user_not_found",
+                "message": "No pending registration found. Please register again."
+            }
+        
+        # Verify OTP (try both phone and email verification)
+        from services.otp_service import get_otp_service as _get_otp_service
+        otp_service = _get_otp_service()
+        
+        # Try phone OTP first
+        otp_result = await otp_service.verify_otp(
+            phone,
+            otp,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        # If phone OTP failed, try email OTP
+        if not otp_result.get("success"):
+            otp_result = await otp_service.verify_otp_for_email(
+                email,
+                otp,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+        
+        if not otp_result.get("success"):
+            return otp_result
+        
+        # Create user account
+        user_id = generate_user_id()
+        
+        user = User(
+            id=user_id,
+            phone_number_hash=pending["phone_hash"],
+            phone_number_masked=mask_phone_number(pending["phone"]),
+            email_hash=pending["email_hash"],
+            email_masked=mask_email(pending["email"]),
+            password_hash=pending["password_hash"],
+            full_name=pending["full_name"],
+            id_number_hash=pending["id_number_hash"],
+            has_disability=pending["has_disability"],
+            auth_provider=AuthProvider.PHONE,
+            status=UserStatus.ACTIVE,
+            email_verified=True,
+            phone_verified=True,
+            last_login=datetime.utcnow()
+        )
+        
+        # Store user
+        self._users[user_id] = user
+        self._users_by_phone[pending["phone_hash"]] = user_id
+        self._users_by_email[pending["email_hash"]] = user_id
+        self._users_by_id_number[pending["id_number_hash"]] = user_id
+        self._user_conversations[user_id] = []
+        
+        # Clean up pending registration
+        del self._pending_registrations[email_hash]
+        
+        # Create session
+        access_token = self._create_access_token(user_id)
+        session_id = generate_session_id()
+        
+        session = Session(
+            id=session_id,
+            user_id=user_id,
+            token_hash=hash_value(access_token),
+            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        self._sessions[session_id] = session
+        
+        self._log_audit_event(
+            "registration_complete",
+            user_id=user_id,
+            phone_hash=phone_hash,
+            success=True,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        # Send welcome email (non-blocking)
+        try:
+            from services.email_service import get_email_service
+            email_service = get_email_service()
+            await email_service.send_welcome_email(pending["email"], pending["full_name"])
+        except Exception as e:
+            logger.warning(f"Failed to send welcome email: {e}")
+        
+        return {
+            "success": True,
+            "message": "Registration complete!",
+            "user_id": user_id,
+            "session_id": session_id,
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user": {
+                "id": user_id,
+                "full_name": user.full_name,
+                "email_masked": user.email_masked,
+                "phone_masked": user.phone_number_masked,
+                "status": user.status
+            }
+        }
+    
+    async def login_with_password(
+        self,
+        identifier: str,
+        password: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Login with email/phone and password.
+        
+        Args:
+            identifier: Email or phone number
+            password: Plain text password
+            ip_address: Client IP
+            user_agent: Client user agent
+        
+        Returns:
+            Auth result with JWT token
+        """
+        # Determine if identifier is email or phone
+        is_email = "@" in identifier
+        
+        if is_email:
+            identifier_hash = hash_value(identifier.lower())
+            user_id = self._users_by_email.get(identifier_hash)
+        else:
+            identifier_hash = hash_value(identifier)
+            user_id = self._users_by_phone.get(identifier_hash)
+        
+        # User not found
+        if not user_id:
+            self._log_audit_event(
+                "login_password_failed",
+                phone_hash=identifier_hash,
+                success=False,
+                failure_reason="user_not_found",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            return {
+                "success": False,
+                "error": "invalid_credentials",
+                "message": "Invalid email/phone or password."
+            }
+        
+        user = self._users.get(user_id)
+        
+        if not user:
+            return {
+                "success": False,
+                "error": "invalid_credentials",
+                "message": "Invalid email/phone or password."
+            }
+        
+        # Check account status
+        if user.status == UserStatus.PENDING:
+            return {
+                "success": False,
+                "error": "account_pending",
+                "message": "Please verify your account first."
+            }
+        
+        if user.status in [UserStatus.BLOCKED, UserStatus.SUSPENDED]:
+            return {
+                "success": False,
+                "error": "account_blocked",
+                "message": "Your account has been suspended."
+            }
+        
+        # Check lockout
+        if user.locked_until and datetime.utcnow() < user.locked_until:
+            remaining = int((user.locked_until - datetime.utcnow()).total_seconds())
+            return {
+                "success": False,
+                "error": "account_locked",
+                "message": f"Account locked. Try again in {remaining} seconds.",
+                "retry_after": remaining
+            }
+        
+        # Verify password
+        if not user.password_hash or not verify_password(password, user.password_hash):
+            user.failed_attempts += 1
+            
+            # Lock after 5 failed attempts
+            if user.failed_attempts >= 5:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+                user.failed_attempts = 0
+                
+                self._log_audit_event(
+                    "login_password_locked",
+                    user_id=user_id,
+                    phone_hash=identifier_hash,
+                    success=False,
+                    failure_reason="max_attempts",
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+                
+                return {
+                    "success": False,
+                    "error": "account_locked",
+                    "message": "Too many failed attempts. Account locked for 15 minutes."
+                }
+            
+            self._log_audit_event(
+                "login_password_failed",
+                user_id=user_id,
+                phone_hash=identifier_hash,
+                success=False,
+                failure_reason="wrong_password",
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            
+            remaining = 5 - user.failed_attempts
+            return {
+                "success": False,
+                "error": "invalid_credentials",
+                "message": f"Invalid password. {remaining} attempts remaining."
+            }
+        
+        # Success - reset failed attempts and update last login
+        user.failed_attempts = 0
+        user.locked_until = None
+        user.last_login = datetime.utcnow()
+        
+        # Create session
+        access_token = self._create_access_token(user_id)
+        session_id = generate_session_id()
+        
+        session = Session(
+            id=session_id,
+            user_id=user_id,
+            token_hash=hash_value(access_token),
+            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        self._sessions[session_id] = session
+        
+        self._log_audit_event(
+            "login_password_success",
+            user_id=user_id,
+            phone_hash=identifier_hash,
+            success=True,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        return {
+            "success": True,
+            "message": "Login successful!",
+            "user_id": user_id,
+            "session_id": session_id,
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user": {
+                "id": user_id,
+                "full_name": user.full_name,
+                "email_masked": user.email_masked,
+                "phone_masked": user.phone_number_masked,
+                "status": user.status
+            }
+        }
+    
+    async def resend_otp(
+        self,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+        delivery_method: str = "sms",
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Resend OTP for verification.
+        
+        Args:
+            email: Email address
+            phone: Phone number
+            delivery_method: How to send OTP
+            ip_address: Client IP
+            user_agent: Client user agent
+        
+        Returns:
+            OTP send result
+        """
+        from services.otp_service import get_otp_service as _get_otp_service, OTPDeliveryMethod
+        otp_service = _get_otp_service()
+        
+        if delivery_method == "email" and email:
+            return await otp_service.request_otp_for_email(
+                email,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+        elif phone:
+            try:
+                dm = OTPDeliveryMethod(delivery_method.lower())
+            except ValueError:
+                dm = OTPDeliveryMethod.SMS
+            
+            return await otp_service.request_otp(
+                phone,
+                delivery_method=dm,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+        else:
+            return {
+                "success": False,
+                "error": "missing_contact",
+                "message": "Please provide email or phone number."
+            }
+
     def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
         """Get user profile by ID."""
         user = self._users.get(user_id)
@@ -421,7 +975,9 @@ class AuthService:
         
         return UserProfile(
             user_id=user.id,
+            full_name=user.full_name,
             phone_masked=user.phone_number_masked,
+            email_masked=user.email_masked,
             status=user.status,
             created_at=user.created_at,
             last_login=user.last_login

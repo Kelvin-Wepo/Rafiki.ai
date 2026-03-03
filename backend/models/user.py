@@ -41,8 +41,16 @@ class User(BaseModel):
     id: str = Field(..., description="Unique user identifier")
     phone_number_hash: str = Field(..., description="SHA-256 hash of phone number")
     phone_number_masked: str = Field(..., description="Masked phone number for display")
+    email_hash: Optional[str] = Field(default=None, description="SHA-256 hash of email")
+    email_masked: Optional[str] = Field(default=None, description="Masked email for display")
+    password_hash: Optional[str] = Field(default=None, description="Bcrypt hash of password")
+    full_name: Optional[str] = Field(default=None, description="User's full name")
+    id_number_hash: Optional[str] = Field(default=None, description="SHA-256 hash of ID number")
+    has_disability: bool = Field(default=False, description="Whether user has a disability")
     auth_provider: AuthProvider = Field(default=AuthProvider.PHONE)
     status: UserStatus = Field(default=UserStatus.PENDING)
+    email_verified: bool = Field(default=False)
+    phone_verified: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime] = None
@@ -136,7 +144,9 @@ class OTPDeliveryMethod(str, Enum):
     """OTP delivery method options."""
     SMS = "sms"
     VOICE = "voice"
-    BOTH = "both"
+    EMAIL = "email"
+    BOTH = "both"  # SMS + Voice
+    ALL = "all"  # SMS + Voice + Email
 
 
 class PhoneAuthRequest(BaseModel):
@@ -207,7 +217,9 @@ class AuthResponse(BaseModel):
 class UserProfile(BaseModel):
     """User profile for frontend display."""
     user_id: str
+    full_name: Optional[str] = None
     phone_masked: str
+    email_masked: Optional[str] = None
     status: str
     created_at: datetime
     last_login: Optional[datetime]
@@ -241,6 +253,18 @@ def mask_phone_number(phone: str) -> str:
     if len(phone) < 10:
         return "***"
     return f"{phone[:4]}***{phone[-3:]}"
+
+
+def mask_email(email: str) -> str:
+    """Mask email for display (e.g., j***n@example.com)."""
+    if "@" not in email:
+        return "***@***"
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        masked_local = local[0] + "***"
+    else:
+        masked_local = local[0] + "***" + local[-1]
+    return f"{masked_local}@{domain}"
 
 
 def generate_user_id() -> str:
