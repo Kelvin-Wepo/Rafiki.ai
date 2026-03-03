@@ -1,292 +1,410 @@
 /**
- * Dashboard Page Component
- * Main dashboard container that shows sidenav and content sections.
- * 
- * Responsive Layout:
- * - Desktop (≥1024px): Fixed sidebar + main content
- * - Tablet (≥768px <1024px): Collapsible sidebar
- * - Mobile (<768px): Off-canvas drawer with top navbar
+ * DashboardPage - Rafiki.ai
+ * Main dashboard component matching the design mockup exactly.
+ * Features: sidebar navigation, avatar card, quick actions, voice input
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Sidenav, ConversationHistory, TranscriptDownload } from '.';
-import type { NavSection } from '.';
-import type { Conversation } from '../../services/authService';
-import { createConversation } from '../../services/authService';
-import './Dashboard.css';
+import {
+  PlusIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  EnvelopeIcon,
+  PowerIcon,
+  MicrophoneIcon,
+  PaperAirplaneIcon,
+  IdentificationIcon,
+  TruckIcon,
+  DocumentCheckIcon,
+  BuildingLibraryIcon,
+  ExclamationTriangleIcon,
+  MegaphoneIcon,
+} from '@heroicons/react/24/outline';
+import rafikiAvatar from '../../assets/rafiki_avatar.png';
+import '../../styles/dashboard.css';
 
-interface DashboardProps {
-  children?: React.ReactNode;
+// Types
+interface QuickAction {
+  id: string;
+  title: string;
+  desc: string;
+  message: string;
+  icon: React.ReactNode;
 }
 
-export function Dashboard({ children }: DashboardProps) {
-  const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState<NavSection>('new');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
+// Simplified Speech Recognition type (use any for browser compatibility)
+type SpeechRecognitionInstance = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+};
 
-  // Return focus to menu button when drawer closes
-  const handleMobileClose = useCallback(() => {
-    setIsMobileMenuOpen(false);
-    setTimeout(() => menuButtonRef.current?.focus(), 100);
+// API Base URL
+const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+
+// Quick Actions Data
+const QUICK_ACTIONS: QuickAction[] = [
+  {
+    id: 'check-id',
+    title: 'Check ID',
+    desc: 'Check the status of your National ID card application.',
+    message: 'I want to check the status of my National ID application',
+    icon: <IdentificationIcon />,
+  },
+  {
+    id: 'renew-license',
+    title: 'Renew Driving License',
+    desc: 'Renew your Kenyan driving license online.',
+    message: 'I want to renew my driving license',
+    icon: <TruckIcon />,
+  },
+  {
+    id: 'kra-services',
+    title: 'KRA Services',
+    desc: 'Access KRA services for taxes and PIN.',
+    message: 'I need help with KRA services',
+    icon: <DocumentCheckIcon />,
+  },
+  {
+    id: 'huduma-centre',
+    title: 'Find Huduma Centre',
+    desc: 'Locate and get directions to Huduma Centres.',
+    message: 'Find me the nearest Huduma Centre',
+    icon: <BuildingLibraryIcon />,
+  },
+  {
+    id: 'emergency',
+    title: 'Report Emergency',
+    desc: 'Contact the emergency services hotline.',
+    message: 'I need to report an emergency',
+    icon: <ExclamationTriangleIcon />,
+  },
+  {
+    id: 'corruption',
+    title: 'Report Corruption',
+    desc: 'Report incidents of corruption to authorities.',
+    message: 'I want to report a corruption incident',
+    icon: <MegaphoneIcon />,
+  },
+];
+
+// Nav items
+type NavSection = 'chat' | 'history' | 'transcripts';
+
+export function Dashboard() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  
+  // State
+  const [activeNav, setActiveNav] = useState<NavSection>('chat');
+  const [chatInput, setChatInput] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [transcriptCount] = useState(12); // Mock count for demo
+  
+  // Refs
+  const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+
+  // Initialize session
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/session`, { method: 'POST' });
+        const data = await res.json();
+        setSessionId(data.session_id);
+      } catch (err) {
+        console.error('Failed to create session:', err);
+      }
+    };
+    initSession();
   }, []);
 
-  /**
-   * Create a new conversation.
-   */
-  const handleNewConversation = useCallback(async () => {
-    setIsCreatingConversation(true);
+  // Get masked user data
+  const phone = user?.phone_masked || '+254 7** **045';
+  const email = user?.email_masked || 'user@example.com';
+
+  // Handle logout
+  const handleLogout = useCallback(async () => {
+    localStorage.removeItem('rafiki_session_id');
+    localStorage.removeItem('rafiki_last_user');
+    await logout();
+    navigate('/login');
+  }, [logout, navigate]);
+
+  // Send message to backend
+  const sendMessage = useCallback(async (message: string) => {
+    if (!message.trim()) return;
+    setChatInput('');
+
     try {
-      const newConversation = await createConversation();
-      setSelectedConversation(newConversation);
-      setActiveSection('new');
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-    } finally {
-      setIsCreatingConversation(false);
+      const res = await fetch(`${API_BASE}/api/agencies/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          message: message,
+        }),
+      });
+      const data = await res.json();
+      // For now, just log the response - can be extended to show in UI
+      console.log('Assistant response:', data.response || data.message);
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
+  }, [sessionId]);
+
+  // Handle quick action
+  const handleQuickAction = useCallback((action: QuickAction) => {
+    setChatInput(action.message);
+    sendMessage(action.message);
+  }, [sendMessage]);
+
+  // Handle mic toggle for speech recognition
+  const handleMicToggle = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const win = window as any;
+    
+    if (!win.webkitSpeechRecognition && !win.SpeechRecognition) {
+      alert('Voice input is not supported in your browser. Please use Chrome.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognitionClass = win.SpeechRecognition || win.webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionClass() as SpeechRecognitionInstance;
+    recognition.lang = 'en-KE';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setChatInput(transcript);
+      setIsListening(false);
+      // Auto-send after voice input
+      sendMessage(transcript);
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognition.start();
+    recognitionRef.current = recognition;
+    setIsListening(true);
+  }, [isListening, sendMessage]);
+
+  // Handle send
+  const handleSend = useCallback(() => {
+    if (chatInput.trim()) {
+      sendMessage(chatInput);
+    }
+  }, [chatInput, sendMessage]);
+
+  // Handle key press
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }, [handleSend]);
+
+  // Handle nav click
+  const handleNavClick = useCallback((section: NavSection) => {
+    setActiveNav(section);
+    if (section === 'history') {
+      // Navigate to history page if it exists
+      // For now, just set the active state
+    } else if (section === 'transcripts') {
+      // Navigate to transcripts page if it exists
     }
   }, []);
-
-  /**
-   * Select a conversation from history.
-   */
-  const handleSelectConversation = useCallback((conversation: Conversation) => {
-    setSelectedConversation(conversation);
-    setActiveSection('new');
-  }, []);
-
-  /**
-   * Render section content based on active section.
-   */
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'new':
-        return (
-          <div className="new-conversation-section">
-            <div className="section-header">
-              <div>
-                <h2 className="section-title">
-                  {selectedConversation ? 'Continue Conversation' : 'New Conversation'}
-                </h2>
-                <p className="section-subtitle">
-                  {selectedConversation 
-                    ? `Conversation: ${selectedConversation.title}`
-                    : 'Ask Rafiki about government services'}
-                </p>
-              </div>
-              <button 
-                className="btn btn-primary"
-                onClick={handleNewConversation}
-                disabled={isCreatingConversation}
-              >
-                {isCreatingConversation ? (
-                  <>
-                    <span className="spinner" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 20, height: 20 }}>
-                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                    </svg>
-                    New Chat
-                  </>
-                )}
-              </button>
-            </div>
-            
-            {/* Main content - children or placeholder */}
-            {children || (
-              <div className="conversation-placeholder">
-                <div className="placeholder-content">
-                  <div className="placeholder-icon">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
-                    </svg>
-                  </div>
-                  <h3>Welcome, {user?.phone_masked || 'User'}!</h3>
-                  <p>
-                    I'm Rafiki, your secure government services assistant.
-                    How can I help you today?
-                  </p>
-                  <div className="quick-actions">
-                    <button className="quick-action-btn">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-                      </svg>
-                      Document Services
-                    </button>
-                    <button className="quick-action-btn">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-                      </svg>
-                      Tax Services (KRA)
-                    </button>
-                    <button className="quick-action-btn">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
-                      </svg>
-                      General Inquiry
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'history':
-        return (
-          <ConversationHistory
-            onSelectConversation={handleSelectConversation}
-            selectedId={selectedConversation?.id}
-            onNewConversation={handleNewConversation}
-          />
-        );
-
-      case 'transcripts':
-        return (
-          <TranscriptDownload preSelectedConversation={selectedConversation} />
-        );
-
-      case 'profile':
-        return (
-          <div className="profile-section">
-            <div className="section-header">
-              <h2 className="section-title">Your Profile</h2>
-              <p className="section-subtitle">Manage your account settings</p>
-            </div>
-
-            <div className="profile-card">
-              <div className="profile-avatar">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                </svg>
-              </div>
-              <div className="profile-info">
-                <h3>{user?.phone_masked || 'User'}</h3>
-                <span className="profile-status">
-                  <span className="status-dot" />
-                  Active
-                </span>
-              </div>
-            </div>
-
-            <div className="profile-details">
-              <div className="detail-row">
-                <span className="detail-label">User ID</span>
-                <span className="detail-value">{user?.user_id || '-'}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Account Status</span>
-                <span className="detail-value status-badge">{user?.status || 'active'}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Member Since</span>
-                <span className="detail-value">
-                  {user?.created_at
-                    ? new Date(user.created_at).toLocaleDateString('en-KE', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })
-                    : '-'}
-                </span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Last Login</span>
-                <span className="detail-value">
-                  {user?.last_login
-                    ? new Date(user.last_login).toLocaleString('en-KE')
-                    : 'First session'}
-                </span>
-              </div>
-            </div>
-
-            <div className="security-info">
-              <h4>
-                <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 20, height: 20 }}>
-                  <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-                </svg>
-                Security
-              </h4>
-              <p>Your session is protected with government-grade encryption.</p>
-              <ul>
-                <li>Phone-based authentication (OTP)</li>
-                <li>AES-256 data encryption</li>
-                <li>Automatic session timeout</li>
-                <li>Audit logging enabled</li>
-              </ul>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
 
   return (
-    <div className="dashboard-layout">
-      <Sidenav
-        activeSection={activeSection}
-        onSectionChange={setActiveSection}
-        isMobileOpen={isMobileMenuOpen}
-        onMobileClose={handleMobileClose}
-      />
-
-      <main className="dashboard-main">
-        {/* Mobile/Tablet Header */}
-        <header className="mobile-header">
-          <button
-            ref={menuButtonRef}
-            className="mobile-menu-btn"
-            onClick={() => setIsMobileMenuOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={isMobileMenuOpen}
-            aria-controls="sidenav"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-            </svg>
-          </button>
-          
-          <div className="mobile-brand">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="mobile-logo">
-              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
-            </svg>
-            <div className="mobile-brand-text">
-              <h1 className="mobile-title">Rafiki</h1>
-              <span className="mobile-subtitle">Government Services</span>
-            </div>
+    <div className="dashboard-root">
+      {/* ============ ZONE 1: LEFT SIDEBAR ============ */}
+      <aside className="sidebar">
+        {/* Logo / Brand Block */}
+        <div className="sidebar-brand">
+          <div className="brand-logo">
+            <span>R</span>
           </div>
-          
-          <button 
-            className="mobile-new-chat-btn"
-            onClick={handleNewConversation}
-            disabled={isCreatingConversation}
-            aria-label="New conversation"
-          >
-            {isCreatingConversation ? (
-              <span className="spinner-small" />
-            ) : (
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-              </svg>
-            )}
-            <span className="mobile-btn-text">New Chat</span>
-          </button>
-        </header>
-
-        <div className="dashboard-content">
-          <div className="content-container">
-            {renderContent()}
+          <div className="brand-text">
+            <span className="brand-name">RAFIKI</span>
+            <span className="brand-sub">AI ASSISTANT</span>
           </div>
         </div>
+
+        {/* Navigation Items */}
+        <nav className="sidebar-nav">
+          <button
+            className={`nav-item ${activeNav === 'chat' ? 'nav-item--active' : ''}`}
+            onClick={() => handleNavClick('chat')}
+            aria-current={activeNav === 'chat' ? 'page' : undefined}
+          >
+            <PlusIcon aria-hidden="true" />
+            <span>New Chat</span>
+          </button>
+          <button
+            className={`nav-item ${activeNav === 'history' ? 'nav-item--active' : ''}`}
+            onClick={() => handleNavClick('history')}
+            aria-current={activeNav === 'history' ? 'page' : undefined}
+          >
+            <ClockIcon aria-hidden="true" />
+            <span>History</span>
+          </button>
+          <button
+            className={`nav-item ${activeNav === 'transcripts' ? 'nav-item--active' : ''}`}
+            onClick={() => handleNavClick('transcripts')}
+            aria-current={activeNav === 'transcripts' ? 'page' : undefined}
+          >
+            <DocumentTextIcon aria-hidden="true" />
+            <span>Transcripts</span>
+            <span className="nav-badge">{transcriptCount}</span>
+          </button>
+        </nav>
+
+        {/* User Info Block */}
+        <div className="sidebar-user">
+          <div className="user-info-row">
+            <span className="flag-icon" aria-label="Kenya">🇰🇪</span>
+            <span className="user-phone">{phone}</span>
+          </div>
+          <div className="user-info-row">
+            <EnvelopeIcon aria-hidden="true" />
+            <span className="user-email">{email}</span>
+          </div>
+        </div>
+
+        {/* Logout Button */}
+        <div className="sidebar-footer">
+          <button className="logout-btn" onClick={handleLogout}>
+            <PowerIcon aria-hidden="true" />
+            <span>Log out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ============ ZONE 2: MAIN CONTENT AREA ============ */}
+      <main className="main-content">
+        {/* Avatar Card */}
+        <div className="avatar-card">
+          {/* Avatar with glow ring */}
+          <div className="avatar-wrapper">
+            <img
+              src={rafikiAvatar}
+              alt="Rafiki AI Assistant"
+              className="avatar-img"
+            />
+            <div className="avatar-glow-ring" aria-hidden="true" />
+          </div>
+
+          {/* Ready status badge */}
+          <div className="status-badge" role="status">
+            <span className="status-dot" aria-hidden="true" />
+            <span>Ready</span>
+          </div>
+
+          {/* Heading */}
+          <h1 className="avatar-heading">How can I assist you today?</h1>
+
+          {/* Microphone button */}
+          <div className="mic-container">
+            <button
+              className={`mic-btn ${isListening ? 'mic-btn--listening' : ''}`}
+              onClick={handleMicToggle}
+              aria-label={isListening ? 'Stop listening' : 'Tap to speak'}
+            >
+              {/* Pulse rings — animated when listening */}
+              <span className="mic-pulse mic-pulse--1" aria-hidden="true" />
+              <span className="mic-pulse mic-pulse--2" aria-hidden="true" />
+              <MicrophoneIcon aria-hidden="true" />
+              <span className="mic-label">Tap to Speak</span>
+            </button>
+          </div>
+
+          {/* Instruction text */}
+          <p className="avatar-instruction">Tap to Speak or Type Below</p>
+        </div>
+
+        {/* Quick Actions Section */}
+        <section className="quick-actions" aria-labelledby="quick-actions-title">
+          <h2 id="quick-actions-title" className="quick-actions-title">Quick Actions</h2>
+          <div className="actions-grid">
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.id}
+                className="action-card"
+                onClick={() => handleQuickAction(action)}
+                aria-label={`${action.title}: ${action.desc}`}
+              >
+                <div className="action-icon-wrap" aria-hidden="true">
+                  {action.icon}
+                </div>
+                <div className="action-text">
+                  <span className="action-title">{action.title}</span>
+                  <span className="action-desc">{action.desc}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="main-footer">
+          <span>🔒 Secure</span>
+          <span className="footer-divider" aria-hidden="true">|</span>
+          <span>End-to-End Encrypted</span>
+          <span className="footer-divider" aria-hidden="true">|</span>
+          <span>Powered by Kenyan AI</span>
+          <button className="footer-dropdown" aria-label="More info">▾</button>
+        </footer>
       </main>
+
+      {/* ============ ZONE 3: BOTTOM INPUT BAR ============ */}
+      <div className="input-bar">
+        {/* Voice toggle button */}
+        <button
+          className={`input-mic-btn ${isListening ? 'input-mic-btn--active' : ''}`}
+          onClick={handleMicToggle}
+          aria-label="Voice input"
+        >
+          <MicrophoneIcon aria-hidden="true" />
+        </button>
+
+        {/* Text input */}
+        <input
+          ref={inputRef}
+          type="text"
+          className="input-field"
+          placeholder="Type your message..."
+          value={chatInput}
+          onChange={e => setChatInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          aria-label="Chat message input"
+        />
+
+        {/* Send button */}
+        <button
+          className="input-send-btn"
+          onClick={handleSend}
+          disabled={!chatInput.trim() && !isListening}
+          aria-label="Send message"
+        >
+          <PaperAirplaneIcon aria-hidden="true" />
+        </button>
+      </div>
     </div>
   );
 }

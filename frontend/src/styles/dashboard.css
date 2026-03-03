@@ -1,0 +1,872 @@
+/**
+ * Dashboard Styles - Rafiki.ai
+ * Implements the "Savanna at Dawn" theme from design mockup
+ */
+
+:root {
+  /* Brand Colors */
+  --rafiki-sidebar-bg:      #1C3A2E;   /* deep forest green — sidebar background */
+  --rafiki-sidebar-hover:   #254D3C;   /* slightly lighter — sidebar item hover */
+  --rafiki-sidebar-active:  #2D6A4F;   /* active/selected sidebar item */
+  --rafiki-green-primary:   #2D6A4F;   /* primary buttons, accents */
+  --rafiki-green-dark:      #1B4332;   /* darker green — logo bg, deep accents */
+  --rafiki-green-glow:      rgba(45, 106, 79, 0.35);  /* avatar glow color */
+  --rafiki-main-bg:         #F0F2F0;   /* light grey-green — main content bg */
+  --rafiki-card-bg:         #FFFFFF;   /* white cards */
+  --rafiki-input-bar-bg:    #2A2A2A;   /* near-black — bottom input bar */
+
+  /* Text */
+  --rafiki-text-primary:    #1A1A1A;   /* main body text */
+  --rafiki-text-muted:      #6B7280;   /* secondary/label text */
+  --rafiki-text-sidebar:    #D1FAE5;   /* light green-white — sidebar text */
+  --rafiki-text-sidebar-muted: rgba(209, 250, 229, 0.6); /* muted sidebar text */
+
+  /* Status */
+  --rafiki-ready-green:     #22C55E;   /* "Ready" badge */
+  --rafiki-badge-bg:        #7C3AED;   /* purple — notification badge on Transcripts */
+  --rafiki-logout-red:      #EF4444;   /* logout button icon */
+  --rafiki-error:           #C0392B;
+
+  /* Spacing */
+  --sidebar-width:          240px;
+  --input-bar-height:       72px;
+
+  /* Typography */
+  --font-display:           'Playfair Display', Georgia, serif;
+  --font-body:              'DM Sans', sans-serif;
+
+  /* Shadows */
+  --shadow-card:   0 2px 12px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
+  --shadow-avatar: 0 0 0 4px #FFFFFF, 0 0 0 8px var(--rafiki-green-primary);
+  --shadow-mic:    0 0 30px var(--rafiki-green-glow), 0 8px 32px rgba(0,0,0,0.25);
+}
+
+/* ================================================================
+   MAIN LAYOUT STRUCTURE
+   ================================================================ */
+
+.dashboard-root {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 1fr var(--input-bar-height);
+  grid-template-areas:
+    "sidebar main"
+    "sidebar inputbar";
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ================================================================
+   ZONE 1: LEFT SIDEBAR
+   ================================================================ */
+
+.sidebar {
+  grid-area: sidebar;
+  background: var(--rafiki-sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  animation: fadeUp 350ms 0ms ease both;
+}
+
+/* --- Logo / Brand Block --- */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  animation: fadeUp 350ms 0ms ease both;
+}
+
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  background: var(--rafiki-green-primary);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: #FFFFFF;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #FFFFFF;
+}
+
+.brand-sub {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--rafiki-text-sidebar-muted);
+  margin-top: 1px;
+}
+
+/* --- Navigation Items --- */
+.sidebar-nav {
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: fadeUp 350ms 80ms ease both;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--rafiki-text-sidebar-muted);
+  transition: background 180ms ease, color 180ms ease;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: var(--rafiki-sidebar-hover);
+  color: #FFFFFF;
+}
+
+.nav-item--active {
+  background: var(--rafiki-green-primary);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.nav-item--active:hover {
+  background: var(--rafiki-green-primary);
+}
+
+.nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--rafiki-badge-bg);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  min-width: 22px;
+  text-align: center;
+}
+
+/* --- User Info Block --- */
+.sidebar-user {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: fadeUp 350ms 160ms ease both;
+}
+
+.user-info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--rafiki-text-sidebar-muted);
+  font-family: var(--font-body);
+}
+
+.user-info-row svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.flag-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.user-phone,
+.user-email {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Logout Button --- */
+.sidebar-footer {
+  padding: 16px 12px 24px;
+  margin-top: auto;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: transparent;
+  color: var(--rafiki-logout-red);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+.logout-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ================================================================
+   ZONE 2: MAIN CONTENT AREA
+   ================================================================ */
+
+.main-content {
+  grid-area: main;
+  overflow-y: auto;
+  background: var(--rafiki-main-bg);
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Avatar Card --- */
+.avatar-card {
+  background: var(--rafiki-card-bg);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  padding: 36px 28px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  animation: fadeUp 400ms 100ms ease both;
+}
+
+.avatar-wrapper {
+  position: relative;
+  width: 160px;
+  height: 160px;
+}
+
+.avatar-img {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top center;
+  box-shadow: var(--shadow-avatar);
+  position: relative;
+  z-index: 2;
+}
+
+.avatar-glow-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--rafiki-green-glow) 0%, transparent 70%);
+  animation: avatarPulse 3s ease-in-out infinite;
+  z-index: 1;
+}
+
+@keyframes avatarPulse {
+  0%, 100% { transform: scale(1);   opacity: 0.6; }
+  50%       { transform: scale(1.1); opacity: 1;   }
+}
+
+/* --- Status Badge --- */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #DCFCE7;
+  color: #166534;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 20px;
+  margin-top: -8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rafiki-ready-green);
+  animation: blink 1.8s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* --- Heading --- */
+.avatar-heading {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--rafiki-text-primary);
+  text-align: center;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+/* --- Microphone Button --- */
+.mic-container {
+  position: relative;
+  margin: 8px 0 4px;
+}
+
+.mic-btn {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: var(--rafiki-green-primary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-shadow: var(--shadow-mic);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  color: #FFFFFF;
+  z-index: 2;
+}
+
+.mic-btn:hover {
+  transform: scale(1.05);
+}
+
+.mic-btn:active {
+  transform: scale(0.96);
+}
+
+.mic-btn:focus {
+  outline: 2px solid var(--rafiki-green-primary);
+  outline-offset: 4px;
+}
+
+.mic-btn svg {
+  width: 36px;
+  height: 36px;
+}
+
+.mic-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* --- Pulsing Rings --- */
+.mic-pulse {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid var(--rafiki-green-primary);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mic-pulse--1 {
+  inset: -10px;
+  animation: none;
+}
+
+.mic-pulse--2 {
+  inset: -22px;
+  animation: none;
+}
+
+.mic-btn--listening .mic-pulse--1 {
+  animation: ripple 1.6s ease-out infinite;
+}
+
+.mic-btn--listening .mic-pulse--2 {
+  animation: ripple 1.6s ease-out 0.5s infinite;
+}
+
+.mic-btn--listening {
+  background: var(--rafiki-green-dark);
+}
+
+@keyframes ripple {
+  0%   { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.3); opacity: 0;   }
+}
+
+/* --- Instruction Text --- */
+.avatar-instruction {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--rafiki-text-muted);
+  margin: 0;
+  text-align: center;
+}
+
+/* ================================================================
+   QUICK ACTIONS SECTION
+   ================================================================ */
+
+.quick-actions {
+  animation: fadeUp 400ms 200ms ease both;
+}
+
+.quick-actions-title {
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--rafiki-text-primary);
+  margin: 0 0 14px;
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.action-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--rafiki-card-bg);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  animation: fadeUp 400ms ease both;
+  box-shadow: var(--shadow-card);
+}
+
+.action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+  border-color: rgba(45,106,79,0.2);
+}
+
+.action-card:active {
+  transform: scale(0.98);
+}
+
+.action-card:focus {
+  outline: 2px solid var(--rafiki-green-primary);
+  outline-offset: 2px;
+}
+
+.action-card:nth-child(1) { animation-delay: 220ms; }
+.action-card:nth-child(2) { animation-delay: 260ms; }
+.action-card:nth-child(3) { animation-delay: 300ms; }
+.action-card:nth-child(4) { animation-delay: 340ms; }
+.action-card:nth-child(5) { animation-delay: 380ms; }
+.action-card:nth-child(6) { animation-delay: 420ms; }
+
+.action-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(45, 106, 79, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--rafiki-green-primary);
+}
+
+.action-icon-wrap svg {
+  width: 22px;
+  height: 22px;
+}
+
+.action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.action-title {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--rafiki-text-primary);
+  line-height: 1.3;
+}
+
+.action-desc {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--rafiki-text-muted);
+  line-height: 1.4;
+}
+
+/* ================================================================
+   MAIN CONTENT FOOTER
+   ================================================================ */
+
+.main-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 0 8px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--rafiki-text-muted);
+  margin-top: auto;
+}
+
+.footer-divider {
+  color: #D1D5DB;
+}
+
+.footer-dropdown {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--rafiki-text-muted);
+  font-size: 12px;
+  padding: 0 2px;
+}
+
+/* ================================================================
+   ZONE 3: BOTTOM INPUT BAR
+   ================================================================ */
+
+.input-bar {
+  grid-area: inputbar;
+  background: var(--rafiki-input-bar-bg);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.input-mic-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: none;
+  color: #9CA3AF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.input-mic-btn:hover {
+  background: rgba(255,255,255,0.14);
+  color: #FFFFFF;
+}
+
+.input-mic-btn--active {
+  background: var(--rafiki-green-primary);
+  color: #FFFFFF;
+}
+
+.input-mic-btn:focus {
+  outline: 2px solid var(--rafiki-green-primary);
+  outline-offset: 2px;
+}
+
+.input-mic-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.input-field {
+  flex: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 24px;
+  padding: 11px 20px;
+  color: #FFFFFF;
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.input-field::placeholder {
+  color: rgba(255,255,255,0.35);
+}
+
+.input-field:focus {
+  border-color: var(--rafiki-green-primary);
+  background: rgba(255,255,255,0.10);
+}
+
+.input-send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--rafiki-green-primary);
+  border: none;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.input-send-btn:hover {
+  background: var(--rafiki-green-dark);
+}
+
+.input-send-btn:active {
+  transform: scale(0.92);
+}
+
+.input-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.input-send-btn:focus {
+  outline: 2px solid var(--rafiki-green-primary);
+  outline-offset: 2px;
+}
+
+.input-send-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ================================================================
+   ANIMATIONS
+   ================================================================ */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ================================================================
+   RESPONSIVE STYLES
+   ================================================================ */
+
+/* Tablet: 768px – 1024px */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 200px;
+  }
+
+  .brand-name {
+    font-size: 13px;
+  }
+
+  .actions-grid {
+    gap: 10px;
+  }
+
+  .avatar-img,
+  .avatar-wrapper {
+    width: 140px;
+    height: 140px;
+  }
+
+  .mic-btn {
+    width: 100px;
+    height: 100px;
+  }
+
+  .mic-btn svg {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Mobile: < 768px */
+@media (max-width: 768px) {
+  .dashboard-root {
+    grid-template-columns: 1fr;
+    grid-template-rows: 60px 1fr var(--input-bar-height);
+    grid-template-areas:
+      "sidebar"
+      "main"
+      "inputbar";
+  }
+
+  .sidebar {
+    /* Collapse to horizontal top bar on mobile */
+    flex-direction: row;
+    align-items: center;
+    height: 60px;
+    padding: 0 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .sidebar-brand {
+    padding: 0;
+    border: none;
+    animation: none;
+  }
+
+  .brand-text {
+    display: none;
+  }
+
+  .brand-logo {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    padding: 0 12px;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+    animation: none;
+  }
+
+  .nav-item {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .nav-item span:not(.nav-badge) {
+    display: none;
+  }
+
+  .nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .nav-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    padding: 1px 5px;
+    font-size: 9px;
+    min-width: 16px;
+  }
+
+  .sidebar-user,
+  .sidebar-footer {
+    display: none;
+  }
+
+  .actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .main-content {
+    padding: 16px;
+  }
+
+  .avatar-card {
+    padding: 24px 16px;
+  }
+
+  .avatar-img,
+  .avatar-wrapper {
+    width: 120px;
+    height: 120px;
+  }
+
+  .avatar-heading {
+    font-size: 22px;
+  }
+
+  .mic-btn {
+    width: 90px;
+    height: 90px;
+  }
+
+  .mic-btn svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .mic-label {
+    font-size: 10px;
+  }
+
+  .input-bar {
+    padding: 10px 12px;
+  }
+}
+
+/* ================================================================
+   ACCESSIBILITY
+   ================================================================ */
+
+/* Focus visible for keyboard navigation */
+.nav-item:focus-visible,
+.action-card:focus-visible,
+.mic-btn:focus-visible,
+.input-mic-btn:focus-visible,
+.input-send-btn:focus-visible,
+.logout-btn:focus-visible {
+  outline: 2px solid var(--rafiki-green-primary);
+  outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
