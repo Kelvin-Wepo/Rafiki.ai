@@ -48,8 +48,19 @@ class User(Base):
         primary_key=True, 
         default=lambda: str(uuid.uuid4())
     )
+    # Core authentication fields
     phone_number_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     phone_number_masked: Mapped[str] = mapped_column(String(20))
+    email_hash: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    email_masked: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # bcrypt hash
+    
+    # Profile fields
+    full_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    id_number_hash: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    has_disability: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Account status
     auth_provider: Mapped[str] = mapped_column(
         SQLEnum(AuthProvider, name="auth_provider_enum"),
         default=AuthProvider.PHONE
@@ -58,6 +69,8 @@ class User(Base):
         SQLEnum(UserStatus, name="user_status_enum"),
         default=UserStatus.PENDING
     )
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     preferred_language: Mapped[str] = mapped_column(String(10), default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

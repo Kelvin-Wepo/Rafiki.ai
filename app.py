@@ -40,7 +40,7 @@ def main():
     print(f"""
     ╔══════════════════════════════════════════════════════════════╗
     ║                                                              ║
-    ║   🇰🇪 eCitizen Voice Assistant                                ║
+    ║   Rafiki AI Government Assistant                                ║
     ║   Accessible Government Services for All                     ║
     ║                                                              ║
     ╠══════════════════════════════════════════════════════════════╣

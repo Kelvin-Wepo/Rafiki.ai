@@ -10,6 +10,10 @@ python-multipart==0.0.6
 pydantic==2.10.3
 pydantic-settings==2.1.0
 
+# Security
+bcrypt==4.1.2
+python-jose[cryptography]==3.3.0
+
 # Google AI Services
 google-genai>=0.1.0
 google-cloud-dialogflow==2.27.0

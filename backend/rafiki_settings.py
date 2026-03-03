@@ -32,10 +32,10 @@ class Settings(BaseSettings):
     # Google Gemini API
     GEMINI_API_KEY: str = ""
     # Default to Gemini 2.5 for better reasoning and language detection
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     
     # ElevenLabs Conversational AI
-    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_API_KEY: str = "sk_465aa135c1708e66c2467d3f9af49cf18a205fd759c591fc"
     ELEVENLABS_AGENT_ID: str = "agent_8201ke4b56ysfce8kaz9ymxjxrvx"
     ELEVENLABS_BRANCH_ID: str = "agtbrch_0501ke4b57pzf70va7bqn3jd86a0"
     ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice (default)
@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     AFRICASTALKING_API_KEY: str = ""
     AFRICASTALKING_SENDER_ID: Optional[str] = None
     AFRICASTALKING_VIRTUAL_NUMBER: str = "+254711082025"  # Virtual number for voice calls
+
+    # Email/SMTP settings for OTP delivery
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@rafiki.ai"
+    SMTP_FROM_NAME: str = "Rafiki AI"
+    EMAIL_ENABLED: bool = False  # Set to True when SMTP is configured
 
     # OTP/SMS simulation (dev only)
     OTP_SIMULATE: bool = False
