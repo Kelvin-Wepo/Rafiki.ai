@@ -6,8 +6,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OTPVerification } from './components/Auth';
-import { RegisterPage } from './components/Auth/v2';
-import { MainLayout } from './components/Layout';
+import { Dashboard } from './components/Dashboard';
+import { SignUpPage, LoginPage } from './pages';
 
 /**
  * Loading Screen Component
@@ -41,7 +41,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Auth Route Wrapper - redirects to home if already authenticated
+ * Auth Route Wrapper - redirects to chat if already authenticated
  */
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -51,7 +51,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   }
   
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/chat" replace />;
   }
   
   return <>{children}</>;
@@ -61,7 +61,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
  * Main App Router with all routes
  */
 function AppRouter() {
-  const { user, logout, isVerifying, pendingPhone } = useAuth();
+  const { isVerifying, pendingPhone } = useAuth();
 
   // Show OTP verification if in verifying state
   if (isVerifying && pendingPhone) {
@@ -75,7 +75,15 @@ function AppRouter() {
         path="/login"
         element={
           <AuthRoute>
-            <RegisterPage />
+            <LoginPage />
+          </AuthRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <AuthRoute>
+            <SignUpPage />
           </AuthRoute>
         }
       />
@@ -85,13 +93,21 @@ function AppRouter() {
         path="/"
         element={
           <ProtectedRoute>
-            <MainLayout user={user} onLogout={logout} />
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
           </ProtectedRoute>
         }
       />
 
-      {/* Catch all - redirect to home */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Catch all - redirect to login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }
