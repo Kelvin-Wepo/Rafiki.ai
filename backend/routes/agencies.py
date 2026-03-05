@@ -8,11 +8,14 @@ Mount this in your backend/main.py with:
     app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 import uuid
 import logging
+import hmac
+import hashlib
+import os
 
 from services.agency_workflows import handle_message, get_or_create_session, clear_session
 from services.paystack_service import (
@@ -34,9 +37,37 @@ from services.booking_service import (
     get_agency_booking_by_payment_ref,
     mark_agency_booking_paid,
 )
+from services.elevenlabs_service import elevenlabs_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# TTS Helper
+# ---------------------------------------------------------------------------
+
+async def generate_tts_audio(text: str, language: str = "en") -> Optional[str]:
+    """Generate TTS audio for response text. Returns base64 string or None."""
+    try:
+        # Select voice based on language
+        voice_id = "EXAVITQu4vr4xnSDxMaL" if language == "en" else "pNInz6obpgDQGcFmaJgB"
+        
+        result = await elevenlabs_service.text_to_speech(
+            text=text,
+            voice_id=voice_id,
+            language=language,
+            model_id="eleven_multilingual_v2"  # Supports Kiswahili
+        )
+        
+        if result.get("success") and result.get("audio_data"):
+            return result["audio_data"]
+        else:
+            logger.warning(f"TTS failed: {result.get('error', 'unknown error')}")
+            return None
+    except Exception as e:
+        logger.error(f"TTS generation error: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -54,10 +85,13 @@ class ChatResponse(BaseModel):
     step: str
     agency: Optional[str] = None
     service: Optional[str] = None
+    language: str = "en"                    # Session language: 'en' or 'sw'
     awaiting_payment: bool = False          # Signals frontend to initiate payment
     payment_amount: Optional[int] = None    # Amount in KES
     payment_description: Optional[str] = None  # Service description for payment
     payment_mpesa: Optional[str] = None     # M-PESA number for STK push
+    audio_base64: Optional[str] = None      # TTS audio as base64
+    audio_mime: str = "audio/mpeg"          # Audio MIME type
 
 
 class PaymentInitRequest(BaseModel):
@@ -76,16 +110,25 @@ class PaymentVerifyRequest(BaseModel):
 # SMS Notification Helpers
 # ---------------------------------------------------------------------------
 
-async def send_payment_initiated_sms(phone: str, service: str, amount: int, reference: str):
+async def send_payment_initiated_sms(phone: str, service: str, amount: int, reference: str, language: str = "en"):
     """Send SMS when STK push is initiated."""
     try:
-        message = (
-            f"Rafiki.ai Payment Request\n\n"
-            f"Service: {service}\n"
-            f"Amount: KES {amount:,}\n"
-            f"Ref: {reference}\n\n"
-            f"Please enter your M-PESA PIN when prompted to complete payment."
-        )
+        if language == "sw":
+            message = (
+                f"Ombi la Malipo la Rafiki.ai\n\n"
+                f"Huduma: {service}\n"
+                f"Kiasi: KES {amount:,}\n"
+                f"Rejea: {reference}\n\n"
+                f"Tafadhali weka PIN yako ya M-PESA unapoombwa kukamilisha malipo."
+            )
+        else:
+            message = (
+                f"Rafiki.ai Payment Request\n\n"
+                f"Service: {service}\n"
+                f"Amount: KES {amount:,}\n"
+                f"Ref: {reference}\n\n"
+                f"Please enter your M-PESA PIN when prompted to complete payment."
+            )
         result = await sms_service.send_sms(phone, message)
         if result.get("success"):
             logger.info(f"Payment initiated SMS sent to {phone[:4]}****")
@@ -95,18 +138,29 @@ async def send_payment_initiated_sms(phone: str, service: str, amount: int, refe
         logger.error(f"SMS send error: {e}")
 
 
-async def send_payment_confirmed_sms(phone: str, service: str, amount: int, reference: str):
+async def send_payment_confirmed_sms(phone: str, service: str, amount: int, reference: str, language: str = "en"):
     """Send SMS when payment is confirmed."""
     try:
-        message = (
-            f"Rafiki.ai Payment Confirmed! ✅\n\n"
-            f"Service: {service}\n"
-            f"Amount: KES {amount:,}\n"
-            f"Ref: {reference}\n\n"
-            f"Your payment has been received. You can download your receipt "
-            f"from the Transcripts section on Rafiki.ai.\n\n"
-            f"Thank you for using Rafiki!"
-        )
+        if language == "sw":
+            message = (
+                f"Malipo ya Rafiki.ai Yamethibitishwa! ✅\n\n"
+                f"Huduma: {service}\n"
+                f"Kiasi: KES {amount:,}\n"
+                f"Rejea: {reference}\n\n"
+                f"Malipo yako yamepokelewa. Unaweza kupakua risiti yako "
+                f"kutoka sehemu ya Nakala kwenye Rafiki.ai.\n\n"
+                f"Asante kwa kutumia Rafiki!"
+            )
+        else:
+            message = (
+                f"Rafiki.ai Payment Confirmed! ✅\n\n"
+                f"Service: {service}\n"
+                f"Amount: KES {amount:,}\n"
+                f"Ref: {reference}\n\n"
+                f"Your payment has been received. You can download your receipt "
+                f"from the Transcripts section on Rafiki.ai.\n\n"
+                f"Thank you for using Rafiki!"
+            )
         result = await sms_service.send_sms(phone, message)
         if result.get("success"):
             logger.info(f"Payment confirmed SMS sent to {phone[:4]}****")
@@ -116,21 +170,32 @@ async def send_payment_confirmed_sms(phone: str, service: str, amount: int, refe
         logger.error(f"SMS send error: {e}")
 
 
-async def send_booking_sms(phone: str, service: str, details: dict):
+async def send_booking_sms(phone: str, service: str, details: dict, language: str = "en"):
     """Send SMS for service booking confirmation."""
     try:
-        name = details.get("name", "Customer")
-        agency = details.get("agency", "Government Agency")
+        name = details.get("name", "Customer" if language == "en" else "Mteja")
+        agency = details.get("agency", "Government Agency" if language == "en" else "Shirika la Serikali")
         
-        message = (
-            f"Rafiki.ai Booking Confirmed! ✅\n\n"
-            f"Dear {name},\n"
-            f"Agency: {agency}\n"
-            f"Service: {service}\n\n"
-            f"Please visit the relevant office with your National ID "
-            f"and payment receipt for verification.\n\n"
-            f"Thank you for using Rafiki!"
-        )
+        if language == "sw":
+            message = (
+                f"Uhifadhi wa Rafiki.ai Umethibitishwa! ✅\n\n"
+                f"Ndugu {name},\n"
+                f"Shirika: {agency}\n"
+                f"Huduma: {service}\n\n"
+                f"Tafadhali tembelea ofisi husika na Kitambulisho chako cha Taifa "
+                f"na risiti ya malipo kwa uthibitisho.\n\n"
+                f"Asante kwa kutumia Rafiki!"
+            )
+        else:
+            message = (
+                f"Rafiki.ai Booking Confirmed! ✅\n\n"
+                f"Dear {name},\n"
+                f"Agency: {agency}\n"
+                f"Service: {service}\n\n"
+                f"Please visit the relevant office with your National ID "
+                f"and payment receipt for verification.\n\n"
+                f"Thank you for using Rafiki!"
+            )
         result = await sms_service.send_sms(phone, message)
         if result.get("success"):
             logger.info(f"Booking SMS sent to {phone[:4]}****")
@@ -215,12 +280,13 @@ async def chat(req: ChatRequest):
                 
                 if payment_result.get("success"):
                     logger.info(f"STK push sent: session={session_id}, ref={reference}, amount={state.payment_amount}")
-                    # Send SMS notification for payment initiation
+                    # Send SMS notification for payment initiation (in session language)
                     await send_payment_initiated_sms(
                         phone=mpesa_number,
                         service=service_name,
                         amount=state.payment_amount,
-                        reference=reference
+                        reference=reference,
+                        language=state.language
                     )
                 else:
                     logger.warning(f"STK push failed: {payment_result.get('message')}")
@@ -228,16 +294,22 @@ async def chat(req: ChatRequest):
             except Exception as e:
                 logger.error(f"Payment initiation error: {e}", exc_info=True)
 
+    # Generate TTS audio for the response
+    audio_base64 = await generate_tts_audio(response_text, state.language)
+
     return ChatResponse(
         session_id=session_id,
         response=response_text,
         step=state.step,
         agency=state.agency,
         service=state.service,
+        language=state.language,
         awaiting_payment=state.awaiting_payment,
         payment_amount=state.payment_amount,
         payment_description=state.payment_description,
         payment_mpesa=state.payment_mpesa,
+        audio_base64=audio_base64,
+        audio_mime="audio/mpeg",
     )
 
 
@@ -251,16 +323,22 @@ async def start_chat():
     response_text = handle_message(session_id, "__new_session__")
     state = get_or_create_session(session_id)
 
+    # Generate TTS audio for the greeting
+    audio_base64 = await generate_tts_audio(response_text, state.language)
+
     return ChatResponse(
         session_id=session_id,
         response=response_text,
         step=state.step,
         agency=state.agency,
         service=state.service,
+        language=state.language,
         awaiting_payment=state.awaiting_payment,
         payment_amount=state.payment_amount,
         payment_description=state.payment_description,
         payment_mpesa=state.payment_mpesa,
+        audio_base64=audio_base64,
+        audio_mime="audio/mpeg",
     )
 
 
@@ -590,3 +668,122 @@ async def list_bookings_endpoint(agency: Optional[str] = None, status: Optional[
     
     results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return {"success": True, "bookings": results, "count": len(results)}
+
+
+# ---------------------------------------------------------------------------
+# Paystack Webhook for Payment Confirmation Callbacks
+# ---------------------------------------------------------------------------
+
+def verify_paystack_signature(payload: bytes, signature: str, secret: str) -> bool:
+    """Verify Paystack webhook signature using HMAC-SHA512."""
+    expected = hmac.new(
+        secret.encode('utf-8'),
+        payload,
+        hashlib.sha512
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
+@router.post("/payments/webhook")
+async def paystack_webhook(request: Request):
+    """
+    Webhook endpoint for Paystack payment confirmations.
+    Paystack calls this URL after payment completes.
+    
+    Configure in Paystack dashboard under:
+    Settings → API Keys & Webhooks → Webhook URL:
+    https://your-domain.com/api/agencies/payments/webhook
+    """
+    try:
+        # Get raw payload for signature verification
+        payload = await request.body()
+        paystack_signature = request.headers.get("x-paystack-signature", "")
+        
+        # Verify signature (optional but recommended for production)
+        paystack_secret = os.getenv("PAYSTACK_SECRET_KEY", "")
+        if paystack_secret and paystack_signature:
+            if not verify_paystack_signature(payload, paystack_signature, paystack_secret):
+                logger.warning("Invalid Paystack webhook signature")
+                raise HTTPException(status_code=401, detail="Invalid signature")
+        
+        # Parse JSON payload
+        import json
+        data = json.loads(payload)
+        
+        event = data.get("event", "")
+        event_data = data.get("data", {})
+        
+        logger.info(f"Paystack webhook received: event={event}")
+        
+        if event == "charge.success":
+            reference = event_data.get("reference", "")
+            amount_ksh = event_data.get("amount", 0) // 100  # Paystack sends in kobo/cents
+            customer_data = event_data.get("customer", {})
+            customer_phone = customer_data.get("phone", "")
+            customer_email = customer_data.get("email", "")
+            transaction_id = event_data.get("id", "")
+            
+            logger.info(f"Payment success: ref={reference}, amount={amount_ksh} KES")
+            
+            # Find the session with this reference and send confirmation SMS
+            from services.agency_workflows import _sessions
+            for session_id, session_state in _sessions.items():
+                if session_state.payment_ref == reference or session_state.data.get("payment_reference") == reference:
+                    # Get phone number from session or customer data
+                    phone = session_state.data.get("mpesa") or session_state.data.get("phone") or customer_phone
+                    service = session_state.payment_description or session_state.service or session_state.agency or "Government Service"
+                    lang = session_state.language
+                    
+                    # Mark application or booking as paid
+                    app_updated = mark_application_paid(reference, str(transaction_id))
+                    booking_updated = mark_agency_booking_paid(reference, str(transaction_id))
+                    
+                    if app_updated:
+                        logger.info(f"Application marked paid via webhook: {app_updated.get('application_ref')}")
+                    if booking_updated:
+                        logger.info(f"Booking marked paid via webhook: {booking_updated.get('booking_ref')}")
+                    
+                    # Send SMS confirmation in session language
+                    if phone and not session_state.data.get("webhook_sms_sent"):
+                        if lang == "sw":
+                            sms_text = (
+                                f"Rafiki.ai: Malipo ya Ksh {amount_ksh:,} kwa {service} "
+                                f"yamekubaliwa. Kumbukumbu: {reference}. Asante!"
+                            )
+                        else:
+                            sms_text = (
+                                f"Rafiki.ai: Payment of Ksh {amount_ksh:,} for {service} "
+                                f"confirmed. Reference: {reference}. Thank you!"
+                            )
+                        
+                        sms_result = await sms_service.send_sms(phone=phone, message=sms_text)
+                        logger.info(f"Webhook SMS confirmation sent to {phone[:4]}****: {sms_result}")
+                        
+                        # Mark as sent to avoid duplicates
+                        session_state.data["webhook_sms_sent"] = True
+                    
+                    # Clear payment awaiting flag
+                    session_state.awaiting_payment = False
+                    break
+            else:
+                # Session not found in memory, try to update records anyway
+                logger.warning(f"Session not found for payment ref {reference}, updating records only")
+                mark_application_paid(reference, str(transaction_id))
+                mark_agency_booking_paid(reference, str(transaction_id))
+        
+        elif event == "charge.failed":
+            reference = event_data.get("reference", "")
+            message = event_data.get("gateway_response", "Payment failed")
+            logger.warning(f"Payment failed: ref={reference}, message={message}")
+            
+            # Update application/booking status to failed
+            update_application_status(reference, "payment_failed")
+        
+        return {"status": "ok"}
+        
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in Paystack webhook payload")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    except Exception as e:
+        logger.error(f"Paystack webhook error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Webhook processing error")
