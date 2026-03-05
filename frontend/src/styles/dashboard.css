@@ -870,3 +870,140 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ================================================================
+   LANGUAGE SELECTOR MODAL
+   ================================================================ */
+
+.language-selector-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 58, 46, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.language-selector-card {
+  background: var(--rafiki-card-bg);
+  border-radius: 24px;
+  padding: 3rem 4rem;
+  text-align: center;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  max-width: 480px;
+  width: 90%;
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.language-selector-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.language-selector-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--rafiki-green-dark);
+  margin: 0 0 0.25rem 0;
+}
+
+.language-selector-subtitle {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--rafiki-green-primary);
+  margin: 0 0 1.5rem 0;
+}
+
+.language-selector-prompt {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--rafiki-text-muted);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.language-selector-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.language-btn {
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  font-weight: 600;
+  padding: 1rem 2.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  min-width: 140px;
+}
+
+.language-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.language-btn-en {
+  background: var(--rafiki-green-primary);
+  color: white;
+}
+
+.language-btn-en:hover:not(:disabled) {
+  background: var(--rafiki-green-dark);
+  transform: translateY(-2px);
+}
+
+.language-btn-sw {
+  background: white;
+  color: var(--rafiki-green-primary);
+  border-color: var(--rafiki-green-primary);
+}
+
+.language-btn-sw:hover:not(:disabled) {
+  background: var(--rafiki-green-primary);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.language-selector-mascot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--rafiki-text-muted);
+  font-size: 0.875rem;
+}
+
+.mascot-emoji {
+  font-size: 1.5rem;
+}
+
+.mascot-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--rafiki-green-primary);
+}

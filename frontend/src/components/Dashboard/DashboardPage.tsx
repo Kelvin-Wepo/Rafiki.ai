@@ -23,6 +23,7 @@ import {
   MegaphoneIcon,
 } from '@heroicons/react/24/outline';
 import rafikiAvatar from '../../assets/rafiki_avatar.png';
+import LanguageSelector from '../LanguageSelector';
 import '../../styles/dashboard.css';
 
 // Types
@@ -107,25 +108,73 @@ export function Dashboard() {
   const [chatInput, setChatInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<'en' | 'sw' | null>(null);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(true);
+  const [isLanguageLoading, setIsLanguageLoading] = useState(false);
   const [transcriptCount] = useState(12); // Mock count for demo
   
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize session
-  useEffect(() => {
-    const initSession = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/session`, { method: 'POST' });
-        const data = await res.json();
-        setSessionId(data.session_id);
-      } catch (err) {
-        console.error('Failed to create session:', err);
+  // Play audio from base64 string
+  const playAudio = useCallback((audioBase64: string, mimeType: string = 'audio/mpeg') => {
+    try {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
       }
-    };
-    initSession();
+      
+      const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
+      audioRef.current = audio;
+      audio.play().catch(err => console.error('Audio playback error:', err));
+    } catch (err) {
+      console.error('Failed to play audio:', err);
+    }
   }, []);
+
+  // Handle language selection and start session
+  const handleLanguageSelect = useCallback(async (selectedLang: 'en' | 'sw') => {
+    setIsLanguageLoading(true);
+    try {
+      // First, start a new chat session
+      const startRes = await fetch(`${API_BASE}/api/agencies/chat/start`, { method: 'POST' });
+      const startData = await startRes.json();
+      setSessionId(startData.session_id);
+      
+      // Play the greeting audio if available
+      if (startData.audio_base64) {
+        playAudio(startData.audio_base64, startData.audio_mime || 'audio/mpeg');
+      }
+      
+      // Now send the language selection
+      const langRes = await fetch(`${API_BASE}/api/agencies/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: startData.session_id,
+          message: selectedLang === 'en' ? '1' : '2',
+        }),
+      });
+      const langData = await langRes.json();
+      
+      // Play the welcome audio
+      if (langData.audio_base64) {
+        playAudio(langData.audio_base64, langData.audio_mime || 'audio/mpeg');
+      }
+      
+      setLanguage(selectedLang);
+      setShowLanguageSelector(false);
+      console.log('Session started with language:', selectedLang);
+      console.log('Rafiki says:', langData.response);
+    } catch (err) {
+      console.error('Failed to start session:', err);
+    } finally {
+      setIsLanguageLoading(false);
+    }
+  }, [playAudio]);
 
   // Get masked user data
   const phone = user?.phone_masked || '+254 7** **045';
@@ -154,12 +203,18 @@ export function Dashboard() {
         }),
       });
       const data = await res.json();
-      // For now, just log the response - can be extended to show in UI
+      
+      // Log the response
       console.log('Assistant response:', data.response || data.message);
+      
+      // Play audio response if available
+      if (data.audio_base64) {
+        playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
     }
-  }, [sessionId]);
+  }, [sessionId, playAudio]);
 
   // Handle quick action
   const handleQuickAction = useCallback((action: QuickAction) => {
@@ -232,6 +287,15 @@ export function Dashboard() {
   }, []);
 
   return (
+    <>
+      {/* Language Selector Modal */}
+      {showLanguageSelector && (
+        <LanguageSelector
+          onSelectLanguage={handleLanguageSelect}
+          isLoading={isLanguageLoading}
+        />
+      )}
+      
     <div className="dashboard-root">
       {/* ============ ZONE 1: LEFT SIDEBAR ============ */}
       <aside className="sidebar">
@@ -406,6 +470,7 @@ export function Dashboard() {
         </button>
       </div>
     </div>
+    </>
   );
 }
 
