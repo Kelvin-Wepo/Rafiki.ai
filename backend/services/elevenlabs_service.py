@@ -582,6 +582,7 @@ class ElevenLabsService:
     async def _pyttsx3_text_fallback(self, text: str, language: str = "en") -> Dict[str, Any]:
         """
         Generate TTS audio using pyttsx3 (offline) as final fallback.
+        Uses subprocess to avoid async/threading issues with espeak.
         
         Args:
             text: Text to convert to speech
@@ -591,27 +592,27 @@ class ElevenLabsService:
             Dict with audio data (base64) or error
         """
         try:
-            import pyttsx3
             import tempfile
             import os
+            import subprocess
             
-            logger.info("Using pyttsx3 offline TTS as final fallback...")
-            
-            # Initialize pyttsx3 engine
-            engine = pyttsx3.init()
-            
-            # Set properties for clearer speech
-            engine.setProperty('rate', 150)  # Speed of speech
-            engine.setProperty('volume', 0.9)  # Volume (0.0 to 1.0)
+            logger.info("Using espeak offline TTS as final fallback...")
             
             # Create temp file
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                 temp_path = temp_file.name
             
             try:
-                # Generate speech to file
-                engine.save_to_file(text, temp_path)
-                engine.runAndWait()
+                # Use espeak directly via subprocess (avoids pyttsx3 threading issues)
+                # -w writes to WAV file, -s sets speed (words per minute)
+                voice = "en" if language == "en" else "sw"  # espeak supports Swahili
+                cmd = ["espeak", "-v", voice, "-s", "150", "-w", temp_path, text]
+                
+                result = subprocess.run(cmd, capture_output=True, timeout=30)
+                
+                if result.returncode != 0:
+                    logger.error(f"espeak failed: {result.stderr.decode()}")
+                    return {"success": False, "error": "espeak_failed"}
                 
                 # Read the file and encode to base64
                 if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
@@ -619,20 +620,20 @@ class ElevenLabsService:
                         audio_bytes = f.read()
                     
                     audio_data = base64.b64encode(audio_bytes).decode('utf-8')
-                    logger.info(f"Generated TTS audio using pyttsx3 fallback. Text: {len(text)} chars")
+                    logger.info(f"Generated TTS audio using espeak fallback. Text: {len(text)} chars")
                     return {
                         "success": True,
                         "audio_data": audio_data,
                         "content_type": "audio/wav",
                         "text_length": len(text),
-                        "voice_name": "pyttsx3-offline",
-                        "voice_id": "pyttsx3",
+                        "voice_name": "espeak-offline",
+                        "voice_id": "espeak",
                         "speech_type": "fallback",
                         "language": language
                     }
                 else:
-                    logger.error("pyttsx3 did not generate audio file")
-                    return {"success": False, "error": "pyttsx3_no_audio", "message": "pyttsx3 did not generate audio"}
+                    logger.error("espeak did not generate audio file")
+                    return {"success": False, "error": "espeak_no_audio", "message": "espeak did not generate audio"}
                     
             finally:
                 # Cleanup temp file
@@ -640,7 +641,7 @@ class ElevenLabsService:
                     os.unlink(temp_path)
                     
         except Exception as e:
-            logger.error(f"pyttsx3 fallback error: {e}")
+            logger.error(f"espeak fallback error: {e}")
             return {
                 "success": False,
                 "error": f"All TTS methods failed. Last error: {str(e)}"
