@@ -61,12 +61,13 @@ class VoiceService:
             # Initialize speech recognizer
             if SPEECH_RECOGNITION_AVAILABLE:
                 self._recognizer = sr.Recognizer()
-                # Tuned for better voice detection
-                self._recognizer.pause_threshold = 0.5  # Wait 500ms of silence before ending phrase
+                # Tuned for better voice detection of browser-recorded audio
+                self._recognizer.pause_threshold = 0.8  # Wait 800ms of silence before ending phrase
                 self._recognizer.phrase_threshold = 0.1  # Lower threshold to detect speech earlier
-                self._recognizer.non_speaking_duration = 0.3  # Shorter silence tolerance
-                self._recognizer.energy_threshold = 4000  # Adjust for noisy environments
-                logger.info("Speech recognizer initialized with optimized settings")
+                self._recognizer.non_speaking_duration = 0.5  # Moderate silence tolerance
+                self._recognizer.energy_threshold = 300   # FIXED: was 4000, too high for browser audio
+                self._recognizer.dynamic_energy_threshold = False  # FIXED: disable auto-adjustment
+                logger.info("Speech recognizer initialized with optimized settings for browser audio")
             else:
                 logger.warning("Speech recognition not available")
             
@@ -212,48 +213,77 @@ class VoiceService:
             logger.info(f"Audio written to temporary file: {temp_path} ({audio_format})")
             
             try:
-                # For WebM, we need to use pydub to convert it
-                if audio_format == 'webm':
-                    logger.info("WebM format detected, attempting to convert...")
-                    if PYDUB_AVAILABLE:
-                        try:
-                            audio_segment = AudioSegment.from_file(temp_path, format='webm')
-                            # Convert to WAV for speech recognition
-                            wav_path = temp_path.replace('.webm', '.wav')
-                            audio_segment.export(wav_path, format='wav')
-                            os.unlink(temp_path)  # Remove WebM file
-                            temp_path = wav_path
-                            logger.info(f"✅ Converted WebM to WAV: {wav_path}")
-                        except Exception as e:
-                            logger.warning(f"Could not convert WebM with pydub: {e}, trying direct reading...")
-                    else:
-                        logger.warning("pydub not available - cannot convert WebM format")
-                
-                # Load audio file with energy adjustment
-                with sr.AudioFile(temp_path) as source:
-                    # Adjust for ambient noise if possible (short duration for recorded files)
+                # For WebM or unknown format (common from browser MediaRecorder), convert to WAV
+                if audio_format in ('webm', 'unknown'):
+                    logger.info(f"Attempting WebM/Opus conversion for browser audio...")
+                    if not PYDUB_AVAILABLE:
+                        logger.error("CRITICAL: pydub not installed. Install with: pip install pydub")
+                        return {
+                            "success": False,
+                            "error": "Audio conversion not available. Please install pydub and ffmpeg."
+                        }
                     try:
-                        self._recognizer.adjust_for_ambient_noise(source, duration=0.2)
-                    except Exception:
-                        pass  # Not all audio files support this
+                        audio_segment = AudioSegment.from_file(temp_path, format='webm')
+                        wav_path = temp_path.replace(f'.{audio_format}', '.wav')
+                        # Export as 16kHz mono WAV — optimal for Google Speech Recognition
+                        audio_segment = audio_segment.set_frame_rate(16000).set_channels(1)
+                        audio_segment.export(wav_path, format='wav')
+                        if os.path.exists(temp_path):
+                            os.unlink(temp_path)
+                        temp_path = wav_path
+                        logger.info(f"WebM converted to WAV successfully: {wav_path}")
+                    except Exception as e:
+                        logger.error(f"WebM conversion FAILED: {e}. Is ffmpeg installed?")
+                        return {
+                            "success": False,
+                            "error": "Could not process audio format. Please ensure ffmpeg is installed."
+                        }
+                
+                # Load audio file - DO NOT adjust for ambient noise on recorded files
+                # (adjust_for_ambient_noise raises threshold and breaks recognition on pre-recorded audio)
+                with sr.AudioFile(temp_path) as source:
                     audio = self._recognizer.record(source)
                 
                 logger.info(f"Audio loaded successfully ({len(audio.frame_data)} bytes)")
                 
-                # Lower energy threshold for recorded audio (may be quieter than live mic)
-                original_threshold = self._recognizer.energy_threshold
-                self._recognizer.energy_threshold = 300  # Lower threshold for recorded audio
+                # Map session language to Google SR language codes
+                # Google SR supports multiple language hints via trying each in order
+                LANGUAGE_MAP = {
+                    "en": ["en-KE", "en-US"],          # English (Kenya first, US fallback)
+                    "sw": ["sw-KE", "sw", "en-KE"],    # Kiswahili (Kenya), then English fallback
+                    "mixed": ["sw-KE", "en-KE", "sw"], # Mixed: try both
+                }
                 
-                # Recognize speech
-                lang = language or self.settings.SPEECH_RECOGNITION_LANGUAGE
+                # Determine which language hints to use
+                session_lang = language or "en"
+                lang_hints = LANGUAGE_MAP.get(session_lang, ["en-KE", "sw-KE"])
+                primary_lang = lang_hints[0]
                 
-                # Try Google Speech Recognition with show_all for debugging
-                logger.info(f"Attempting recognition with language: {lang}")
-                try:
-                    text = self._recognizer.recognize_google(audio, language=lang)
-                finally:
-                    # Restore original threshold
-                    self._recognizer.energy_threshold = original_threshold
+                logger.info(f"Attempting recognition with language hints: {lang_hints}")
+                
+                text = None
+                last_error = None
+                detected_lang = primary_lang
+                
+                for lang_code in lang_hints:
+                    try:
+                        text = self._recognizer.recognize_google(audio, language=lang_code)
+                        detected_lang = lang_code
+                        logger.info(f"Recognition succeeded with language: {lang_code}")
+                        break
+                    except sr.UnknownValueError:
+                        last_error = f"No speech detected with {lang_code}"
+                        continue
+                    except sr.RequestError as e:
+                        raise  # Network error — re-raise immediately
+                
+                if text is None:
+                    logger.warning(f"All language attempts failed. Last error: {last_error}")
+                    return {
+                        "success": False,
+                        "error": "Could not understand audio. Please speak clearly and try again.",
+                        "text": ""
+                    }
                 
                 logger.info(f"✅ Transcribed: {text[:50]}...")
                 
@@ -261,7 +291,7 @@ class VoiceService:
                     "success": True,
                     "text": text,
                     "confidence": 0.9,  # Google doesn't provide confidence
-                    "language": lang
+                    "language": detected_lang
                 }
                 
             finally:
