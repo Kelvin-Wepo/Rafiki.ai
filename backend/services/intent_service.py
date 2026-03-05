@@ -276,19 +276,25 @@ class IntentDetector:
         """
         Detect if message is in English or Kiswahili.
         
-        Returns: 'en' or 'sw'
+        Returns: 'en', 'sw', or 'mixed'
         """
         # Kiswahili-specific patterns
         sw_patterns = [
             r'\b(na|kwa|ni|wa|ja|za|ta|ka)\b',  # Common Kiswahili prepositions/conjugations
             r'\b(rafiki|habari|asante|pole|sawa|ndiyo|hapana|tafadhali)\b',  # Common Kiswahili words
+            r'\b(nataka|ninataka|ninajua|sijui|niko|leseni|huduma)\b',  # Common spoken words
             r'[aeiou]{2,}',  # Multiple consecutive vowels (more common in Sw)
         ]
         
         sw_score = sum(len(re.findall(pattern, message, re.IGNORECASE)) for pattern in sw_patterns)
         
-        # If more Kiswahili patterns detected, default to Kiswahili
-        return 'sw' if sw_score > 3 else 'en'
+        # FIXED: was > 3, too strict for short phrases. Now > 1 for better Kiswahili detection
+        if sw_score > 1:
+            return 'sw'
+        elif sw_score == 1:
+            return 'mixed'  # Single Kiswahili indicator suggests code-switching
+        else:
+            return 'en'
     
     def _normalize_message(self, message: str) -> str:
         """Normalize message for processing."""
