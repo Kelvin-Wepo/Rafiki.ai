@@ -28,7 +28,17 @@ class LanguageDetector:
         'kra', 'pin', 'itax', 'serikali', 'huduma', 'fomu', 'karatasi',
         'hata', 'kama', 'lakini', 'ingawa', 'wakati', 'baada', 'kabla',
         'kutoka', 'kwenda', 'huko', 'hapa', 'hapo', 'sini', 'juu',
-        'chini', 'karibu', 'mbali', 'jibu', 'swali', 'ujumbe', 'ujumuika'
+        'chini', 'karibu', 'mbali', 'jibu', 'swali', 'ujumbe', 'ujumuika',
+        # Added: High-frequency spoken words for government services
+        'nataka', 'ninataka', 'ninajua', 'sijui', 'niko', 'siko',
+        'ombi', 'omba', 'wasiliana', 'ingia', 'toka', 'rudi',
+        'leseni', 'gari', 'pesa', 'malipo', 'lipa', 'lipia',
+        'nchini', 'pamoja', 'kwanza', 'pili', 'tano',
+        'bei', 'gharama', 'faida', 'hasara', 'kazi', 'ajira',
+        'hati', 'stakabadhi', 'risiti', 'cheti',
+        'jaza', 'tuma', 'pata', 'pokea', 'wasilishe',
+        'haraka', 'polepole', 'tena', 'pia', 'au',
+        'naelewa', 'sielewi',
     }
     
     # English words (for comparison)
@@ -78,13 +88,16 @@ class LanguageDetector:
             # Score English indicators
             en_score = self._score_english(normalized_text)
             
-            # Determine dominant language
-            if sw_score > en_score + 0.2:  # Kiswahili needs higher margin
-                confidence = min(sw_score / (sw_score + en_score) if (sw_score + en_score) > 0 else 0.6, 1.0)
+            # Determine dominant language with balanced margin
+            if sw_score > en_score + 0.05:   # FIXED: was 0.2, now 0.05
+                confidence = min(sw_score / max(sw_score + en_score, 0.01), 1.0)
                 return 'sw', confidence
-            else:
-                confidence = min(en_score / (sw_score + en_score) if (sw_score + en_score) > 0 else 0.6, 1.0)
+            elif en_score > sw_score + 0.05:
+                confidence = min(en_score / max(sw_score + en_score, 0.01), 1.0)
                 return 'en', confidence
+            else:
+                # Scores are close — this is mixed language (code-switching)
+                return 'mixed', 0.6
         
         except Exception as e:
             logger.error(f"Error detecting language: {e}")
