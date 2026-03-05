@@ -26,5 +26,39 @@
     },
     "created_at": "2026-03-03T10:17:02.478899",
     "updated_at": "2026-03-03T10:17:02.478907"
+  },
+  "NTS-20260303211152-2A996D7D": {
+    "application_ref": "NTS-20260303211152-2A996D7D",
+    "session_id": "da43855c-9685-4210-8eaf-09aecfacbf9e",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Application",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "Kelvin Wepo",
+      "id_number": "",
+      "phone": "0799489045",
+      "email": "",
+      "county": "Nairobi",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1772561512-B12E76D0",
+      "amount": 6530,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "name": "Kelvin Wepo",
+      "id_number": "33193060",
+      "phone": "0799489045",
+      "county": "Nairobi",
+      "license_class": "Class BCE \u2013 Heavy commercial vehicles",
+      "fee": 6500,
+      "service_fee": 30,
+      "total": 6530,
+      "mpesa": "0799489045"
+    },
+    "created_at": "2026-03-03T21:11:52.383997",
+    "updated_at": "2026-03-03T21:11:52.384010"
   }
 }
