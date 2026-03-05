@@ -39,7 +39,8 @@ def valid_passport(v: str) -> bool:
 @dataclass
 class SessionState:
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    step: str = "WELCOME"
+    step: str = "LANGUAGE_SELECT"           # Start with language selection
+    language: str = "en"                    # 'en' for English, 'sw' for Kiswahili
     agency: Optional[str] = None
     service: Optional[str] = None
     sub_service: Optional[str] = None
@@ -50,6 +51,15 @@ class SessionState:
     payment_amount: Optional[int] = None    # Amount in KES for payment
     payment_description: Optional[str] = None  # Service description for payment
     payment_mpesa: Optional[str] = None     # M-PESA number for STK push
+
+
+# ---------------------------------------------------------------------------
+# Translation helper
+# ---------------------------------------------------------------------------
+
+def t(state: SessionState, en: str, sw: str) -> str:
+    """Return text in session's language."""
+    return sw if state.language == "sw" else en
 
 # In-memory session store (replace with Redis/DB in production)
 _sessions: Dict[str, SessionState] = {}
@@ -100,31 +110,74 @@ def handle_message(session_id: str, user_input: str) -> str:
     state = get_or_create_session(session_id)
     text = user_input.strip()
 
+    # ── LANGUAGE LOCK ────────────────────────────────────────────────────────
+    # Once language is chosen, never auto-detect language again.
+    # Only allow language change if user explicitly types 'change language'
+    if text.strip().lower() in ("change language", "badilisha lugha"):
+        state.step = "LANGUAGE_SELECT"
+        state.language = "en"
+        return (
+            "🇰🇪 Please choose your language / Tafadhali chagua lugha yako:\n\n"
+            "1️⃣  English\n"
+            "2️⃣  Kiswahili\n\n"
+            "Reply with 1 or 2 / Jibu na 1 au 2"
+        )
+
+    # ── LANGUAGE SELECTION ───────────────────────────────────────────────────
+    if state.step == "LANGUAGE_SELECT":
+        # Parse language choice
+        t_lower = text.lower()
+        if t_lower in ("1", "english", "en", "eng"):
+            state.language = "en"
+            state.step = "WELCOME"
+            return handle_message(session_id, "__lang_selected__")
+        elif t_lower in ("2", "kiswahili", "swahili", "sw", "kis"):
+            state.language = "sw"
+            state.step = "WELCOME"
+            return handle_message(session_id, "__lang_selected__")
+        else:
+            # Return bilingual language selection prompt
+            return (
+                "🇰🇪 Welcome to Rafiki.ai! / Karibu Rafiki.ai!\n\n"
+                "Please choose your language / Tafadhali chagua lugha yako:\n\n"
+                "1️⃣  English\n"
+                "2️⃣  Kiswahili\n\n"
+                "Reply with 1 or 2 / Jibu na 1 au 2"
+            )
+
     # ── WELCOME ──────────────────────────────────────────────────────────────
     if state.step == "WELCOME":
         state.step = "ASK_DISABILITY"
-        return (
+        return t(state,
             "Hello! My name is Rafiki, your Government AI Assistant here to help you "
             "access all the government services you need. \n\n"
             "To get started, I will need to know a little bit about you.\n\n"
-            "Are you a person living with disabilities? (Yes / No)"
+            "Are you a person living with disabilities? (Yes / No)",
+            
+            "Habari! Jina langu ni Rafiki, Msaidizi wako wa AI wa Serikali "
+            "niko hapa kukusaidia kupata huduma zote za serikali unazohitaji.\n\n"
+            "Ili tuanze, nitahitaji kujua machache kukuhusu.\n\n"
+            "Je, wewe ni mtu anayeishi na ulemavu? (Ndiyo / Hapana)"
         )
 
     # ── DISABILITY CHECK ─────────────────────────────────────────────────────
     if state.step == "ASK_DISABILITY":
         yn = _yn(text)
         if yn is None:
-            return "Please reply with Yes or No — are you a person living with disabilities?"
+            return t(state,
+                "Please reply with Yes or No — are you a person living with disabilities?",
+                "Tafadhali jibu Ndiyo au Hapana — je, wewe ni mtu anayeishi na ulemavu?"
+            )
         state.has_disability = yn
         state.step = "MAIN_MENU"
-        return _main_menu()
+        return _main_menu(state)
 
     # ── MAIN MENU ────────────────────────────────────────────────────────────
     if state.step == "MAIN_MENU":
         MAIN_OPTIONS = ["Agencies", "Emergency Reporting", "Huduma Centre Lookup", "The Kenyan Constitution"]
         pick = _numbered_pick(text, MAIN_OPTIONS)
         if pick is None:
-            return _main_menu()
+            return _main_menu(state)
 
         if pick == "Agencies":
             state.step = "AGENCY_MENU"
@@ -178,7 +231,19 @@ def handle_message(session_id: str, user_input: str) -> str:
 # Menu builders
 # ---------------------------------------------------------------------------
 
-def _main_menu() -> str:
+def _main_menu(state: SessionState = None) -> str:
+    if state and state.language == "sw":
+        return (
+            "Vizuri, asante kwa kutoa habari hiyo. Hii itanisaidia kukupa "
+            "msaada na mwongozo unaofaa kwa mahitaji yako.\n\n"
+            "Unahitaji huduma gani leo? Huduma zinazopatikana ni:\n\n"
+            "1️⃣  Mashirika (NTSA, NCPWD, KRA, DCI, BRS, Uhamiaji, Boma Yangu, "
+            "Wizara ya Afya, Huduma za Kaunti)\n"
+            "2️⃣  Kuripoti Dharura\n"
+            "3️⃣  Kutafuta Kituo cha Huduma\n"
+            "4️⃣  Katiba ya Kenya\n\n"
+            "Tafadhali jibu na nambari au jina la huduma."
+        )
     return (
         "Great, thank you for providing that information. This will help me offer "
         "customised help and guidance tailored to your needs. \n\n"
