@@ -75,14 +75,14 @@ numpy==1.26.3
 # librosa==0.10.1  # depends on scipy
 
 # Image Processing for Avatar Animation
-pillow==10.1.0
-opencv-python==4.8.1.78
+# pillow==10.1.0  # requires build tools; only needed for avatar generation
+# opencv-python==4.8.1.78  # depends on pillow
 
 # Face Detection and Alignment for SadTalker
-opencv-contrib-python==4.8.1.78
-dlib==19.24.4
-face-alignment==1.3.5
-mediapipe>=0.10.13
+# opencv-contrib-python==4.8.1.78  # depends on opencv-python
+# dlib==19.24.4  # requires build tools
+# face-alignment==1.3.5  # depends on torch
+# mediapipe>=0.10.13  # requires build tools
 
 # SadTalker and Dependencies (when available)
 # sadtalker==0.0.1
