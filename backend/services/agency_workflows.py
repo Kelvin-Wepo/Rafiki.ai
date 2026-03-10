@@ -118,8 +118,8 @@ def handle_message(session_id: str, user_input: str) -> str:
         state.language = "en"
         return (
             "🇰🇪 Please choose your language / Tafadhali chagua lugha yako:\n\n"
-            "1️⃣  English\n"
-            "2️⃣  Kiswahili\n\n"
+            "1  English\n"
+            "2  Kiswahili\n\n"
             "Reply with 1 or 2 / Jibu na 1 au 2"
         )
 
@@ -140,8 +140,8 @@ def handle_message(session_id: str, user_input: str) -> str:
             return (
                 "🇰🇪 Welcome to Rafiki.ai! / Karibu Rafiki.ai!\n\n"
                 "Please choose your language / Tafadhali chagua lugha yako:\n\n"
-                "1️⃣  English\n"
-                "2️⃣  Kiswahili\n\n"
+                "1  English\n"
+                "2  Kiswahili\n\n"
                 "Reply with 1 or 2 / Jibu na 1 au 2"
             )
 
@@ -237,22 +237,22 @@ def _main_menu(state: SessionState = None) -> str:
             "Vizuri, asante kwa kutoa habari hiyo. Hii itanisaidia kukupa "
             "msaada na mwongozo unaofaa kwa mahitaji yako.\n\n"
             "Unahitaji huduma gani leo? Huduma zinazopatikana ni:\n\n"
-            "1️⃣  Mashirika (NTSA, NCPWD, KRA, DCI, BRS, Uhamiaji, Boma Yangu, "
+            "1  Mashirika (NTSA, NCPWD, KRA, DCI, BRS, Uhamiaji, Boma Yangu, "
             "Wizara ya Afya, Huduma za Kaunti)\n"
-            "2️⃣  Kuripoti Dharura\n"
-            "3️⃣  Kutafuta Kituo cha Huduma\n"
-            "4️⃣  Katiba ya Kenya\n\n"
+            "2  Kuripoti Dharura\n"
+            "3 Kutafuta Kituo cha Huduma\n"
+            "4 Katiba ya Kenya\n\n"
             "Tafadhali jibu na nambari au jina la huduma."
         )
     return (
         "Great, thank you for providing that information. This will help me offer "
         "customised help and guidance tailored to your needs. \n\n"
         "Which service are you looking for today? The available services are:\n\n"
-        "1️⃣  Agencies (NTSA, NCPWD, KRA, DCI, BRS, Immigration, Boma Yangu, "
+        "1 Agencies (NTSA, NCPWD, KRA, DCI, BRS, Immigration, Boma Yangu, "
         "Ministry of Health, County Services)\n"
-        "2️⃣  Emergency Reporting\n"
-        "3️⃣  Huduma Centre Lookup\n"
-        "4️⃣  The Kenyan Constitution\n\n"
+        "2  Emergency Reporting\n"
+        "3  Huduma Centre Lookup\n"
+        "4  The Kenyan Constitution\n\n"
         "Please reply with a number or the service name."
     )
 
@@ -261,15 +261,15 @@ def _agency_menu() -> str:
     return (
         " Government Agencies\n\n"
         "Please select an agency:\n\n"
-        "1️⃣  NTSA – National Transport & Safety Authority\n"
-        "2️⃣  NCPWD – National Council for Persons with Disabilities\n"
-        "3️⃣  KRA – Kenya Revenue Authority\n"
-        "4️⃣  DCI – Directorate of Criminal Investigations\n"
-        "5️⃣  BRS – Business Registration Service\n"
-        "6️⃣  Immigration – Passports & Permits\n"
-        "7️⃣  Boma Yangu – Affordable Housing\n"
-        "8️⃣  Ministry of Health\n"
-        "9️⃣  County Services\n\n"
+        "1  NTSA – National Transport & Safety Authority\n"
+        "2 NCPWD – National Council for Persons with Disabilities\n"
+        "3  KRA – Kenya Revenue Authority\n"
+        "4  DCI – Directorate of Criminal Investigations\n"
+        "5  BRS – Business Registration Service\n"
+        "6  Immigration – Passports & Permits\n"
+        "7  Boma Yangu – Affordable Housing\n"
+        "8  Ministry of Health\n"
+        "9  County Services\n\n"
         "Reply with a number or agency name."
     )
 
@@ -278,76 +278,76 @@ def _agency_service_menu(agency: str) -> str:
     menus = {
         "NTSA": (
             "Welcome to NTSA \n\nThe available services are:\n\n"
-            "1️⃣  Apply for a Driving Licence\n"
-            "2️⃣  Renew a Driving Licence\n"
-            "3️⃣  Book an Appointment\n\n"
+            "1  Apply for a Driving Licence\n"
+            "2  Renew a Driving Licence\n"
+            "3  Book an Appointment\n\n"
             "Which one would you like?"
         ),
         "NCPWD": (
             "Welcome to NCPWD\n\nThe available services are:\n\n"
-            "1️⃣  Register as a Person with Disability\n"
-            "2️⃣  Apply for a Disability Card\n"
-            "3️⃣  Check Registration Status\n"
-            "4️⃣  Disability Allowance / Benefits\n\n"
+            "1  Register as a Person with Disability\n"
+            "2  Apply for a Disability Card\n"
+            "3  Check Registration Status\n"
+            "4  Disability Allowance / Benefits\n\n"
             "Which one would you like?"
         ),
         "KRA": (
             "Welcome to KRA\n\nThe available services are:\n\n"
-            "1️⃣  Register for a KRA PIN\n"
-            "2️⃣  File Nil Returns\n"
-            "3️⃣  File Income Tax Returns\n"
-            "4️⃣  Apply for a Tax Compliance Certificate\n"
-            "5️⃣  Check iTax Account Status\n\n"
+            "1  Register for a KRA PIN\n"
+            "2  File Nil Returns\n"
+            "3  File Income Tax Returns\n"
+            "4  Apply for a Tax Compliance Certificate\n"
+            "5  Check iTax Account Status\n\n"
             "Which one would you like?"
         ),
         "DCI": (
             "Welcome to DCI\n\nThe available services are:\n\n"
-            "1️⃣  Apply for a Good Conduct Certificate\n"
-            "2️⃣  Check Application Status\n\n"
+            "1  Apply for a Good Conduct Certificate\n"
+            "2  Check Application Status\n\n"
             "Which one would you like?"
         ),
         "BRS": (
             "🏢 Welcome to BRS – Business Registration\n\nThe available services are:\n\n"
-            "1️⃣  Register a Business Name\n"
-            "2️⃣  Incorporate a Limited Company\n"
-            "3️⃣  Register a Partnership\n"
-            "4️⃣  Check Business Name Availability\n"
-            "5️⃣  Renew Business Registration\n\n"
+            "1  Register a Business Name\n"
+            "2 Incorporate a Limited Company\n"
+            "3  Register a Partnership\n"
+            "4  Check Business Name Availability\n"
+            "5  Renew Business Registration\n\n"
             "Which one would you like?"
         ),
         "Immigration": (
             "Welcome to Immigration Department\n\nThe available services are:\n\n"
-            "1️⃣  Apply for a Passport\n"
-            "2️⃣  Renew a Passport\n"
-            "3️⃣  Apply for a Work Permit\n"
-            "4️⃣  Apply for a Student Pass\n"
-            "5️⃣  Check Application Status\n\n"
+            "1  Apply for a Passport\n"
+            "2  Renew a Passport\n"
+            "3  Apply for a Work Permit\n"
+            "4  Apply for a Student Pass\n"
+            "5  Check Application Status\n\n"
             "Which one would you like?"
         ),
         "Boma Yangu": (
             "Welcome to Boma Yangu – Affordable Housing\n\nThe available services are:\n\n"
-            "1️⃣  Register / Create an Account\n"
-            "2️⃣  Apply for a Housing Unit\n"
-            "3️⃣  Check Application Status\n"
-            "4️⃣  Affordable Housing Levy Information\n\n"
+            "1  Register / Create an Account\n"
+            "2  Apply for a Housing Unit\n"
+            "3  Check Application Status\n"
+            "4  Affordable Housing Levy Information\n\n"
             "Which one would you like?"
         ),
         "Ministry of Health": (
             "Welcome to Ministry of Health \n\nThe available services are:\n\n"
-            "1️⃣  NHIF Registration\n"
-            "2️⃣  NHIF Contributions & Status\n"
-            "3️⃣  Book Hospital Appointment\n"
-            "4️⃣  Health Facility Finder\n"
-            "5️⃣  Vaccination / Immunisation Records\n\n"
+            "1  NHIF Registration\n"
+            "2  NHIF Contributions & Status\n"
+            "3  Book Hospital Appointment\n"
+            "4  Health Facility Finder\n"
+            "5  Vaccination / Immunisation Records\n\n"
             "Which one would you like?"
         ),
         "County Services": (
             "Welcome to County Services\n\nThe available services are:\n\n"
-            "1️⃣  Single Business Permit (SBP)\n"
-            "2️⃣  Land Rates Payment\n"
-            "3️⃣  County Health Certificate\n"
-            "4️⃣  Market / Trade Stall Application\n"
-            "5️⃣  County Bursary Application\n\n"
+            "1  Single Business Permit (SBP)\n"
+            "2  Land Rates Payment\n"
+            "3  County Health Certificate\n"
+            "4  Market / Trade Stall Application\n"
+            "5  County Bursary Application\n\n"
             "Which one would you like?"
         ),
     }
@@ -432,9 +432,9 @@ def _ntsa(state: SessionState, text: str) -> str:
             state.step = "NTSA_APPT_TYPE"
             return (
                 "Book an Appointment\n\nWhich appointment service do you need?\n\n"
-                "1️⃣  Driving Test\n"
-                "2️⃣  Biometrics\n"
-                "3️⃣  Picking a Driving Licence\n\n"
+                "1  Driving Test\n"
+                "2  Biometrics\n"
+                "3  Picking a Driving Licence\n\n"
                 "Which one would you like?"
             )
 
@@ -643,7 +643,7 @@ def _ntsa(state: SessionState, text: str) -> str:
         if pick is None:
             return (
                 "Please select an appointment type:\n\n"
-                "1️⃣  Driving Test\n2️⃣  Biometrics\n3️⃣  Picking a Driving Licence"
+                "1  Driving Test\n2  Biometrics\n3  Picking a Driving Licence"
             )
         state.sub_service = pick
         state.data = {}
@@ -1473,10 +1473,10 @@ def _boma_yangu(state: SessionState, text: str) -> str:
         state.step = "BOMA_UNIT_TYPE"
         return (
             "Which type of unit are you applying for?\n\n"
-            "1️⃣  Studio (Ksh. 900,000)\n"
-            "2️⃣  1 Bedroom (Ksh. 1,500,000)\n"
-            "3️⃣  2 Bedroom (Ksh. 3,000,000)\n"
-            "4️⃣  3 Bedroom (Ksh. 4,500,000)"
+            "1  Studio (Ksh. 900,000)\n"
+            "2  1 Bedroom (Ksh. 1,500,000)\n"
+            "3  2 Bedroom (Ksh. 3,000,000)\n"
+            "4  3 Bedroom (Ksh. 4,500,000)"
         )
 
     if step == "BOMA_UNIT_TYPE":
@@ -1749,12 +1749,12 @@ def _emergency_handler(state: SessionState, text: str) -> str:
         return (
             "Emergency Reporting\n\n"
             "Please select the type of emergency:\n\n"
-            "1️⃣  Medical Emergency\n"
-            "2️⃣  Fire\n"
-            "3️⃣  Crime / Security Threat\n"
-            "4️⃣  Road Accident\n"
-            "5️⃣  Natural Disaster\n"
-            "6️⃣  Other\n\n"
+            "1  Medical Emergency\n"
+            "2  Fire\n"
+            "3  Crime / Security Threat\n"
+            "4  Road Accident\n"
+            "5  Natural Disaster\n"
+            "6  Other\n\n"
             "Reply with a number or emergency type."
         )
 
