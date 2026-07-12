@@ -1,18 +1,14 @@
 /**
  * LoginPage - Rafiki.ai Sign In
- * "Savanna at Dawn" themed login page
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Lock, AlertCircle } from 'lucide-react';
+import { User, Lock, AlertCircle, ShieldCheck, ExternalLink } from 'lucide-react';
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
+import { RafikiLogo } from '../components/RafikiLogo';
 import { useAuth } from '../contexts/AuthContext';
-import loginBg from '../assets/login.png';
-import rafikiAvatar from '../assets/rafiki_avatar.png';
 import '../styles/auth.css';
-
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 interface FormData {
   emailOrPhone: string;
@@ -43,6 +39,7 @@ export function LoginPage() {
   const { passwordLogin, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
   const [lastUserName, setLastUserName] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
@@ -51,6 +48,17 @@ export function LoginPage() {
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
+
+  // Focus targets for screen reader users: first invalid field / error banner
+  const emailOrPhoneRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error) {
+      errorBannerRef.current?.focus();
+    }
+  }, [error]);
 
   // Check for returning user
   useEffect(() => {
@@ -90,10 +98,15 @@ export function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     setTouched(new Set(['emailOrPhone', 'password']));
 
     if (!validateForm()) {
+      if (!validateEmailOrPhone(formData.emailOrPhone)) {
+        emailOrPhoneRef.current?.focus();
+      } else {
+        passwordRef.current?.focus();
+      }
       return;
     }
 
@@ -115,8 +128,8 @@ export function LoginPage() {
       } else {
         throw new Error(response.message || 'Invalid credentials');
       }
-    } catch (err: any) {
-      setError(err.message || 'Invalid email/phone or password');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Invalid email/phone or password');
       // Trigger shake animation
       setShake(true);
       setTimeout(() => setShake(false), 600);
@@ -125,95 +138,61 @@ export function LoginPage() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    // TODO: Implement Google OAuth
-    window.location.href = `${API_BASE}/auth/google`;
+  const handleEcitizenSignIn = () => {
+    // TODO: implement eCitizen OAuth once the integration exists
+    setNotice('eCitizen sign-in is coming soon — please use your email or phone number for now.');
   };
 
   return (
     <div className="auth-page">
-      {/* Background Panel - Desktop */}
-      <div className="auth-bg-panel">
-        <img
-          src={loginBg}
-          alt=""
-          className="auth-bg-image absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="auth-bg-overlay" />
-        <div className="auth-bg-content">
-          <img
-            src={rafikiAvatar}
-            alt=""
-            className="rafiki-glow w-20 h-20 mb-6"
-            aria-hidden="true"
-          />
-          <h1 className="font-playfair text-4xl lg:text-5xl text-white leading-tight mb-2">
-            Welcome back.
-          </h1>
-          <h2 className="font-playfair text-4xl lg:text-5xl leading-tight mb-4" style={{ color: '#C8860A' }}>
-            Rafiki is ready.
-          </h2>
-          <p className="font-dm-sans text-base text-white/70 max-w-md">
-            Your government services are just a conversation away.
-          </p>
-        </div>
-      </div>
-
-      {/* Mobile Background */}
-      <div className="auth-mobile-bg lg:hidden">
-        <img src={loginBg} alt="" className="w-full h-full object-cover" />
-        <div className="auth-mobile-overlay" />
+      {/* Kenya badge */}
+      <div className="auth-topbar">
+        <span className="kenya-badge">🇰🇪 Kenya</span>
       </div>
 
       {/* Form Panel */}
-      <div className="auth-form-panel">
+      <main className="auth-form-panel">
         <AuthCard shake={shake}>
-          <form onSubmit={handleSubmit} noValidate>
-            {/* Returning User Greeting */}
-            {lastUserName && (
-              <div className="text-center mb-2 fade-up">
-                <p className="font-dm-sans text-sm" style={{ color: '#C8860A' }}>
-                  Welcome back, {lastUserName}
-                </p>
-              </div>
-            )}
-
+          <form onSubmit={handleSubmit} noValidate aria-labelledby="login-heading">
             {/* Header */}
-            <div className="text-center mb-8 fade-up">
-              <img
-                src={rafikiAvatar}
-                alt="Rafiki AI"
-                className="rafiki-glow-subtle w-12 h-12 mx-auto mb-4"
-              />
-              <h1 className="font-playfair text-2xl md:text-3xl text-gray-900 mb-2">
-                Sign in to Rafiki
+            <div className="text-center mb-5 fade-up">
+              <RafikiLogo size={30} showTagline className="mb-3" />
+              <h1 id="login-heading" className="font-playfair text-2xl md:text-3xl text-gray-900 mb-2">
+                {lastUserName ? `Welcome back, ${lastUserName}!` : 'Welcome back!'}
               </h1>
               <p className="font-dm-sans text-sm text-gray-500">
-                Good to have you back
+                Let's securely connect to your eCitizen account so I can help you.
               </p>
             </div>
 
             {/* Error Banner */}
             {error && (
-              <div className="auth-error-banner mb-6 fade-up" role="alert">
+              <div
+                ref={errorBannerRef}
+                className="auth-error-banner mb-6"
+                role="alert"
+                tabIndex={-1}
+              >
                 <AlertCircle size={20} aria-hidden="true" />
                 <span>{error}</span>
               </div>
             )}
 
             {/* Form Fields */}
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Email or Phone */}
               <div className="fade-up fade-up-delay-1">
                 <AuthInput
-                  label="Email or Phone"
-                  placeholder="Email address or 07XX XXX XXX"
+                  label="Email or Phone Number"
+                  placeholder="Enter your email or phone number"
                   icon={<User size={20} aria-hidden="true" />}
                   value={formData.emailOrPhone}
                   onChange={(v) => updateField('emailOrPhone', v)}
                   error={touched.has('emailOrPhone') ? formErrors.emailOrPhone : undefined}
                   autoComplete="username"
                   required
+                  staticLabel
+                  inputRef={emailOrPhoneRef}
                 />
               </div>
 
@@ -221,7 +200,7 @@ export function LoginPage() {
               <div className="fade-up fade-up-delay-2">
                 <AuthInput
                   label="Password"
-                  placeholder="Your password"
+                  placeholder="Enter your password"
                   icon={<Lock size={20} aria-hidden="true" />}
                   value={formData.password}
                   onChange={(v) => updateField('password', v)}
@@ -229,10 +208,12 @@ export function LoginPage() {
                   showPasswordToggle
                   autoComplete="current-password"
                   required
+                  staticLabel
+                  inputRef={passwordRef}
                 />
               </div>
 
-              {/* Forgot Password Link */}
+              {/* Forgot Password */}
               <div className="text-right fade-up fade-up-delay-3">
                 <Link to="/forgot-password" className="auth-link text-sm">
                   Forgot password?
@@ -240,48 +221,67 @@ export function LoginPage() {
               </div>
 
               {/* Submit Button */}
-              <div className="fade-up fade-up-delay-4 pt-2">
+              <div className="fade-up fade-up-delay-4">
                 <AuthButton
                   type="submit"
                   variant="primary"
                   fullWidth
                   loading={loading}
                 >
-                  Sign In
+                  <Lock size={18} aria-hidden="true" />
+                  Sign in securely
                 </AuthButton>
               </div>
 
               {/* Divider */}
               <div className="auth-divider fade-up fade-up-delay-5">
                 <div className="auth-divider-line" />
-                <span className="auth-divider-text">or</span>
+                <span className="auth-divider-text">OR</span>
                 <div className="auth-divider-line" />
               </div>
 
-              {/* Google Button */}
+              {/* eCitizen Button */}
               <div className="fade-up fade-up-delay-5">
-                <AuthButton
-                  variant="google"
-                  fullWidth
-                  onClick={handleGoogleSignIn}
-                >
-                  Continue with Google
+                <AuthButton variant="google" fullWidth onClick={handleEcitizenSignIn}>
+                  <ExternalLink size={18} aria-hidden="true" />
+                  <span>
+                    Continue with{' '}
+                    <strong style={{ color: 'var(--rafiki-green-deep)' }}>eCitizen</strong>
+                  </span>
                 </AuthButton>
+                {notice && (
+                  <p role="status" className="font-dm-sans text-xs text-gray-500 mt-2 text-center">
+                    {notice}
+                  </p>
+                )}
+              </div>
+
+              {/* Trust box */}
+              <div className="auth-trust-box fade-up fade-up-delay-6">
+                <ShieldCheck size={20} aria-hidden="true" />
+                <span>
+                  Your credentials are only used to access your eCitizen account
+                  with your permission.
+                </span>
               </div>
 
               {/* Footer Link */}
-              <div className="text-center pt-4 fade-up fade-up-delay-6">
+              <div className="text-center pt-2 fade-up fade-up-delay-6">
                 <p className="font-dm-sans text-sm text-gray-600">
-                  Don't have an account?{' '}
+                  New to Rafiki?{' '}
                   <Link to="/signup" className="auth-link">
-                    Create one
+                    Create an account
                   </Link>
                 </p>
               </div>
             </div>
           </form>
         </AuthCard>
-      </div>
+      </main>
+
+      {/* Footer strip */}
+      <div className="kenya-stripe" aria-hidden="true" />
+      <div className="proudly-kenyan">Proudly Kenyan 🇰🇪</div>
     </div>
   );
 }
