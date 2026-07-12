@@ -6,7 +6,7 @@ All sensitive credentials are loaded from environment variables.
 import os
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 # Get the path to the .env file (in parent directory)
