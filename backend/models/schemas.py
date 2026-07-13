@@ -406,4 +406,55 @@ class CheckWaitlistStatusResponse(BaseModel):
     position: Optional[int] = Field(None, description="Position in waitlist (if pending)")
     joined_at: str = Field(..., description="Timestamp when joined")
     activated_at: Optional[str] = Field(None, description="Timestamp when activated")
+
+
+# ================= Chat / Conversation Schemas =================
+
+
+class ChatMessageCreate(BaseModel):
+    session_id: str = Field(..., description="Conversation / session id")
+    sender: str = Field(..., description="'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+    audio_url: Optional[str] = Field(None, description="Optional audio URL")
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    session_id: str
+    sender: str
+    content: str
+    audio_url: Optional[str]
+    created_at: datetime
+
+
+class ChatSessionListOut(BaseModel):
+    id: str
+    title: Optional[str]
+    last_message_preview: Optional[str]
+    updated_at: datetime
+
+
+class ChatSessionDetailOut(BaseModel):
+    id: str
+    title: Optional[str]
+    status: Optional[str]
+    last_message_preview: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    messages: List[ChatMessageOut]
+
+
+class TranscriptOut(BaseModel):
+    transcript_id: str
+    conversation_id: str
+    filename: str
+    file_path: str
+    content_type: str
+    is_read: bool
+    generated_at: datetime
+
+
+class UnreadCountOut(BaseModel):
+    count: int
+
     message: str = Field(..., description="Status message")
