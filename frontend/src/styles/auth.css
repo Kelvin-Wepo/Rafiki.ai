@@ -557,8 +557,8 @@
   font-family: 'DM Sans', system-ui, sans-serif;
   background-color: #F8F3E7;
   background-image:
-    repeating-linear-gradient(45deg, rgba(27, 67, 50, 0.035) 0 2px, transparent 2px 16px),
-    repeating-linear-gradient(-45deg, rgba(200, 134, 10, 0.03) 0 2px, transparent 2px 16px);
+    repeating-linear-gradient(45deg, rgba(27, 67, 50, 0.010) 0 2px, transparent 2px 16px),
+    repeating-linear-gradient(-45deg, rgba(200, 134, 10, 0.008) 0 2px, transparent 2px 16px);
 }
 
 /* Floats over the page (no layout height) so the card + footer can fit
@@ -640,6 +640,16 @@
    the redesign card is plain white — hide it on auth pages */
 .auth-page .auth-card::before {
   display: none;
+}
+
+/* Landing hero mascot: scale down on height-limited screens so the page
+   still fits without scrolling (unlayered rule outranks Tailwind widths) */
+@media (max-height: 950px) {
+  .landing-mascot {
+    width: 26rem;
+    margin-top: -2.25rem;
+    margin-bottom: -2.25rem;
+  }
 }
 
 /* Short viewports (e.g. 1366x768 laptops): compress vertical rhythm so the

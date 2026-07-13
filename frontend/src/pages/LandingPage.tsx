@@ -23,12 +23,12 @@ import { RafikiLogo } from '../components/RafikiLogo';
 import '../styles/auth.css';
 
 const SERVICES = [
-  { label: 'Apply for', name: 'Passport', icon: FileText, bg: '#17603A' },
-  { label: 'Renew', name: 'Driving Licence', icon: Car, bg: '#C8860A' },
-  { label: 'Register', name: 'Business', icon: Briefcase, bg: '#17603A' },
-  { label: 'Birth', name: 'Certificate', icon: Baby, bg: '#C8102E' },
-  { label: 'Police', name: 'Clearance', icon: Shield, bg: '#161616' },
-  { label: 'Land', name: 'Services', icon: Home, bg: '#C8860A' },
+  { label: 'Apply for', name: 'Passport', desc: 'New applications & renewals', icon: FileText, bg: '#17603A' },
+  { label: 'Renew', name: 'Driving Licence', desc: 'Book your NTSA slot', icon: Car, bg: '#C8860A' },
+  { label: 'Register', name: 'Business', desc: 'Names, permits & filings', icon: Briefcase, bg: '#17603A' },
+  { label: 'Birth', name: 'Certificate', desc: 'Order official copies', icon: Baby, bg: '#C8102E' },
+  { label: 'Police', name: 'Clearance', desc: 'Good conduct certificate', icon: Shield, bg: '#161616' },
+  { label: 'Land', name: 'Services', desc: 'Searches & land rates', icon: Home, bg: '#C8860A' },
 ];
 
 const TRUST_ITEMS = [
@@ -45,8 +45,8 @@ export function LandingPage() {
       style={{
         backgroundColor: '#F8F3E7',
         backgroundImage:
-          'repeating-linear-gradient(45deg, rgba(27,67,50,0.035) 0 2px, transparent 2px 16px),' +
-          'repeating-linear-gradient(-45deg, rgba(200,134,10,0.03) 0 2px, transparent 2px 16px)',
+          'repeating-linear-gradient(45deg, rgba(27,67,50,0.010) 0 2px, transparent 2px 16px),' +
+          'repeating-linear-gradient(-45deg, rgba(200,134,10,0.008) 0 2px, transparent 2px 16px)',
       }}
     >
       {/* Header */}
@@ -82,22 +82,22 @@ export function LandingPage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="max-w-6xl mx-auto px-4 pt-10 pb-6 grid md:grid-cols-2 gap-10 items-center">
+        <section className="max-w-6xl mx-auto px-4 pt-4 pb-0 grid md:grid-cols-2 gap-4 items-center">
           <div>
             <span
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium mb-6"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium mb-4"
               style={{ background: '#F3EAD3', color: '#4B3A12' }}
             >
               🇰🇪 Proudly built for Kenya
             </span>
-            <h1 className="font-playfair text-4xl lg:text-5xl leading-tight text-gray-900 mb-4">
+            <h1 className="font-playfair text-4xl lg:text-5xl leading-tight text-gray-900 mb-3">
               Your AI Assistant<br />
               for <span style={{ color: 'var(--rafiki-green-deep)' }}>Government<br />Services</span>
             </h1>
-            <p className="text-base text-gray-600 max-w-md mb-8">
+            <p className="text-base text-gray-600 max-w-md mb-5">
               Tell Rafiki what you need, and I'll handle the rest. Fast, simple, secure.
             </p>
-            <div className="flex flex-wrap gap-3 mb-6">
+            <div className="flex flex-wrap gap-3 mb-4">
               <Link
                 to="/login"
                 className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-white"
@@ -123,11 +123,25 @@ export function LandingPage() {
             </p>
           </div>
 
-          {/* Mascot area — TODO: replace the circle with the Rafiki mascot
-              illustration once the asset is available from design */}
-          <div className="relative flex items-center justify-center py-6" aria-hidden="true">
+          <div className="relative flex items-center justify-center" aria-hidden="true">
+            <img
+              src="/rafiki-mascot.png"
+              alt=""
+              className="landing-mascot w-120 lg:w-xl max-w-full mix-blend-multiply -my-8"
+              style={{
+                WebkitMaskImage:
+                  'radial-gradient(ellipse 74% 72% at 50% 46%, black 60%, transparent 97%)',
+                maskImage:
+                  'radial-gradient(ellipse 74% 72% at 50% 46%, black 60%, transparent 97%)',
+              }}
+              onError={(e) => {
+                const img = e.currentTarget;
+                img.style.display = 'none';
+                img.nextElementSibling?.classList.replace('hidden', 'flex');
+              }}
+            />
             <div
-              className="w-72 h-72 lg:w-80 lg:h-80 rounded-full flex items-center justify-center"
+              className="hidden w-72 h-72 lg:w-80 lg:h-80 rounded-full items-center justify-center"
               style={{
                 background:
                   'radial-gradient(circle at 50% 40%, rgba(45,106,79,0.14), rgba(200,134,10,0.08) 70%, transparent)',
@@ -135,25 +149,11 @@ export function LandingPage() {
             >
               <RafikiLogo size={56} />
             </div>
-            {/* Floating service chips */}
-            {[
-              { label: 'eCitizen', top: '2%', left: '46%' },
-              { label: 'NTSA', top: '14%', left: '78%' },
-              { label: 'KRA', top: '44%', left: '88%' },
-              { label: 'Health', top: '72%', left: '78%' },
-              { label: 'Immigration', top: '14%', left: '6%' },
-              { label: 'Business', top: '46%', left: '0%' },
-            ].map((chip) => (
-              <span
-                key={chip.label}
-                className="absolute px-3 py-1.5 rounded-full bg-white shadow-md text-xs font-medium text-gray-600"
-                style={{ top: chip.top, left: chip.left }}
-              >
-                {chip.label}
-              </span>
-            ))}
             {/* Greeting bubble */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-lg px-6 py-4 text-center whitespace-nowrap">
+            <div
+              className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-7 py-4 text-center whitespace-nowrap"
+              style={{ boxShadow: '0 10px 32px rgba(27, 67, 50, 0.12)' }}
+            >
               <p className="font-semibold text-gray-900">👋 Habari, I'm Rafiki</p>
               <p className="text-sm text-gray-500">How can I help you today?</p>
             </div>
@@ -161,33 +161,34 @@ export function LandingPage() {
         </section>
 
         {/* Services */}
-        <section className="max-w-6xl mx-auto px-4 py-8" aria-labelledby="services-heading">
+        <section className="max-w-6xl mx-auto px-4 pt-4 pb-4" aria-labelledby="services-heading">
           <h2 id="services-heading" className="sr-only">
             Popular services
           </h2>
           <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 list-none p-0">
-            {SERVICES.map(({ label, name, icon: Icon, bg }) => (
+            {SERVICES.map(({ label, name, desc, icon: Icon, bg }) => (
               <li key={name}>
                 <Link
                   to="/login"
-                  className="flex flex-col items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-6 text-center hover:shadow-md transition-shadow h-full"
+                  className="flex flex-col items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-6 text-center transition-all duration-200 hover:shadow-lg hover:-translate-y-1 h-full"
                 >
                   <span
-                    className="w-14 h-14 rounded-full flex items-center justify-center"
+                    className="w-16 h-16 rounded-full flex items-center justify-center"
                     style={{ background: bg }}
                   >
-                    <Icon size={24} color="white" aria-hidden="true" />
+                    <Icon size={28} color="white" aria-hidden="true" />
                   </span>
                   <span className="text-sm text-gray-700 leading-snug">
                     {label}
                     <strong className="block text-gray-900">{name}</strong>
                   </span>
+                  <span className="text-xs text-gray-400 leading-snug">{desc}</span>
                 </Link>
               </li>
             ))}
           </ul>
           <p
-            className="mt-6 mx-auto w-fit px-6 py-2.5 rounded-full text-sm"
+            className="mt-4 mx-auto w-fit px-6 py-2.5 rounded-full text-sm"
             style={{ background: '#F3EAD3', color: '#4B3A12' }}
           >
             ✨ More services coming soon. Tell me what you need!
@@ -197,7 +198,7 @@ export function LandingPage() {
 
       {/* Trust footer */}
       <footer style={{ background: 'var(--rafiki-green-ink)' }}>
-        <div className="max-w-6xl mx-auto px-4 py-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-5 grid grid-cols-2 md:grid-cols-4 gap-6">
           {TRUST_ITEMS.map(({ icon: Icon, title, sub }) => (
             <div key={title} className="flex items-center gap-3 text-white">
               <Icon size={20} aria-hidden="true" className="shrink-0 opacity-90" />

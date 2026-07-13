@@ -261,7 +261,10 @@ export function LoginPage() {
                 <ShieldCheck size={20} aria-hidden="true" />
                 <span>
                   Your credentials are only used to access your eCitizen account
-                  with your permission.
+                  with your permission.{' '}
+                  <Link to="/" className="auth-link">
+                    Learn more
+                  </Link>
                 </span>
               </div>
 
