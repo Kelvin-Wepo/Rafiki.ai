@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from services.auth_service import AuthService, get_auth_service
+from models.user import User, AuthProvider, UserStatus, hash_value
 
 
 @pytest.fixture
@@ -278,6 +279,116 @@ async def test_export_transcript_json(auth_service, sample_user_data):
     assert result["success"] is True
     assert result["content"] is not None
     assert result["filename"].endswith(".json")
+
+
+@pytest.mark.asyncio
+async def test_export_transcript_pdf(auth_service, sample_user_data):
+    """Test exporting conversation as a PDF document."""
+    conv_result = await auth_service.create_conversation(sample_user_data["user_id"])
+    conversation_id = conv_result["conversation_id"]
+    await auth_service.add_message(conversation_id, "user", "Hello")
+    await auth_service.add_message(conversation_id, "assistant", "This is a PDF test")
+
+    result = await auth_service.export_transcript(
+        conversation_id=conversation_id,
+        user_id=sample_user_data["user_id"],
+        format="pdf"
+    )
+
+    assert result["success"] is True
+    assert isinstance(result["content"], (bytes, bytearray))
+    assert result["content"].startswith(b"%PDF")
+    assert result["filename"].endswith(".pdf")
+
+
+def test_get_user_history_includes_receipts(auth_service, sample_user_data):
+    """Test that user history returns matching receipt records."""
+    user = User(
+        id=sample_user_data["user_id"],
+        phone_number_hash=hash_value(sample_user_data["phone_number"]),
+        phone_number_masked="+254***678",
+        auth_provider=AuthProvider.PHONE,
+        status=UserStatus.ACTIVE,
+    )
+    auth_service._users[user.id] = user
+    auth_service._users_by_phone[user.phone_number_hash] = user.id
+    auth_service._user_conversations[user.id] = []
+
+    with patch('services.application_service._load_applications') as mock_apps, \
+         patch('services.booking_service._load_agency_bookings') as mock_bookings:
+        mock_apps.return_value = {
+            'APP-123': {
+                'application_ref': 'APP-123',
+                'agency': 'NTSA',
+                'service': 'Driving Licence',
+                'status': 'submitted',
+                'applicant': {
+                    'name': 'John Doe',
+                    'id_number': '12345678',
+                    'phone': '+254712345678',
+                    'email': 'john@example.com',
+                },
+                'payment': {
+                    'reference': 'PAY-123',
+                    'amount': 1500,
+                    'status': 'paid',
+                    'paid_at': '2025-01-01T10:00:00'
+                },
+                'created_at': '2025-01-01T09:00:00',
+            }
+        }
+        mock_bookings.return_value = {}
+
+        history = auth_service.get_user_history(sample_user_data["user_id"])
+
+        assert isinstance(history, dict)
+        assert isinstance(history.get('receipts'), list)
+        assert len(history['receipts']) == 1
+        assert history['receipts'][0]['receipt_ref'] == 'APP-123'
+
+
+def test_export_receipt_pdf(auth_service, sample_user_data):
+    """Test exporting a receipt PDF for a user-owned application."""
+    user = User(
+        id=sample_user_data["user_id"],
+        phone_number_hash=hash_value(sample_user_data["phone_number"]),
+        phone_number_masked="+254***678",
+        auth_provider=AuthProvider.PHONE,
+        status=UserStatus.ACTIVE,
+    )
+    auth_service._users[user.id] = user
+    auth_service._users_by_phone[user.phone_number_hash] = user.id
+    auth_service._user_conversations[user.id] = []
+
+    with patch('services.application_service.get_application') as mock_get_application, \
+         patch('services.application_service.get_application_by_payment_ref') as mock_get_by_payment:
+        mock_get_application.return_value = {
+            'application_ref': 'APP-456',
+            'agency': 'KRA',
+            'service': 'Tax Registration',
+            'status': 'submitted',
+            'applicant': {
+                'name': 'John Doe',
+                'id_number': '12345678',
+                'phone': '+254712345678',
+                'email': 'john@example.com',
+            },
+            'payment': {
+                'reference': 'PAY-456',
+                'amount': 2000,
+                'status': 'paid',
+                'paid_at': '2025-01-02T14:00:00'
+            },
+            'created_at': '2025-01-02T13:00:00',
+        }
+        mock_get_by_payment.return_value = None
+
+        result = auth_service.export_receipt(sample_user_data["user_id"], 'APP-456')
+
+        assert result["success"] is True
+        assert isinstance(result["content"], (bytes, bytearray))
+        assert result["content"].startswith(b"%PDF")
+        assert result["filename"].endswith('.pdf')
 
 
 # ============== Audit Log Tests ==============

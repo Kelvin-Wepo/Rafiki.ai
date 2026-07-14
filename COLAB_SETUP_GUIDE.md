@@ -85,7 +85,7 @@ echo "COLAB_SADTALKER_URL=https://abc123.ngrok.io" >> backend/.env
 
 ```bash
 cd /home/subchief/5TECH/backend
-source venv/bin/activate
+source ../.venv/bin/activate
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 

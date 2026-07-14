@@ -424,7 +424,7 @@ def _ntsa(state: SessionState, text: str) -> str:
             state.step = "NTSA_RENEW_CONFIRM"
             return (
                 "I will help you Renew your Driving Licence.\n\n"
-                "You will be required to pay a renewal fee of **Ksh. 1,200**.\n\n"
+                "You will be required to pay a renewal fee of **Ksh. 1**.\n\n"
                 "Would you like me to proceed? (Yes / No)"
             )
 

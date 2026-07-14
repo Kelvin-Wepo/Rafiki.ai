@@ -100,8 +100,8 @@ cd Rafiki.ai
 
 ```bash
 # Create virtual environment
-python3 -m venv sadtalker
-source sadtalker/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 # Install dependencies
 cd backend
@@ -153,9 +153,22 @@ DEBUG=true
 
 ```bash
 cd backend
-source ../sadtalker/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+source ../.venv/bin/activate
+python -m deactivate
 ```
+
+> If you run from the repository root, use:
+>
+> ```bash
+> source .venv/bin/activate
+> python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+> ```
+>
+> If you still see `ModuleNotFoundError: No module named 'jose'`, reinstall the backend dependencies inside the same venv:
+>
+> ```bash
+> .venv/bin/python -m pip install -r backend/requirements.txt
+> ```
 
 #### 5. Frontend Setup
 
@@ -670,7 +683,7 @@ Bot: ✅ Appointment booked! You'll receive SMS confirmation shortly.
 
 ```bash
 cd backend
-source venv/bin/activate
+source ../.venv/bin/activate
 
 # Run all tests
 python -m pytest tests/ -v

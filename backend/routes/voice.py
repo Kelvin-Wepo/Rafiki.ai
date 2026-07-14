@@ -20,13 +20,75 @@ from services.gemini_service import gemini_service
 from services.dialogflow_service import dialogflow_service
 from services.booking_service import booking_service
 from services.workflow_integration import get_workflow_integration
+from services.auth_service import get_auth_service
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
 from utils.logger import get_logger, RequestLogger
 from rafiki_settings import ASSISTANT_RESPONSES
 
+# Import optional user dependency from auth routes to preserve auth-aware transcript saving
+from routes.auth import get_optional_user
+
 logger = get_logger(__name__)
 router = APIRouter(prefix="/voice", tags=["Voice Processing"])
+
+
+def _build_transcript_title(history: list) -> str:
+    """Create a friendly transcript title from conversation history."""
+    if not history:
+        return "Completed Service Transcript"
+
+    first_user = next((m for m in history if m.get("role") == "user"), history[0])
+    prompt = first_user.get("content", "Completed Service Transcript").strip()
+    title = prompt[:60].strip()
+    if len(prompt) > 60:
+        title = f"{title}..."
+    return title or "Completed Service Transcript"
+
+
+def _should_save_transcript(workflow_response: dict) -> bool:
+    """Decide whether a completed workflow should generate a transcript."""
+    if workflow_response.get("workflow_complete"):
+        return True
+    workflow_context = workflow_response.get("workflow_context", {})
+    if workflow_context.get("step") == "SESSION_END":
+        return True
+    return False
+
+
+async def _save_transcript_for_user(session_identifier, user: dict):
+    """Save a transcript conversation for an authenticated user."""
+    if not user:
+        return
+
+    session_id = session_identifier.session_id if hasattr(session_identifier, "session_id") else session_identifier
+    session = await session_manager.get_session(session_id)
+    if not session or session.conversation_context.get("_transcript_saved"):
+        return
+
+    history = session.conversation_context.get("history", [])
+    if not history:
+        return
+
+    auth_service = get_auth_service()
+    title = _build_transcript_title(history)
+    conversation = await auth_service.create_conversation(user["user_id"], title=title)
+    conversation_id = conversation.get("conversation_id") or conversation.get("id")
+    if not conversation_id:
+        return
+
+    for message in history:
+        await auth_service.add_message(
+            conversation_id=conversation_id,
+            role=message.get("role", "user"),
+            content=message.get("content", ""),
+            metadata=message.get("metadata")
+        )
+
+    await session_manager.update_session(
+        session_id,
+        conversation_context={"_transcript_saved": True}
+    )
 
 
 async def check_rate_limit(request: Request):
@@ -55,7 +117,8 @@ async def check_rate_limit(request: Request):
 )
 async def process_input(
     request: VoiceInputRequest,
-    rate_limit: dict = Depends(check_rate_limit)
+    rate_limit: dict = Depends(check_rate_limit),
+    user: dict = Depends(get_optional_user)
 ):
     """
     Process voice or text input from the user.
@@ -148,19 +211,23 @@ async def process_input(
             if workflow_handled:
                 logger.info(f"[PIPELINE] Handled by workflow engine: {workflow_response.get('intent', 'workflow')}")
                 
-                # Update session with workflow context
+                updated_context = {
+                    "context": "workflow_active",
+                    "last_intent": workflow_response.get("intent"),
+                    "workflow_context": workflow_response.get("workflow_context", {}),
+                    "history": session.conversation_context.get("history", [])[-10:] + [
+                        {"role": "user", "content": user_text},
+                        {"role": "assistant", "content": workflow_response.get("text", "")}
+                    ]
+                }
+
                 await session_manager.update_session(
                     session.session_id,
-                    conversation_context={
-                        "context": "workflow_active",
-                        "last_intent": workflow_response.get("intent"),
-                        "workflow_context": workflow_response.get("workflow_context", {}),
-                        "history": session.conversation_context.get("history", [])[-10:] + [
-                            {"role": "user", "content": user_text},
-                            {"role": "assistant", "content": workflow_response.get("text", "")}
-                        ]
-                    }
+                    conversation_context=updated_context
                 )
+
+                if _should_save_transcript(workflow_response) and user:
+                    await _save_transcript_for_user(session, user)
                 
                 return AssistantResponse(
                     text=workflow_response.get("text", ""),
@@ -179,10 +246,12 @@ async def process_input(
             # === END WORKFLOW ENGINE INTEGRATION ===
             
             # Check if we need to complete a booking (legacy path)
+            save_transcript_on_booking = False
             if dialogflow_result.get("action") == "complete_booking":
                 booking_result = await _complete_booking(session)
                 if booking_result:
                     dialogflow_result["response"] = booking_result["message"]
+                    save_transcript_on_booking = True
             
             # Determine the response language (sw for Kiswahili, en for English)
             response_language = "sw" if request.language.startswith("sw") else "en"
@@ -253,6 +322,9 @@ async def process_input(
                 },
                 booking_state=entities if entities else session.booking_state
             )
+
+            if save_transcript_on_booking and user:
+                await _save_transcript_for_user(session.session_id, user)
             
             # Get conversation state for UI
             conv_state = dialogflow_service.get_conversation_state({

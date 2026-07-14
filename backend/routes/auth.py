@@ -79,6 +79,26 @@ class VerifyRegistrationRequest(BaseModel):
     phone: str = Field(...)
     otp: str = Field(..., min_length=6, max_length=6)
     
+    @validator('email')
+    def validate_email(cls, v):
+        v = v.strip().lower()
+        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', v):
+            raise ValueError('Invalid email address')
+        return v
+
+    @validator('phone')
+    def validate_phone(cls, v):
+        v = re.sub(r'[\s\-]', '', v)
+        if not re.match(r'^(\+254|254|0)?[17]\d{8}$', v):
+            raise ValueError('Invalid Kenyan phone number')
+        if v.startswith('0'):
+            v = '+254' + v[1:]
+        elif v.startswith('254'):
+            v = '+' + v
+        elif not v.startswith('+'):
+            v = '+254' + v
+        return v
+
     @validator('otp')
     def validate_otp(cls, v):
         if not re.match(r'^\d{6}$', v):
@@ -116,6 +136,26 @@ class ResendOTPRequest(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     delivery_method: str = Field(default="sms")
+
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v is None:
+            return v
+        v = re.sub(r'[\s\-]', '', v)
+        if not re.match(r'^(\+254|254|0)?[17]\d{8}$', v):
+            raise ValueError('Invalid Kenyan phone number')
+        if v.startswith('0'):
+            v = '+254' + v[1:]
+        elif v.startswith('254'):
+            v = '+' + v
+        elif not v.startswith('+'):
+            v = '+254' + v
+        return v
+
+
+class CreateConversationRequest(BaseModel):
+    """Create a new conversation request."""
+    title: Optional[str] = Field(default="New Conversation")
 
 
 def get_client_info(request: Request) -> tuple:
@@ -489,18 +529,23 @@ async def debug_last_otp(
 
 @router.post("/conversations")
 async def create_conversation(
+    body: CreateConversationRequest,
     user: dict = Depends(get_current_user)
 ):
     """
     Create a new conversation.
     """
     auth_service = get_auth_service()
-    conversation = auth_service.create_conversation(user["user_id"])
+    conversation = await auth_service.create_conversation(
+        user_id=user["user_id"],
+        title=body.title
+    )
     
     return {
-        "id": conversation.id,
-        "title": conversation.title,
-        "created_at": conversation.created_at.isoformat()
+        "id": conversation["conversation_id"],
+        "conversation_id": conversation["conversation_id"],
+        "title": conversation["title"],
+        "created_at": conversation["created_at"]
     }
 
 
@@ -595,7 +640,7 @@ async def delete_conversation(
     """
     auth_service = get_auth_service()
     
-    success = auth_service.delete_conversation(conversation_id, user["user_id"])
+    success = await auth_service.delete_conversation(conversation_id, user["user_id"])
     
     if not success:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -612,10 +657,10 @@ async def export_transcript(
     """
     Export conversation transcript as downloadable file.
     
-    Formats: txt, json
+    Formats: txt, json, pdf
     """
     format = body.format if body else "txt"
-    if format not in ["txt", "json"]:
+    if format not in ["txt", "json", "pdf"]:
         format = "txt"
     
     auth_service = get_auth_service()
@@ -628,6 +673,44 @@ async def export_transcript(
     
     if not export_data:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    return Response(
+        content=export_data["content"],
+        media_type=export_data["content_type"],
+        headers={
+            "Content-Disposition": f'attachment; filename="{export_data["filename"]}"'
+        }
+    )
+
+
+@router.get("/history")
+async def get_user_history(
+    user: dict = Depends(get_current_user)
+):
+    """
+    Get authenticated user history including conversations and payment receipts.
+    """
+    auth_service = get_auth_service()
+    history = auth_service.get_user_history(user["user_id"])
+    return history
+
+
+@router.get("/receipts/{receipt_ref}/download")
+async def download_receipt(
+    receipt_ref: str,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Download a PDF receipt for a booking or application record.
+    """
+    auth_service = get_auth_service()
+    export_data = auth_service.export_receipt(
+        user_id=user["user_id"],
+        receipt_ref=receipt_ref
+    )
+    
+    if not export_data or not export_data.get("success"):
+        raise HTTPException(status_code=404, detail="Receipt not found")
     
     return Response(
         content=export_data["content"],
