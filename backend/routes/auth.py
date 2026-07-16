@@ -26,6 +26,23 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # ============== Request Models ==============
 
+def normalize_kenyan_phone(v: str) -> str:
+    """
+    Normalize a Kenyan phone number to E.164 (+254XXXXXXXXX).
+
+    OTPs are stored keyed by the (hashed) normalized phone at registration,
+    so every endpoint that looks an OTP up MUST normalize the same way
+    """
+    v = re.sub(r'[\s\-]', '', v)
+    if v.startswith('0'):
+        v = '+254' + v[1:]
+    elif v.startswith('254'):
+        v = '+' + v
+    elif not v.startswith('+'):
+        v = '+254' + v
+    return v
+
+
 class RegisterRequest(BaseModel):
     """User registration request."""
     full_name: str = Field(..., min_length=3, max_length=200)
@@ -138,6 +155,9 @@ class ResendOTPRequest(BaseModel):
     delivery_method: str = Field(default="sms")
 
     @validator('phone')
+    def normalize_phone(cls, v):
+        # Must match RegisterRequest's normalization or the OTP lookup misses
+        return normalize_kenyan_phone(v) if v else v
     def validate_phone(cls, v):
         if v is None:
             return v

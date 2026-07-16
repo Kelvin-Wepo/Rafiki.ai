@@ -7,6 +7,18 @@ cryptography>=40.0.0
 ecdsa==0.19.2
 fastapi==0.110.0
 python-multipart==0.0.6
+
+# Pydantic for data validation
+# v2 is required by google-genai (>=2.0); prebuilt wheels exist for
+# Python 3.9-3.12 on manylinux, so no Rust compilation is needed.
+pydantic==2.10.3
+pydantic-settings==2.1.0
+
+# Security
+bcrypt==4.1.2
+python-jose[cryptography]==3.3.0
+
+# Google AI Services
 greenlet>=3.0.0
 h11==0.16.0
 idna==3.18

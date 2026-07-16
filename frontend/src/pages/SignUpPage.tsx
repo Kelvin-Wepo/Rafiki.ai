@@ -7,9 +7,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Phone, CreditCard, Lock, Check, AlertCircle, X, RefreshCw } from 'lucide-react';
-import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
-import signupBg from '../assets/signup.png';
-import rafikiAvatar from '../assets/rafiki_avatar.png';
+import { AuthInput, AuthButton, GoogleButton, AuthCard } from '../components/Auth/components';
+import { RafikiLogo } from '../components/RafikiLogo';
+import { useAuth } from '../contexts/AuthContext';
 import '../styles/auth.css';
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
@@ -114,6 +114,7 @@ function AuthCheckbox({
   subtext,
   highlighted = false,
   error,
+  inputRef,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -121,12 +122,14 @@ function AuthCheckbox({
   subtext?: string;
   highlighted?: boolean;
   error?: string;
+  inputRef?: React.Ref<HTMLInputElement>;
 }) {
   return (
     <div>
       <label className={`auth-checkbox-wrapper ${highlighted && checked ? 'highlighted' : ''}`}>
         <div className="auth-checkbox">
           <input
+            ref={inputRef}
             type="checkbox"
             checked={checked}
             onChange={(e) => onChange(e.target.checked)}
@@ -153,6 +156,7 @@ function AuthCheckbox({
 
 export function SignUpPage() {
   const navigate = useNavigate();
+  const { completeAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
@@ -168,7 +172,27 @@ export function SignUpPage() {
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  
+
+  // Focus targets for screen reader users: first invalid field / error banner
+  const fieldRefs = {
+    fullName: useRef<HTMLInputElement>(null),
+    email: useRef<HTMLInputElement>(null),
+    phone: useRef<HTMLInputElement>(null),
+    idNumber: useRef<HTMLInputElement>(null),
+    password: useRef<HTMLInputElement>(null),
+    confirmPassword: useRef<HTMLInputElement>(null),
+    agreeToTerms: useRef<HTMLInputElement>(null),
+  };
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+
+  // Move focus to the error banner when registration fails, so screen
+  // readers land on the message instead of staying on the submit button
+  useEffect(() => {
+    if (error) {
+      errorBannerRef.current?.focus();
+    }
+  }, [error]);
+
   // OTP verification state
   const [otpState, setOtpState] = useState<OtpState>({
     showModal: false,
@@ -197,7 +221,7 @@ export function SignUpPage() {
     setError(null);
   }, []);
 
-  const validateForm = useCallback((): boolean => {
+  const validateForm = useCallback((): FormErrors => {
     const errors: FormErrors = {};
 
     if (!validateName(formData.fullName)) {
@@ -231,7 +255,7 @@ export function SignUpPage() {
     }
 
     setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
   }, [formData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -240,7 +264,14 @@ export function SignUpPage() {
     // Mark all fields as touched
     setTouched(new Set(['fullName', 'email', 'phone', 'idNumber', 'password', 'confirmPassword', 'agreeToTerms']));
 
-    if (!validateForm()) {
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      // Move focus to the first invalid field so screen readers hear the error
+      const fieldOrder = ['fullName', 'email', 'phone', 'idNumber', 'password', 'confirmPassword', 'agreeToTerms'] as const;
+      const firstInvalid = fieldOrder.find((f) => errors[f]);
+      if (firstInvalid) {
+        fieldRefs[firstInvalid].current?.focus();
+      }
       return;
     }
 
@@ -294,10 +325,11 @@ export function SignUpPage() {
         // Direct login (shouldn't happen but handle it)
         localStorage.setItem('rafiki_session_id', data.session_id);
         localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
+        completeAuth(data.user ?? null);
         navigate('/chat');
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -364,12 +396,15 @@ export function SignUpPage() {
       localStorage.setItem('rafiki_session_id', data.session_id);
       localStorage.setItem('rafiki_token', data.access_token);
       localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
+      // Sync the auth context — ProtectedRoute checks isAuthenticated there,
+      // and would otherwise bounce the freshly-verified user back to /login
+      completeAuth(data.user ?? null);
       navigate('/chat');
-    } catch (err: any) {
-      setOtpState(prev => ({ 
-        ...prev, 
-        verifying: false, 
-        error: err.message || 'Invalid OTP. Please try again.' 
+    } catch (err) {
+      setOtpState(prev => ({
+        ...prev,
+        verifying: false,
+        error: err instanceof Error && err.message ? err.message : 'Invalid OTP. Please try again.'
       }));
     }
   };
@@ -396,18 +431,18 @@ export function SignUpPage() {
       }
 
       // Reset code and timer
-      setOtpState(prev => ({ 
-        ...prev, 
+      setOtpState(prev => ({
+        ...prev,
         code: ['', '', '', '', '', ''],
         expiresIn: data.expires_in || 300,
         resending: false,
       }));
       otpInputRefs.current[0]?.focus();
-    } catch (err: any) {
-      setOtpState(prev => ({ 
-        ...prev, 
-        resending: false, 
-        error: err.message || 'Failed to resend OTP' 
+    } catch (err) {
+      setOtpState(prev => ({
+        ...prev,
+        resending: false,
+        error: err instanceof Error && err.message ? err.message : 'Failed to resend OTP'
       }));
     }
   };
@@ -425,61 +460,41 @@ export function SignUpPage() {
 
   return (
     <div className="auth-page">
-      {/* Background Panel - Desktop */}
-      <div className="auth-bg-panel">
-        <img
-          src={signupBg}
-          alt=""
-          className="auth-bg-image absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="auth-bg-overlay" />
-        <div className="auth-bg-content">
-          <img
-            src={rafikiAvatar}
-            alt=""
-            className="rafiki-glow w-20 h-20 mb-6"
-            aria-hidden="true"
-          />
-          <h1 className="font-playfair text-4xl lg:text-5xl text-white leading-tight mb-2">
-            Your Government.
-          </h1>
-          <h2 className="font-playfair text-4xl lg:text-5xl leading-tight mb-4" style={{ color: '#C8860A' }}>
-            Made Simple.
-          </h2>
-          <p className="font-dm-sans text-base text-white/70 max-w-md">
-            Access all Kenyan government services from one place.
-          </p>
-        </div>
-      </div>
-
-      {/* Mobile Background */}
-      <div className="auth-mobile-bg lg:hidden">
-        <img src={signupBg} alt="" className="w-full h-full object-cover" />
-        <div className="auth-mobile-overlay" />
+      {/* Kenya badge */}
+      <div className="auth-topbar">
+        <span className="kenya-badge">🇰🇪 Kenya</span>
       </div>
 
       {/* Form Panel */}
-      <div className="auth-form-panel">
-        <AuthCard>
-          <form onSubmit={handleSubmit} noValidate>
+      <main className="auth-form-panel">
+        <AuthCard className="auth-card-wide">
+          <form onSubmit={handleSubmit} noValidate aria-labelledby="signup-heading">
             {/* Header */}
             <div className="text-center mb-8 fade-up">
-              <img
-                src={rafikiAvatar}
-                alt="Rafiki AI"
-                className="rafiki-glow-subtle w-12 h-12 mx-auto mb-4"
-              />
-              <h1 className="font-playfair text-2xl md:text-3xl text-gray-900 mb-2">
+              <RafikiLogo size={32} showTagline className="mb-4" />
+              <h1 id="signup-heading" className="font-playfair text-2xl md:text-3xl text-gray-900 mb-2">
                 Create your account
               </h1>
               <p className="font-dm-sans text-sm text-gray-500">
                 Join thousands of Kenyans accessing government services online
               </p>
+              {/* Kept at the top so returning users never have to scroll to find it */}
+              <p className="font-dm-sans text-sm text-gray-600 mt-2">
+                Already have an account?{' '}
+                <Link to="/login" className="auth-link">
+                  Sign in
+                </Link>
+              </p>
             </div>
 
             {/* Error Banner */}
             {error && (
-              <div className="auth-error-banner mb-6 fade-up" role="alert">
+              <div
+                ref={errorBannerRef}
+                className="auth-error-banner mb-6"
+                role="alert"
+                tabIndex={-1}
+              >
                 <AlertCircle size={20} aria-hidden="true" />
                 <span>{error}</span>
               </div>
@@ -487,8 +502,8 @@ export function SignUpPage() {
 
             {/* Form Fields */}
             <div className="space-y-5">
-              {/* Full Name */}
-              <div className="fade-up fade-up-delay-1">
+              {/* Full Name + Email — pair up on desktop to keep the card short */}
+              <div className="grid md:grid-cols-2 gap-5 fade-up fade-up-delay-1">
                 <AuthInput
                   label="Full Name"
                   placeholder="As it appears on your National ID"
@@ -498,11 +513,8 @@ export function SignUpPage() {
                   error={touched.has('fullName') ? formErrors.fullName : undefined}
                   autoComplete="name"
                   required
+                  inputRef={fieldRefs.fullName}
                 />
-              </div>
-
-              {/* Email */}
-              <div className="fade-up fade-up-delay-2">
                 <AuthInput
                   label="Email Address"
                   placeholder="yourname@email.com"
@@ -513,11 +525,12 @@ export function SignUpPage() {
                   error={touched.has('email') ? formErrors.email : undefined}
                   autoComplete="email"
                   required
+                  inputRef={fieldRefs.email}
                 />
               </div>
 
-              {/* Phone */}
-              <div className="fade-up fade-up-delay-3">
+              {/* Phone + National ID */}
+              <div className="grid md:grid-cols-2 gap-5 fade-up fade-up-delay-2">
                 <AuthInput
                   label="Phone Number"
                   placeholder="07XX XXX XXX"
@@ -528,11 +541,8 @@ export function SignUpPage() {
                   error={touched.has('phone') ? formErrors.phone : undefined}
                   autoComplete="tel"
                   required
+                  inputRef={fieldRefs.phone}
                 />
-              </div>
-
-              {/* National ID */}
-              <div className="fade-up fade-up-delay-4">
                 <AuthInput
                   label="National ID Number"
                   placeholder="7 or 8 digit ID number"
@@ -542,27 +552,27 @@ export function SignUpPage() {
                   error={touched.has('idNumber') ? formErrors.idNumber : undefined}
                   autoComplete="off"
                   required
+                  inputRef={fieldRefs.idNumber}
                 />
               </div>
 
-              {/* Password */}
-              <div className="fade-up fade-up-delay-5">
-                <AuthInput
-                  label="Password"
-                  placeholder="Create a strong password"
-                  icon={<Lock size={20} aria-hidden="true" />}
-                  value={formData.password}
-                  onChange={(v) => updateField('password', v)}
-                  error={touched.has('password') ? formErrors.password : undefined}
-                  showPasswordToggle
-                  autoComplete="new-password"
-                  required
-                />
-                <PasswordStrengthBar password={formData.password} />
-              </div>
-
-              {/* Confirm Password */}
-              <div className="fade-up fade-up-delay-6">
+              {/* Password + Confirm */}
+              <div className="grid md:grid-cols-2 gap-5 fade-up fade-up-delay-3">
+                <div>
+                  <AuthInput
+                    label="Password"
+                    placeholder="Create a strong password"
+                    icon={<Lock size={20} aria-hidden="true" />}
+                    value={formData.password}
+                    onChange={(v) => updateField('password', v)}
+                    error={touched.has('password') ? formErrors.password : undefined}
+                    showPasswordToggle
+                    autoComplete="new-password"
+                    required
+                    inputRef={fieldRefs.password}
+                  />
+                  <PasswordStrengthBar password={formData.password} />
+                </div>
                 <AuthInput
                   label="Confirm Password"
                   placeholder="Re-enter your password"
@@ -573,6 +583,7 @@ export function SignUpPage() {
                   showPasswordToggle
                   autoComplete="new-password"
                   required
+                  inputRef={fieldRefs.confirmPassword}
                 />
               </div>
 
@@ -593,14 +604,17 @@ export function SignUpPage() {
                   checked={formData.agreeToTerms}
                   onChange={(v) => updateField('agreeToTerms', v)}
                   label={
+                    // TODO: link Terms of Service / Privacy Policy once those
+                    // pages exist — dead anchors styled as links erode trust
                     <>
                       I agree to the{' '}
-                      <a href="#" onClick={(e) => e.preventDefault()}>Terms of Service</a>
+                      <strong>Terms of Service</strong>
                       {' '}and{' '}
-                      <a href="#" onClick={(e) => e.preventDefault()}>Privacy Policy</a>
+                      <strong>Privacy Policy</strong>
                     </>
                   }
                   error={touched.has('agreeToTerms') ? formErrors.agreeToTerms : undefined}
+                  inputRef={fieldRefs.agreeToTerms}
                 />
               </div>
 
@@ -625,33 +639,27 @@ export function SignUpPage() {
 
               {/* Google Button */}
               <div className="fade-up fade-up-delay-10">
-                <AuthButton
-                  variant="google"
-                  fullWidth
-                  onClick={handleGoogleSignUp}
-                >
-                  Continue with Google
-                </AuthButton>
+                <GoogleButton onClick={handleGoogleSignUp} />
               </div>
 
-              {/* Footer Link */}
-              <div className="text-center pt-4 fade-up fade-up-delay-10">
-                <p className="font-dm-sans text-sm text-gray-600">
-                  Already have an account?{' '}
-                  <Link to="/login" className="auth-link">
-                    Sign in
-                  </Link>
-                </p>
-              </div>
             </div>
           </form>
         </AuthCard>
-      </div>
+      </main>
+
+      {/* Footer strip */}
+      <div className="kenya-stripe" aria-hidden="true" />
+      <div className="proudly-kenyan">Proudly Kenyan 🇰🇪</div>
 
       {/* OTP Verification Modal */}
       {otpState.showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
+          <div
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-8"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="otp-heading"
+          >
             {/* Close Button */}
             <button
               type="button"
@@ -667,7 +675,7 @@ export function SignUpPage() {
               <div className="w-16 h-16 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock size={28} className="text-white" />
               </div>
-              <h3 className="font-playfair text-2xl text-gray-900 mb-2">Verify Your Account</h3>
+              <h3 id="otp-heading" className="font-playfair text-2xl text-gray-900 mb-2">Verify Your Account</h3>
               <p className="font-dm-sans text-gray-600 text-sm">
                 We sent a 6-digit code to{' '}
                 <span className="font-medium">{otpState.phoneMasked}</span>
@@ -712,7 +720,7 @@ export function SignUpPage() {
 
             {/* Error */}
             {otpState.error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                 <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
                 <span className="font-dm-sans text-sm text-red-700">{otpState.error}</span>
               </div>

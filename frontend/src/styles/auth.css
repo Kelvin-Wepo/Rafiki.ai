@@ -17,7 +17,16 @@
   --rafiki-green: #2D6A4F;
   --rafiki-sky: #AEC6CF;
   --rafiki-error: #C0392B;
-  --rafiki-muted: #9CA3AF;
+  /* 4.8:1 on white — meets WCAG AA for small text (was #9CA3AF, ~2.5:1) */
+  --rafiki-muted: #6B7280;
+  /* Darker gold for text on white: 5.7:1. Brand gold (#C8860A) is only
+     ~3.1:1 — fine for borders/icons (3:1 non-text) but fails AA for text. */
+  --rafiki-gold-text: #8A5D06;
+  /* eCitizen-green theme (2026 redesign mockup): deep green primary */
+  --rafiki-green-deep: #17603A;   /* buttons, links — 6.6:1 on white */
+  --rafiki-green-darker: #114B2D; /* hover */
+  --rafiki-green-ink: #1B4332;    /* footer strip, logo text */
+  --rafiki-green-tint: #EAF4EC;   /* trust box background */
 }
 
 /* ============================================================
@@ -51,6 +60,14 @@
 .auth-bg-image {
   animation: kenBurns 30s ease-in-out infinite;
   will-change: transform;
+}
+
+.auth-page .auth-card {
+  animation: none;
+}
+
+.auth-page .auth-card.shake {
+  animation: shake 0.5s ease-in-out;
 }
 
 /* Shake animation for form errors */
@@ -137,8 +154,8 @@
 }
 
 .auth-input:focus {
-  border-color: var(--rafiki-gold);
-  box-shadow: 0 0 0 3px rgba(200, 134, 10, 0.15);
+  border-color: var(--rafiki-green-deep);
+  box-shadow: 0 0 0 3px rgba(23, 96, 58, 0.15);
 }
 
 .auth-input.has-error {
@@ -161,7 +178,7 @@
 }
 
 .auth-input:focus ~ .auth-input-icon {
-  color: var(--rafiki-gold);
+  color: var(--rafiki-green-deep);
 }
 
 .auth-label {
@@ -183,7 +200,7 @@
   top: 0;
   font-size: 11px;
   font-weight: 500;
-  color: var(--rafiki-gold);
+  color: var(--rafiki-green-deep);
   transform: translateY(-50%);
 }
 
@@ -302,12 +319,12 @@
 }
 
 .auth-checkbox input:checked + .auth-checkbox-visual {
-  background: var(--rafiki-gold);
-  border-color: var(--rafiki-gold);
+  background: var(--rafiki-green-deep);
+  border-color: var(--rafiki-green-deep);
 }
 
 .auth-checkbox input:focus + .auth-checkbox-visual {
-  box-shadow: 0 0 0 3px rgba(200, 134, 10, 0.2);
+  box-shadow: 0 0 0 3px rgba(23, 96, 58, 0.2);
 }
 
 .auth-checkbox-visual svg {
@@ -377,13 +394,18 @@
   cursor: not-allowed;
 }
 
+.auth-btn:focus-visible {
+  outline: 3px solid var(--rafiki-night);
+  outline-offset: 2px;
+}
+
 .auth-btn-primary {
-  background: var(--rafiki-gold);
+  background: var(--rafiki-green-deep);
   color: white;
 }
 
 .auth-btn-primary:hover:not(:disabled) {
-  background: var(--rafiki-gold-dark);
+  background: var(--rafiki-green-darker);
   transform: scale(1.01);
 }
 
@@ -416,12 +438,20 @@
 .auth-card {
   background: white;
   border-radius: 16px;
-  padding: 40px;
+  padding: 32px 36px;
   max-width: 480px;
   width: 100%;
-  box-shadow: 
+  box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.12),
     0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Wider card for long forms (signup) so fields can pair up in two
+   columns on desktop and the card fits the viewport without scrolling */
+@media (min-width: 768px) {
+  .auth-card-wide {
+    max-width: 640px;
+  }
 }
 
 @media (max-width: 767px) {
@@ -472,6 +502,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Quick entrance — deliberately NOT the 600ms fade-up: the slow fade
+     overlapping the card shake read as flickering/"blinking" */
+  animation: bannerIn 180ms ease-out;
+}
+
+@keyframes bannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* The banner receives programmatic focus on login failure so screen
+   readers announce it; give it a visible indicator too */
+.auth-error-banner:focus {
+  outline: 2px solid var(--rafiki-error);
+  outline-offset: 2px;
 }
 
 /* ============================================================
@@ -481,7 +528,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 24px 0;
+  margin: 14px 0;
 }
 
 .auth-divider-line {
@@ -500,15 +547,156 @@
 /* ============================================================
    AUTH PAGE LAYOUT
    ============================================================ */
+/* Centered single-column layout (2026 redesign): patterned cream page,
+   Kenya badge top-right, card centered, "Proudly Kenyan" strip at bottom */
 .auth-page {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
+  position: relative;
   font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: #F8F3E7;
+  background-image:
+    repeating-linear-gradient(45deg, rgba(27, 67, 50, 0.010) 0 2px, transparent 2px 16px),
+    repeating-linear-gradient(-45deg, rgba(200, 134, 10, 0.008) 0 2px, transparent 2px 16px);
+}
+
+/* Floats over the page (no layout height) so the card + footer can fit
+   the viewport without scrolling */
+.auth-topbar {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  z-index: 2;
+}
+
+.kenya-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rafiki-night);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.kenya-stripe {
+  height: 4px;
+  background: linear-gradient(90deg, #161616 0 33.3%, #C8102E 33.3% 66.6%, #007A33 66.6% 100%);
+}
+
+.proudly-kenyan {
+  background: var(--rafiki-green-ink);
+  color: white;
+  text-align: center;
+  padding: 12px;
+  font-size: 14px;
+}
+
+/* Trust/consent box (login card) */
+.auth-trust-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--rafiki-green-tint);
+  border: 1px solid rgba(45, 106, 79, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2F5D43;
+  text-align: left;
+}
+
+.auth-trust-box svg {
+  flex-shrink: 0;
+  color: var(--rafiki-green-deep);
+  margin-top: 1px;
+}
+
+/* Static (always-visible) field labels — redesign uses labels above inputs
+   instead of floating labels */
+.auth-field-label {
+  display: block;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1F2937;
+  margin-bottom: 6px;
+}
+
+.auth-input-wrapper.static-label .auth-input {
+  padding: 14px 16px 14px 44px;
+}
+
+.auth-input-wrapper.static-label .auth-input::placeholder {
+  color: var(--rafiki-muted);
+}
+
+/* The legacy Auth.css adds a Kenya-flag stripe (::before) to .auth-card;
+   the redesign card is plain white — hide it on auth pages */
+.auth-page .auth-card::before {
+  display: none;
+}
+
+/* Landing hero mascot: scale down on height-limited screens so the page
+   still fits without scrolling (unlayered rule outranks Tailwind widths) */
+@media (max-height: 950px) {
+  .landing-mascot {
+    width: 26rem;
+    margin-top: -2.25rem;
+    margin-bottom: -2.25rem;
+  }
+}
+
+/* Short viewports (e.g. 1366x768 laptops): compress vertical rhythm so the
+   login card + footer fit without scrolling */
+@media (max-height: 820px) {
+  .auth-form-panel {
+    padding: 12px 24px;
+  }
+
+  .auth-page .auth-card {
+    padding: 20px 32px;
+  }
+
+  .auth-page .auth-input,
+  .auth-page .auth-input-wrapper.static-label .auth-input {
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+
+  .auth-page .auth-field-label {
+    margin-bottom: 4px;
+  }
+
+  .auth-page .auth-btn {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .auth-page .auth-divider {
+    margin: 10px 0;
+  }
+
+  .auth-page .auth-trust-box {
+    padding: 9px 12px;
+    font-size: 12.5px;
+  }
+
+  .proudly-kenyan {
+    padding: 8px;
+    font-size: 13px;
+  }
 }
 
 .auth-bg-panel {
   position: relative;
-  width: 55%;
+  width: 40%;
   overflow: hidden;
   display: none;
 }
@@ -521,7 +709,7 @@
 
 @media (min-width: 768px) and (max-width: 1024px) {
   .auth-bg-panel {
-    width: 45%;
+    width: 35%;
   }
 }
 
@@ -550,38 +738,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--rafiki-cream);
-  padding: 40px;
+  background: transparent;
+  padding: 20px 24px;
   position: relative;
 }
 
 @media (max-width: 767px) {
   .auth-form-panel {
-    position: fixed;
-    inset: 0;
-    padding: 0;
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .auth-mobile-bg {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-  }
-  
-  .auth-mobile-bg img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .auth-mobile-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    padding: 16px 12px;
   }
 }
 
@@ -589,16 +753,23 @@
    LINK STYLES
    ============================================================ */
 .auth-link {
-  color: var(--rafiki-gold);
+  color: var(--rafiki-green-deep);
   text-decoration: none;
   font-weight: 500;
   transition: color 200ms ease;
 }
 
 .auth-link:hover {
-  color: var(--rafiki-gold-dark);
+  color: var(--rafiki-green-darker);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.auth-link:focus-visible,
+.auth-input-toggle:focus-visible {
+  outline: 2px solid var(--rafiki-green-deep);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* ============================================================
@@ -607,4 +778,22 @@
 .google-icon {
   width: 20px;
   height: 20px;
+}
+
+/* ============================================================
+   REDUCED MOTION
+   Collapse animations to a single instant frame. Durations are
+   near-zero (not `none`) so `fade-up`'s fill-mode still lands on
+   opacity: 1 — otherwise content would stay invisible.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .auth-page,
+  .auth-page *,
+  .auth-page *::before,
+  .auth-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
