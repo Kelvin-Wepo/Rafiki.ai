@@ -6,6 +6,8 @@ Implements National Security compliance with audit logging.
 
 import secrets
 import hashlib
+import io
+import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from jose import jwt, JWTError
@@ -89,6 +91,9 @@ class AuthService:
         self._conversations: Dict[str, Conversation] = {}  # conv_id -> Conversation
         self._user_conversations: Dict[str, List[str]] = {}  # user_id -> [conv_ids]
         self._audit_logs: List[AuthAuditLog] = []
+        # Generated transcripts storage (in-memory mapping)
+        # key: transcript_id, value: {conversation_id, user_id, file_path, filename, content_type, is_read, generated_at}
+        self._generated_transcripts: Dict[str, Dict[str, Any]] = {}
     
     def _get_jwt_secret(self) -> str:
         """Get JWT secret key."""
@@ -1003,7 +1008,13 @@ class AuthService:
         self._user_conversations[user_id].append(conv_id)
         
         logger.info(f"Created conversation {conv_id} for user {user_id}")
-        return {"success": True, "conversation_id": conv_id, "title": title}    
+        return {
+            "success": True,
+            "conversation_id": conv_id,
+            "id": conv_id,
+            "title": title,
+            "created_at": conversation.created_at.isoformat()
+        }
 
     
     async def add_message(
@@ -1095,9 +1106,10 @@ class AuthService:
             return {"success": True}
         return {"success": False, "error": "Conversation could not be archived"}
     
-    def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
+    async def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
         """Delete a conversation (soft delete - just archive)."""
-        return self.archive_conversation(conversation_id, user_id)
+        result = await self.archive_conversation(conversation_id, user_id)
+        return result.get("success", False)
     
     async def export_transcript(
         self,
@@ -1123,6 +1135,10 @@ class AuthService:
             }, indent=2)
             filename = f"rafiki_transcript_{conversation['id']}.json"
             content_type = "application/json"
+        elif format == "pdf":
+            content = self._build_conversation_pdf(conversation)
+            filename = f"rafiki_transcript_{conversation['id']}.pdf"
+            content_type = "application/pdf"
         else:
             # Plain text format
             lines = [
@@ -1145,6 +1161,296 @@ class AuthService:
             content_type = "text/plain"
         
         return {"success": True, "content": content, "filename": filename, "content_type": content_type}
+
+    async def generate_and_store_transcript(self, conversation_id: str, user_id: str, format: str = "txt") -> Optional[Dict[str, Any]]:
+        """
+        Generate a transcript for a conversation and store metadata in-memory.
+        Returns metadata including a transcript_id.
+        """
+        result = await self.export_transcript(conversation_id, user_id, format=format) if hasattr(self, 'export_transcript') else None
+        if not result or not result.get('success'):
+            return {"success": False, "error": "not_found"}
+
+        # Generate a transcript id and save the content to a temp file
+        tid = secrets.token_hex(12)
+        import tempfile, os
+        suffix = ".pdf" if result.get('content_type') == 'application/pdf' else ('.txt' if (result.get('content_type') or '').startswith('text') else '.dat')
+        fd, path = tempfile.mkstemp(suffix=suffix, prefix=f"rafiki_transcript_{conversation_id}_")
+        os.close(fd)
+
+        content = result['content']
+        # If bytes, write directly
+        mode = 'wb' if isinstance(content, (bytes, bytearray)) else 'w'
+        with open(path, mode) as f:
+            if mode == 'wb':
+                f.write(content)
+            else:
+                f.write(content)
+
+        meta = {
+            'transcript_id': tid,
+            'conversation_id': conversation_id,
+            'user_id': user_id,
+            'file_path': path,
+            'filename': result.get('filename'),
+            'content_type': result.get('content_type'),
+            'is_read': False,
+            'generated_at': datetime.utcnow().isoformat()
+        }
+        self._generated_transcripts[tid] = meta
+        return {"success": True, "transcript": meta}
+
+    def list_transcripts_for_user(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return list of transcript metadata for a user."""
+        items = [v for v in self._generated_transcripts.values() if v.get('user_id') == user_id]
+        items_sorted = sorted(items, key=lambda x: x.get('generated_at', ''), reverse=True)
+        return items_sorted
+
+    def get_transcript(self, transcript_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        t = self._generated_transcripts.get(transcript_id)
+        if not t or t.get('user_id') != user_id:
+            return None
+        return t
+
+    def mark_transcript_read(self, transcript_id: str, user_id: str) -> bool:
+        t = self._generated_transcripts.get(transcript_id)
+        if not t or t.get('user_id') != user_id:
+            return False
+        t['is_read'] = True
+        return True
+
+    def unread_transcripts_count(self, user_id: str) -> int:
+        return sum(1 for v in self._generated_transcripts.values() if v.get('user_id') == user_id and not v.get('is_read'))
+
+    def _build_conversation_pdf(self, conversation: Dict[str, Any]) -> bytes:
+        """Build a PDF document for a conversation transcript."""
+        from fpdf import FPDF
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+
+        pdf.set_font('Helvetica', 'B', 18)
+        pdf.set_text_color(0, 49, 83)
+        pdf.cell(0, 10, 'Rafiki.ai Conversation Transcript', ln=True)
+        pdf.ln(2)
+
+        pdf.set_font('Helvetica', '', 11)
+        pdf.set_text_color(50, 50, 50)
+        pdf.multi_cell(0, 6, f"Title: {conversation['title']}")
+        pdf.multi_cell(0, 6, f"Date: {conversation['created_at']}")
+        pdf.ln(4)
+
+        for msg in conversation['messages']:
+            role = 'You' if msg['role'] == 'user' else 'Rafiki'
+            timestamp = msg.get('timestamp', '')
+            pdf.set_font('Helvetica', 'B', 11)
+            pdf.multi_cell(0, 6, f"[{timestamp}] {role}")
+            pdf.set_font('Helvetica', '', 11)
+            pdf.multi_cell(0, 6, msg.get('content', ''))
+            pdf.ln(2)
+
+        return pdf.output(dest='S').encode('latin-1')
+
+    def _normalize_kenyan_phone(self, phone: str) -> str:
+        phone = re.sub(r'[\s\-]', '', str(phone or ''))
+        if not phone:
+            return ''
+        if phone.startswith('0'):
+            phone = '+254' + phone[1:]
+        elif phone.startswith('254'):
+            phone = '+' + phone
+        elif not phone.startswith('+'):
+            phone = '+254' + phone
+        return phone
+
+    def _matches_user_record(self, user: User, applicant: Dict[str, Any]) -> bool:
+        phone = applicant.get('phone', '') if applicant else ''
+        email = applicant.get('email', '') if applicant else ''
+
+        if phone:
+            try:
+                normalized_phone = self._normalize_kenyan_phone(phone)
+                if hash_value(normalized_phone) == user.phone_number_hash:
+                    return True
+            except Exception:
+                pass
+
+        if email and user.email_hash:
+            if hash_value(email.lower()) == user.email_hash:
+                return True
+
+        return False
+
+    def _receipt_summary(self, record: Dict[str, Any], record_type: str) -> Dict[str, Any]:
+        applicant = record.get('applicant', {})
+        payment = record.get('payment', {})
+        receipt_ref = record.get('application_ref') if record_type == 'application' else record.get('booking_ref')
+
+        summary = {
+            'receipt_ref': receipt_ref,
+            'payment_reference': payment.get('reference'),
+            'type': record_type,
+            'agency': record.get('agency', ''),
+            'service': record.get('service', ''),
+            'status': payment.get('status') or record.get('status', ''),
+            'amount': payment.get('amount'),
+            'name': applicant.get('name', ''),
+            'id_number': applicant.get('id_number', ''),
+            'phone': self._normalize_kenyan_phone(applicant.get('phone', '') or applicant.get('mpesa', '') or ''),
+            'email': applicant.get('email', ''),
+            'created_at': record.get('created_at'),
+            'paid_at': payment.get('paid_at'),
+            'appointment': record.get('appointment') if record_type == 'booking' else None,
+        }
+        return summary
+
+    def get_user_history(self, user_id: str) -> Dict[str, Any]:
+        """Return conversation history and receipts for a user."""
+        user = self._users.get(user_id)
+        if not user:
+            return {'conversations': [], 'receipts': []}
+
+        from services.application_service import _load_applications
+        from services.booking_service import _load_agency_bookings
+
+        applications = _load_applications().values()
+        bookings = _load_agency_bookings().values()
+
+        receipts = []
+        for application in applications:
+            if self._matches_user_record(user, application.get('applicant', {})):
+                receipts.append(self._receipt_summary(application, 'application'))
+        for booking in bookings:
+            if self._matches_user_record(user, booking.get('applicant', {})):
+                receipts.append(self._receipt_summary(booking, 'booking'))
+
+        receipts.sort(key=lambda item: item.get('created_at', ''), reverse=True)
+
+        return {
+            'conversations': self._sync_get_user_conversations(user_id),
+            'receipts': receipts
+        }
+
+    def _sync_get_user_conversations(self, user_id: str) -> List[Dict[str, Any]]:
+        """Sync wrapper for get_user_conversations so route can return immediately."""
+        # Reuse internal conversation store for type-safe history
+        conv_ids = self._user_conversations.get(user_id, [])
+        summaries = []
+        for conv_id in conv_ids:
+            conv = self._conversations.get(conv_id)
+            if conv and not conv.is_archived:
+                preview = ''
+                if conv.messages:
+                    first_msg = conv.messages[0]
+                    preview = first_msg['content'][:100] + ('...' if len(first_msg['content']) > 100 else '')
+                summaries.append({
+                    'id': conv.id,
+                    'title': conv.title,
+                    'preview': preview,
+                    'message_count': len(conv.messages),
+                    'created_at': conv.created_at.isoformat(),
+                    'updated_at': conv.updated_at.isoformat()
+                })
+        return sorted(summaries, key=lambda x: x['updated_at'], reverse=True)
+
+    def export_receipt(self, user_id: str, receipt_ref: str) -> Optional[Dict[str, Any]]:
+        """Export a payment or booking receipt as PDF for a user."""
+        user = self._users.get(user_id)
+        if not user:
+            return {'success': False, 'error': 'User not found'}
+
+        from services.application_service import get_application, get_application_by_payment_ref
+        from services.booking_service import get_agency_booking, get_agency_booking_by_payment_ref
+
+        record = get_application(receipt_ref)
+        record_type = 'application'
+        if not record:
+            record = get_agency_booking(receipt_ref)
+            record_type = 'booking'
+        if not record:
+            record = get_application_by_payment_ref(receipt_ref)
+            record_type = 'application'
+        if not record:
+            record = get_agency_booking_by_payment_ref(receipt_ref)
+            record_type = 'booking'
+        if not record:
+            return {'success': False, 'error': 'Receipt not found'}
+
+        if not self._matches_user_record(user, record.get('applicant', {})):
+            return {'success': False, 'error': 'Receipt not found'}
+
+        content = self._build_receipt_pdf(record, record_type)
+        filename = f"rafiki_receipt_{receipt_ref}.pdf"
+
+        return {'success': True, 'content': content, 'filename': filename, 'content_type': 'application/pdf'}
+
+    def _build_receipt_pdf(self, record: Dict[str, Any], record_type: str) -> bytes:
+        """Build a branded PDF receipt for a booking or application."""
+        from fpdf import FPDF
+
+        applicant = record.get('applicant', {})
+        payment = record.get('payment', {})
+        appointment = record.get('appointment', {}) if record_type == 'booking' else None
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+
+        pdf.set_font('Helvetica', 'B', 22)
+        pdf.set_text_color(3, 37, 76)
+        pdf.cell(0, 10, 'Rafiki.ai', ln=True)
+        pdf.set_font('Helvetica', '', 12)
+        pdf.cell(0, 6, 'Government services made simple.', ln=True)
+        pdf.ln(8)
+
+        pdf.set_font('Helvetica', 'B', 16)
+        title = 'Payment Receipt' if payment.get('reference') else 'Service Receipt'
+        pdf.cell(0, 8, title, ln=True)
+        pdf.set_draw_color(3, 37, 76)
+        pdf.set_line_width(0.5)
+        pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
+        pdf.ln(6)
+
+        pdf.set_font('Helvetica', '', 11)
+        pdf.multi_cell(0, 6, f"Receipt ID: {record.get('application_ref') or record.get('booking_ref')}")
+        pdf.multi_cell(0, 6, f"Payment Reference: {payment.get('reference', 'N/A')}")
+        pdf.multi_cell(0, 6, f"Status: {payment.get('status', 'pending')}")
+        pdf.multi_cell(0, 6, f"Date Issued: {record.get('created_at', '')}")
+        pdf.ln(4)
+
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.cell(0, 6, 'Citizen Details', ln=True)
+        pdf.set_font('Helvetica', '', 11)
+        pdf.multi_cell(0, 6, f"Name: {applicant.get('name', '')}")
+        pdf.multi_cell(0, 6, f"National ID: {applicant.get('id_number', '')}")
+        pdf.multi_cell(0, 6, f"Phone: {self._normalize_kenyan_phone(applicant.get('phone') or applicant.get('mpesa') or '')}")
+        if applicant.get('email'):
+            pdf.multi_cell(0, 6, f"Email: {applicant.get('email')}")
+        pdf.ln(4)
+
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.cell(0, 6, 'Service Summary', ln=True)
+        pdf.set_font('Helvetica', '', 11)
+        pdf.multi_cell(0, 6, f"Agency: {record.get('agency', '')}")
+        pdf.multi_cell(0, 6, f"Service: {record.get('service', '')}")
+        pdf.multi_cell(0, 6, f"Amount: KES {payment.get('amount'):,}" if payment.get('amount') else 'Amount: N/A')
+        pdf.multi_cell(0, 6, f"Payment Confirmed: {payment.get('paid_at') or 'Pending'}")
+
+        if appointment:
+            pdf.ln(4)
+            pdf.set_font('Helvetica', 'B', 12)
+            pdf.cell(0, 6, 'Appointment Details', ln=True)
+            pdf.set_font('Helvetica', '', 11)
+            pdf.multi_cell(0, 6, f"Date: {appointment.get('date', '')}")
+            pdf.multi_cell(0, 6, f"Time: {appointment.get('time', '')}")
+            pdf.multi_cell(0, 6, f"Office: {appointment.get('office', '')}")
+
+        pdf.ln(6)
+        pdf.set_font('Helvetica', 'I', 10)
+        pdf.multi_cell(0, 6, 'Thank you for using Rafiki.ai. Please keep this receipt for your records.')
+
+        return pdf.output(dest='S').encode('latin-1')
     
     # ============== Audit & Admin ==============
     

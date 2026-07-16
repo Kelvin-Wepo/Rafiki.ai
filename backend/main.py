@@ -147,6 +147,7 @@ async def lifespan(app: FastAPI):
         from routes.citizen import router as citizen_router
         from routes.location import router as location_router
         from routes.waitlist import router as waitlist_router
+        from routes.chat import router as chat_router
         # DEPRECATED: Old workflow system - use /api/agencies/* instead
         # from routes.workflows import router as workflows_router
         from routes.agencies import router as agencies_router
@@ -154,6 +155,7 @@ async def lifespan(app: FastAPI):
         app.include_router(auth_router)
         app.include_router(voice_router)
         app.include_router(booking_router)
+        app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
         # app.include_router(services_router)  # File doesn't exist
         app.include_router(session_router)
         app.include_router(avatar_router)

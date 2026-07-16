@@ -199,7 +199,8 @@ print('✅ SadTalker initialized successfully!')
 ```bash
 # In one terminal
 cd /home/subchief/5TECH/backend
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+source ../.venv/bin/activate
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 # Watch logs for SadTalker messages
 # Look for: "🎬 Generating video with SadTalker..."

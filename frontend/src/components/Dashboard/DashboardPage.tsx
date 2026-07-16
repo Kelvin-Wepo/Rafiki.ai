@@ -24,7 +24,10 @@ import {
 } from '@heroicons/react/24/outline';
 import rafikiAvatar from '../../assets/rafiki_avatar.png';
 import LanguageSelector from '../LanguageSelector';
+import { ConversationHistory } from './ConversationHistory';
+import TranscriptDownload from './TranscriptDownload';
 import '../../styles/dashboard.css';
+import useChatSessions from '../../hooks/useChatSessions';
 
 // Types
 interface QuickAction {
@@ -102,16 +105,22 @@ type NavSection = 'chat' | 'history' | 'transcripts';
 export function Dashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const {
+    transcripts,
+    activeSessionId,
+    createNewSession,
+    loadSession,
+  } = useChatSessions();
   
   // State
   const [activeNav, setActiveNav] = useState<NavSection>('chat');
   const [chatInput, setChatInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [language, setLanguage] = useState<'en' | 'sw' | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
+  const [, setLanguage] = useState<'en' | 'sw' | null>(null);
   const [showLanguageSelector, setShowLanguageSelector] = useState(true);
   const [isLanguageLoading, setIsLanguageLoading] = useState(false);
-  const [transcriptCount] = useState(12); // Mock count for demo
   
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
@@ -278,13 +287,22 @@ export function Dashboard() {
   // Handle nav click
   const handleNavClick = useCallback((section: NavSection) => {
     setActiveNav(section);
-    if (section === 'history') {
-      // Navigate to history page if it exists
-      // For now, just set the active state
-    } else if (section === 'transcripts') {
-      // Navigate to transcripts page if it exists
-    }
   }, []);
+
+  useEffect(() => {
+    const restore = async () => {
+      if (activeSessionId && !sessionId) {
+        const restored = await loadSession(activeSessionId);
+        if (restored?.id || restored?.conversation_id) {
+          setSessionId(restored.id || restored.conversation_id || activeSessionId);
+          setSelectedConversation(restored);
+        } else {
+          setSessionId(activeSessionId);
+        }
+      }
+    };
+    restore();
+  }, [activeSessionId, loadSession, sessionId]);
 
   return (
     <>
@@ -335,7 +353,7 @@ export function Dashboard() {
           >
             <DocumentTextIcon aria-hidden="true" />
             <span>Transcripts</span>
-            <span className="nav-badge">{transcriptCount}</span>
+            <span className="nav-badge">{transcripts.length}</span>
           </button>
         </nav>
 
@@ -362,113 +380,141 @@ export function Dashboard() {
 
       {/* ============ ZONE 2: MAIN CONTENT AREA ============ */}
       <main className="main-content">
-        {/* Avatar Card */}
-        <div className="avatar-card">
-          {/* Avatar with glow ring */}
-          <div className="avatar-wrapper">
-            <img
-              src={rafikiAvatar}
-              alt="Rafiki AI Assistant"
-              className="avatar-img"
+        {activeNav === 'chat' ? (
+          <>
+            {/* Avatar Card */}
+            <div className="avatar-card">
+              {/* Avatar with glow ring */}
+              <div className="avatar-wrapper">
+                <img
+                  src={rafikiAvatar}
+                  alt="Rafiki AI Assistant"
+                  className="avatar-img"
+                />
+                <div className="avatar-glow-ring" aria-hidden="true" />
+              </div>
+
+              {/* Ready status badge */}
+              <div className="status-badge" role="status">
+                <span className="status-dot" aria-hidden="true" />
+                <span>Ready</span>
+              </div>
+
+              {/* Heading */}
+              <h1 className="avatar-heading">How can I assist you today?</h1>
+
+              {/* Microphone button */}
+              <div className="mic-container">
+                <button
+                  className={`mic-btn ${isListening ? 'mic-btn--listening' : ''}`}
+                  onClick={handleMicToggle}
+                  aria-label={isListening ? 'Stop listening' : 'Tap to speak'}
+                >
+                  {/* Pulse rings — animated when listening */}
+                  <span className="mic-pulse mic-pulse--1" aria-hidden="true" />
+                  <span className="mic-pulse mic-pulse--2" aria-hidden="true" />
+                  <MicrophoneIcon aria-hidden="true" />
+                  <span className="mic-label">Tap to Speak</span>
+                </button>
+              </div>
+
+              {/* Instruction text */}
+              <p className="avatar-instruction">Tap to Speak or Type Below</p>
+            </div>
+
+            {/* Quick Actions Section */}
+            <section className="quick-actions" aria-labelledby="quick-actions-title">
+              <h2 id="quick-actions-title" className="quick-actions-title">Quick Actions</h2>
+              <div className="actions-grid">
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.id}
+                    className="action-card"
+                    onClick={() => handleQuickAction(action)}
+                    aria-label={`${action.title}: ${action.desc}`}
+                  >
+                    <div className="action-icon-wrap" aria-hidden="true">
+                      {action.icon}
+                    </div>
+                    <div className="action-text">
+                      <span className="action-title">{action.title}</span>
+                      <span className="action-desc">{action.desc}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Footer */}
+            <footer className="main-footer">
+              <span>🔒 Secure</span>
+              <span className="footer-divider" aria-hidden="true">|</span>
+              <span>End-to-End Encrypted</span>
+              <span className="footer-divider" aria-hidden="true">|</span>
+              <span>Powered by Kenyan AI</span>
+              <button className="footer-dropdown" aria-label="More info">▾</button>
+            </footer>
+          </>
+        ) : activeNav === 'history' ? (
+          <div className="history-view">
+            <ConversationHistory
+              onSelectConversation={(conversation) => {
+                setSelectedConversation(conversation);
+                setActiveNav('chat');
+              }}
+              selectedId={selectedConversation?.id}
+              onNewConversation={async () => {
+                const id = await createNewSession();
+                if (id) {
+                  const conv = await loadSession(id);
+                  setSelectedConversation(conv || null);
+                  setActiveNav('chat');
+                }
+              }}
             />
-            <div className="avatar-glow-ring" aria-hidden="true" />
           </div>
-
-          {/* Ready status badge */}
-          <div className="status-badge" role="status">
-            <span className="status-dot" aria-hidden="true" />
-            <span>Ready</span>
+        ) : (
+          <div className="transcripts-view">
+            <TranscriptDownload preSelectedConversation={selectedConversation} />
           </div>
-
-          {/* Heading */}
-          <h1 className="avatar-heading">How can I assist you today?</h1>
-
-          {/* Microphone button */}
-          <div className="mic-container">
-            <button
-              className={`mic-btn ${isListening ? 'mic-btn--listening' : ''}`}
-              onClick={handleMicToggle}
-              aria-label={isListening ? 'Stop listening' : 'Tap to speak'}
-            >
-              {/* Pulse rings — animated when listening */}
-              <span className="mic-pulse mic-pulse--1" aria-hidden="true" />
-              <span className="mic-pulse mic-pulse--2" aria-hidden="true" />
-              <MicrophoneIcon aria-hidden="true" />
-              <span className="mic-label">Tap to Speak</span>
-            </button>
-          </div>
-
-          {/* Instruction text */}
-          <p className="avatar-instruction">Tap to Speak or Type Below</p>
-        </div>
-
-        {/* Quick Actions Section */}
-        <section className="quick-actions" aria-labelledby="quick-actions-title">
-          <h2 id="quick-actions-title" className="quick-actions-title">Quick Actions</h2>
-          <div className="actions-grid">
-            {QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.id}
-                className="action-card"
-                onClick={() => handleQuickAction(action)}
-                aria-label={`${action.title}: ${action.desc}`}
-              >
-                <div className="action-icon-wrap" aria-hidden="true">
-                  {action.icon}
-                </div>
-                <div className="action-text">
-                  <span className="action-title">{action.title}</span>
-                  <span className="action-desc">{action.desc}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Footer */}
-        <footer className="main-footer">
-          <span>🔒 Secure</span>
-          <span className="footer-divider" aria-hidden="true">|</span>
-          <span>End-to-End Encrypted</span>
-          <span className="footer-divider" aria-hidden="true">|</span>
-          <span>Powered by Kenyan AI</span>
-          <button className="footer-dropdown" aria-label="More info">▾</button>
-        </footer>
+        )}
       </main>
 
       {/* ============ ZONE 3: BOTTOM INPUT BAR ============ */}
-      <div className="input-bar">
-        {/* Voice toggle button */}
-        <button
-          className={`input-mic-btn ${isListening ? 'input-mic-btn--active' : ''}`}
-          onClick={handleMicToggle}
-          aria-label="Voice input"
-        >
-          <MicrophoneIcon aria-hidden="true" />
-        </button>
+      {activeNav === 'chat' && (
+        <div className="input-bar">
+          {/* Voice toggle button */}
+          <button
+            className={`input-mic-btn ${isListening ? 'input-mic-btn--active' : ''}`}
+            onClick={handleMicToggle}
+            aria-label="Voice input"
+          >
+            <MicrophoneIcon aria-hidden="true" />
+          </button>
 
-        {/* Text input */}
-        <input
-          ref={inputRef}
-          type="text"
-          className="input-field"
-          placeholder="Type your message..."
-          value={chatInput}
-          onChange={e => setChatInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          aria-label="Chat message input"
-        />
+          {/* Text input */}
+          <input
+            ref={inputRef}
+            type="text"
+            className="input-field"
+            placeholder="Type your message..."
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            aria-label="Chat message input"
+          />
 
-        {/* Send button */}
-        <button
-          className="input-send-btn"
-          onClick={handleSend}
-          disabled={!chatInput.trim() && !isListening}
-          aria-label="Send message"
-        >
-          <PaperAirplaneIcon aria-hidden="true" />
-        </button>
-      </div>
+          {/* Send button */}
+          <button
+            className="input-send-btn"
+            onClick={handleSend}
+            disabled={!chatInput.trim() && !isListening}
+            aria-label="Send message"
+          >
+            <PaperAirplaneIcon aria-hidden="true" />
+          </button>
+        </div>
+      )}
     </div>
     </>
   );

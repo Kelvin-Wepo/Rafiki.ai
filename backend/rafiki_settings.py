@@ -6,6 +6,7 @@ All sensitive credentials are loaded from environment variables.
 import os
 from pathlib import Path
 from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -51,13 +52,19 @@ class Settings(BaseSettings):
     AFRICASTALKING_SENDER_ID: Optional[str] = None
     AFRICASTALKING_VIRTUAL_NUMBER: str = "+254711082025"  # Virtual number for voice calls
 
+    @field_validator("AFRICASTALKING_SENDER_ID", mode="before")
+    def coerce_africastalking_sender_id(cls, value):
+        if value is None:
+            return None
+        return str(value).strip()
+
     # Email/SMTP settings for OTP delivery
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM_EMAIL: str = "noreply@rafiki.ai"
-    SMTP_FROM_NAME: str = "Rafiki AI"
+    SMTP_FROM_EMAIL: str = "kelvinwepo7710@gmail.com"
+    SMTP_FROM_NAME: str = "Kelvin Wepo"
     EMAIL_ENABLED: bool = False  # Set to True when SMTP is configured
 
     # OTP/SMS simulation (dev only)

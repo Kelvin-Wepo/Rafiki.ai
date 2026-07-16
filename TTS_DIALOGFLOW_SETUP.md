@@ -61,10 +61,10 @@ cd /home/subchief/5TECH
 ### Method 2: Manual start
 ```bash
 cd /home/subchief/5TECH
-source sadtalker/bin/activate
+source .venv/bin/activate
 export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/backend/service-account.json"
 cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ## 📊 Startup Log (Expected Output)

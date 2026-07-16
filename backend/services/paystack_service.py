@@ -33,11 +33,22 @@ def _headers() -> dict:
 
 def _format_phone(phone: str) -> str:
     """Normalize Kenyan phone to 07XXXXXXXX format for Paystack."""
-    phone = phone.strip().replace(" ", "")
+    phone = phone.strip()
+    phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+
     if phone.startswith("+254"):
-        phone = "0" + phone[4:]
+        phone = "254" + phone[4:]
     elif phone.startswith("254"):
-        phone = "0" + phone[3:]
+        phone = phone
+    elif phone.startswith("0") and len(phone) == 10:
+        phone = "254" + phone[1:]
+    elif phone.startswith("7") and len(phone) == 9:
+        phone = "254" + phone
+
+    # Now phone should be in 12-digit format starting with '254'
+    if not (phone.startswith("254") and len(phone) == 12 and phone.isdigit()):
+        raise ValueError("Invalid Kenyan phone number format. Use 07XXXXXXXX or +2547XXXXXXXX or 2547XXXXXXXX")
+
     return phone
 
 
@@ -67,7 +78,12 @@ async def initiate_stk_push(
         logger.error("PAYSTACK_SECRET_KEY is not set")
         return {"success": False, "message": "Payment service not configured. Please contact support."}
 
-    formatted_phone = _format_phone(phone)
+    try:
+        formatted_phone = _format_phone(phone)
+    except ValueError as e:
+        logger.error(f"Paystack phone formatting failed: {e}")
+        return {"success": False, "message": str(e)}
+
     amount_kobo = amount_ksh * 100  # Paystack uses smallest currency unit
 
     payload = {
@@ -85,6 +101,22 @@ async def initiate_stk_push(
             "platform": "rafiki_ai",
         },
     }
+
+    # Log payload for troubleshooting phone format issues
+    logger.info(f"Paystack STK push - formatted_phone={formatted_phone}")
+    try:
+        logger.debug(f"Paystack STK payload: {payload}")
+    except Exception:
+        logger.info("Paystack STK payload prepared (debug suppressed)")
+
+    # Also print to stdout to ensure visibility in quick tests
+    try:
+        print(f"[PAYSTACK DEBUG] formatted_phone={formatted_phone}")
+        # Try sending with '+' prefix for Paystack (temporary test)
+        payload['mobile_money']['phone'] = '+' + formatted_phone
+        print(f"[PAYSTACK DEBUG] payload_mobile_money_phone={payload.get('mobile_money', {}).get('phone')}")
+    except Exception:
+        pass
 
     if callback_url:
         payload["callback_url"] = callback_url

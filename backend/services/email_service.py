@@ -259,7 +259,7 @@ This is an automated message from Rafiki.ai.
             Result dict with success status
         """
         first_name = full_name.split()[0] if full_name else "there"
-        subject = f"Welcome to Rafiki.ai, {first_name}! 🎉"
+        subject = f"Welcome to Rafiki.ai from Kelvin Wepo, {first_name}! 🎉"
         
         html_body = f"""
 <!DOCTYPE html>
@@ -273,6 +273,7 @@ This is an automated message from Rafiki.ai.
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #0D1117 0%, #1a1f2e 100%); padding: 30px; text-align: center;">
             <h1 style="color: #C8860A; margin: 0; font-size: 28px; font-weight: 600;">Welcome to Rafiki.ai! 🎉</h1>
+            <p style="color: #ffffff99; margin: 8px 0 0 0; font-size: 14px;">From Kelvin Wepo</p>
         </div>
         
         <!-- Content -->
@@ -302,7 +303,7 @@ This is an automated message from Rafiki.ai.
         <!-- Footer -->
         <div style="background: #f9f9f9; padding: 20px 30px; text-align: center; border-top: 1px solid #eee;">
             <p style="color: #999; margin: 0; font-size: 12px;">
-                Rafiki.ai - Your Government. Made Simple.
+                Sent by Kelvin Wepo via Rafiki.ai.
             </p>
         </div>
     </div>
