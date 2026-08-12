@@ -121,7 +121,7 @@ export function Dashboard() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null);
   const [, setLanguage] = useState<'en' | 'sw' | null>(null);
-  const [showLanguageSelector, setShowLanguageSelector] = useState(true);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(!import.meta.env.VITE_DEV_SCREENSHOT);
   const [isLanguageLoading, setIsLanguageLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
