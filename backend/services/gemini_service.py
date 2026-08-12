@@ -466,10 +466,11 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
             # Sanitize input and detect PII
             sanitized_message, pii_detected = self._sanitize_input(user_message)
             
-            # Detect language from message if not explicitly provided
-            detected_language = intent_detector._detect_language(user_message)
-            language = detected_language if detected_language != 'en' or language == 'en' else language
-            
+            # Language is detected upstream (routes/voice.py) using the more reliable
+            # LanguageDetector and passed in explicitly — trust it rather than
+            # re-detecting here with the cruder pattern-based intent detector, which
+            # was silently overriding the correct language on many turns.
+
             # Detect intent and extract entities
             intent_analysis = intent_detector.detect(
                 user_message,
@@ -555,6 +556,8 @@ Always respond in a way that's easy to understand when spoken aloud. Sound like 
         # Add language instruction
         if language == 'sw':
             prompt_parts.append("IMPORTANT: Respond in Kiswahili (Swahili) language only. Use natural, friendly Kiswahili.")
+        elif language == 'mixed':
+            prompt_parts.append("IMPORTANT: The user is code-switching between English and Kiswahili. Mirror their style naturally, mixing both languages as they did, rather than sticking to only one.")
         else:
             prompt_parts.append("IMPORTANT: Respond in English language only. Use clear, friendly English with a warm Kenyan tone.")
         

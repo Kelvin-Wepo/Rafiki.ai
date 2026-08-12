@@ -18,7 +18,7 @@ from datetime import datetime
 import os
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(tags=["chat"])
 
 
 async def get_current_user(authorization: str = Header(None)):

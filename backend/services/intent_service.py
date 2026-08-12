@@ -78,7 +78,18 @@ class IntentDetector:
     # Keywords for appointment management
     MANAGE_APPOINTMENT_KEYWORDS = [
         'reschedule', 'cancel appointment', 'change appointment', 'modify booking',
-        'update appointment', 'postpone', 'move appointment'
+        'update appointment', 'postpone', 'move appointment',
+        # Kiswahili
+        'panga tena', 'futa miadi', 'badilisha miadi', 'sogeza miadi'
+    ]
+
+    # Regex variants that tolerate filler words between the action verb and
+    # 'appointment'/'booking' (e.g. "cancel my appointment", "change the appointment date")
+    MANAGE_APPOINTMENT_PATTERNS = [
+        r'\breschedule\b', r'\bpostpone\b',
+        r'\bcancel\b.*\bappointment\b', r'\bcancel\b.*\bbooking\b',
+        r'\bchange\b.*\bappointment\b', r'\bmodify\b.*\bbooking\b',
+        r'\bupdate\b.*\bappointment\b', r'\bmove\b.*\bappointment\b',
     ]
     
     # Keywords for checking appointment status
@@ -98,40 +109,55 @@ class IntentDetector:
     KRA_NIL_RETURNS_KEYWORDS = [
         'nil returns', 'nil return', 'zero returns', 'no income',
         'file returns', 'file nil', 'submit returns', 'annual returns',
-        'kra returns', 'income returns', 'tax returns'
+        'kra returns', 'income returns', 'tax returns',
+        # Kiswahili
+        'kurudi sifuri', 'kurudi tupu', 'hakuna pendapatan', 'kurudi kila mwaka',
+        'kufile kurudi', 'kufungua kurudi', 'kutuma kurudi'
     ]
-    
+
     KRA_PIN_RECOVERY_KEYWORDS = [
         'recover pin', 'reset pin', 'forgotten pin', 'lost pin',
         'pin recovery', 'forgot pin', 'pin reset', 'forgot my',
         'pin help', 'pin issue', 'pin problem', 'lost my pin',
-        'forgot my kra', 'lost my kra', 'cannot remember pin'
+        'forgot my kra', 'lost my kra', 'cannot remember pin',
+        # Kiswahili
+        'komboa pin', 'badili pin', 'sahau pin', 'pin iliyopotea',
+        'kukomboa pin', 'nimesahau pin', 'pin yangu imepotea'
     ]
-    
+
     KRA_PIN_GENERATION_KEYWORDS = [
         'get pin', 'generate pin', 'create pin', 'need a pin',
         'pin application', 'apply for pin', 'register for pin',
         'pin number', 'new kra pin', 'first pin', 'need kra',
         'want a pin', 'want kra pin', 'need a kra', 'get a kra',
-        'how do i get', 'obtain pin', 'obtain kra'
+        'how do i get', 'obtain pin', 'obtain kra',
+        # Kiswahili
+        'pata pin', 'tengeneza pin', 'pin mpya', 'omba pin', 'ombi la pin',
+        'nataka pin', 'ninataka pin ya kra'
     ]
-    
+
     KRA_PIN_VERIFICATION_KEYWORDS = [
         'verify pin', 'check pin', 'validate pin', 'confirm pin',
         'pin valid', 'pin status', 'verify kra pin', 'check kra pin',
-        'is my pin valid', 'pin verification', 'verify my pin'
+        'is my pin valid', 'pin verification', 'verify my pin',
+        # Kiswahili
+        'hakikisha pin', 'angalia pin', 'thibitisha pin'
     ]
-    
+
     KRA_COMPLIANCE_KEYWORDS = [
         'tax compliance', 'compliance status', 'compliance certificate',
         'check compliance', 'am i compliant', 'tax compliant',
         'outstanding tax', 'outstanding returns', 'kra compliance',
-        'compliance check', 'tax clearance'
+        'compliance check', 'tax clearance',
+        # Kiswahili
+        'hali ya ushuru', 'cheti cha ushuru', 'angalia ushuru'
     ]
-    
+
     ITAX_KEYWORDS = [
         'itax', 'i-tax', 'login', 'password', 'username',
-        'dashboard', 'portal', 'account', 'access itax'
+        'dashboard', 'portal', 'account', 'access itax',
+        # Kiswahili
+        'ingia itax', 'neno siri', 'ingilia itax', 'mradi wa itax'
     ]
     
     GREETING_KEYWORDS = [
@@ -318,12 +344,19 @@ class IntentDetector:
         if self._matches_keywords(normalized, self.LIST_AGENCIES_KEYWORDS):
             return self.INTENT_LIST_AGENCIES, 0.95
         
-        # Appointment management intents
-        if self._matches_keywords(normalized, self.MANAGE_APPOINTMENT_KEYWORDS):
+        # Appointment management intents (checked before status/booking so that
+        # "cancel my appointment" etc. don't get misread as a status check)
+        if self._matches_keywords(normalized, self.MANAGE_APPOINTMENT_KEYWORDS) or \
+                any(re.search(p, normalized) for p in self.MANAGE_APPOINTMENT_PATTERNS):
             return self.INTENT_MANAGE_APPOINTMENT, 0.93
-        
+
         if self._matches_keywords(normalized, self.CHECK_STATUS_KEYWORDS):
             return self.INTENT_CHECK_APPOINTMENT_STATUS, 0.93
+
+        # Booking intent (checked before generic service-inquiry so "book a passport
+        # appointment" isn't swallowed by the bare "passport" keyword match below)
+        if self._matches_keywords(normalized, ['book', 'appointment', 'schedule', 'reserve', 'weka miadi', 'panga miadi', 'omba miadi']):
+            return self.INTENT_BOOKING, 0.80
         
         # Check KRA-specific intents
         if self._matches_keywords(normalized, self.KRA_NIL_RETURNS_KEYWORDS):
@@ -369,14 +402,10 @@ class IntentDetector:
         if self._matches_keywords(normalized, self.GOODBYE_KEYWORDS):
             return self.INTENT_GOODBYE, 0.90
         
-        # Service inquiry detection
+        # Service inquiry detection (booking already checked above)
         if any(service in normalized for service in ['passport', 'id', 'license', 'permit', 'conduct', 'birth']):
             return self.INTENT_SERVICE_INQUIRY, 0.85
-        
-        # Booking detection
-        if self._matches_keywords(normalized, ['book', 'appointment', 'schedule', 'reserve']):
-            return self.INTENT_BOOKING, 0.80
-        
+
         # General intents (lower priority)
         if self._matches_keywords(normalized, self.GREETING_KEYWORDS):
             return self.INTENT_GREETING, 0.90

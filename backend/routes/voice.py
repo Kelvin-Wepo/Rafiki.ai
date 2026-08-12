@@ -18,6 +18,7 @@ from models.schemas import (
 from services.voice_service import voice_service
 from services.gemini_service import gemini_service
 from services.dialogflow_service import dialogflow_service
+from services.language_service import language_detector
 from services.booking_service import booking_service
 from services.workflow_integration import get_workflow_integration
 from services.auth_service import get_auth_service
@@ -178,7 +179,22 @@ async def process_input(
             
             # === STRUCTURED LOGGING: Start of intent pipeline ===
             logger.info(f"[PIPELINE] Session: {session.session_id} | Input: '{user_text[:100]}...' | Mode: {request.input_mode.value}")
-            
+
+            # Auto-detect spoken/typed language from the actual message content,
+            # falling back to the client-supplied language when detection is unclear
+            # (e.g. very short utterances) or when the user set an explicit preference.
+            detected_language, language_confidence = language_detector.detect(
+                user_text, session.conversation_context
+            )
+            if detected_language in ("en", "sw") and language_confidence >= 0.55:
+                response_language = detected_language
+            else:
+                response_language = "sw" if request.language.startswith("sw") else "en"
+            logger.info(
+                f"[PIPELINE] Language detected: {detected_language} "
+                f"(confidence: {language_confidence:.2f}) -> using '{response_language}'"
+            )
+
             # Process with Dialogflow for conversation management
             dialogflow_result = await dialogflow_service.detect_intent(
                 user_text,
@@ -186,7 +202,8 @@ async def process_input(
                 {
                     "conversation_context": session.conversation_context.get("context", "welcome"),
                     "entities": session.booking_state
-                }
+                },
+                language=response_language
             )
             
             # === STRUCTURED LOGGING: Intent detection result ===
@@ -198,8 +215,7 @@ async def process_input(
             # === WORKFLOW ENGINE INTEGRATION ===
             # Check if this should be handled by workflow engine
             workflow_integration = get_workflow_integration()
-            response_language = "sw" if request.language.startswith("sw") else "en"
-            
+
             workflow_handled, workflow_response = await workflow_integration.handle_voice_input(
                 user_text=user_text,
                 session_id=session.session_id,
@@ -252,9 +268,6 @@ async def process_input(
                 if booking_result:
                     dialogflow_result["response"] = booking_result["message"]
                     save_transcript_on_booking = True
-            
-            # Determine the response language (sw for Kiswahili, en for English)
-            response_language = "sw" if request.language.startswith("sw") else "en"
             
             # Check if this is a knowledge query that should use RAG/Gemini
             def _is_knowledge_query(text: str) -> bool:
