@@ -152,22 +152,23 @@ DEBUG=true
 #### 4. Start Backend Server
 
 ```bash
-cd backend
-source ../.venv/bin/activate
-python -m deactivate
+./start-uvicorn.sh
 ```
 
-> If you run from the repository root, use:
+This activates the venv inside `backend/` and runs `uvicorn main:app` from the `backend/` directory. If you'd rather do it manually:
+
+```bash
+cd backend
+source virtual/bin/activate   # or: source venv/bin/activate
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+> Run uvicorn as `main:app` from inside `backend/`, not `backend.main:app` from the repo root — `backend/main.py` supports both import styles, but `main:app` is the maintained convention (matches `app.py` and the shell scripts).
+>
+> If you see `ModuleNotFoundError: No module named 'jose'`, reinstall the backend dependencies inside the same venv:
 >
 > ```bash
-> source .venv/bin/activate
-> python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-> ```
->
-> If you still see `ModuleNotFoundError: No module named 'jose'`, reinstall the backend dependencies inside the same venv:
->
-> ```bash
-> .venv/bin/python -m pip install -r backend/requirements.txt
+> pip install -r backend/requirements.txt
 > ```
 
 #### 5. Frontend Setup
