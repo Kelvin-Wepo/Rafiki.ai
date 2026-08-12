@@ -4,8 +4,10 @@ Main application entry point.
 """
 
 import asyncio
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Request, HTTPException
@@ -13,13 +15,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from rafiki_settings import get_settings
+# Ensure the project root and backend package are visible on sys.path
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent
+for path in (str(PROJECT_ROOT), str(BASE_DIR)):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+from backend.rafiki_settings import get_settings
 # Note: routers and heavyweight services are imported lazily inside the application
 # lifespan and request handlers to reduce module import time during test collection
 # and to speed up application cold start time.
-from utils.logger import setup_logging, get_logger
-from utils.session_manager import session_manager
-from utils.rate_limiter import rate_limiter
+from backend.utils.logger import setup_logging, get_logger
+from backend.utils.session_manager import session_manager
+from backend.utils.rate_limiter import rate_limiter
 
 # Setup logging
 setup_logging()
@@ -135,6 +144,40 @@ async def lifespan(app: FastAPI):
 
     # Register routers lazily (reduces import-time overhead)
     try:
+        from backend.routes.auth import router as auth_router
+        from backend.routes.voice import router as voice_router
+        from backend.routes.booking import router as booking_router
+        # from backend.routes.services import router as services_router  # File doesn't exist
+        from backend.routes.session import router as session_router
+        from backend.routes.avatar import router as avatar_router
+        from backend.routes.elevenlabs import router as elevenlabs_router
+        from backend.routes.avatar_animation import router as avatar_animation_router
+        from backend.routes.citizen import router as citizen_router
+        from backend.routes.location import router as location_router
+        from backend.routes.waitlist import router as waitlist_router
+        from backend.routes.chat import router as chat_router
+        # DEPRECATED: Old workflow system - use /api/agencies/* instead
+        # from backend.routes.workflows import router as workflows_router
+        from backend.routes.agencies import router as agencies_router
+
+        app.include_router(auth_router)
+        app.include_router(voice_router)
+        app.include_router(booking_router)
+        app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
+        # app.include_router(services_router)  # File doesn't exist
+        app.include_router(session_router)
+        app.include_router(avatar_router)
+        app.include_router(elevenlabs_router)
+        app.include_router(avatar_animation_router)
+        app.include_router(citizen_router)
+        app.include_router(location_router)
+        app.include_router(waitlist_router)
+        # DEPRECATED: Old workflow system replaced by agencies router
+        # app.include_router(workflows_router)
+        app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
+
+        logger.info("Core routers registered")
+    except ModuleNotFoundError:
         from routes.auth import router as auth_router
         from routes.voice import router as voice_router
         from routes.booking import router as booking_router
@@ -143,7 +186,6 @@ async def lifespan(app: FastAPI):
         from routes.avatar import router as avatar_router
         from routes.elevenlabs import router as elevenlabs_router
         from routes.avatar_animation import router as avatar_animation_router
-        from routes.rag_routes import router as rag_router
         from routes.citizen import router as citizen_router
         from routes.location import router as location_router
         from routes.waitlist import router as waitlist_router
@@ -161,8 +203,6 @@ async def lifespan(app: FastAPI):
         app.include_router(avatar_router)
         app.include_router(elevenlabs_router)
         app.include_router(avatar_animation_router)
-    
-        app.include_router(rag_router)
         app.include_router(citizen_router)
         app.include_router(location_router)
         app.include_router(waitlist_router)
@@ -170,9 +210,24 @@ async def lifespan(app: FastAPI):
         # app.include_router(workflows_router)
         app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
 
-        logger.info("Routers registered")
+        logger.info("Core routers registered")
     except Exception as e:
         logger.error(f"Router registration failed at startup: {e}", exc_info=True)
+
+    # RAG routes are optional (require PDF libraries)
+    try:
+        from backend.routes.rag_routes import router as rag_router
+        app.include_router(rag_router)
+        logger.info("RAG router registered")
+    except ModuleNotFoundError:
+        try:
+            from routes.rag_routes import router as rag_router
+            app.include_router(rag_router)
+            logger.info("RAG router registered")
+        except Exception as e:
+            logger.warning(f"RAG router not available (missing dependencies): {e}")
+    except Exception as e:
+        logger.warning(f"RAG router not available (missing dependencies): {e}")
 
     # Start session cleanup task
     await session_manager.start_cleanup_task()
