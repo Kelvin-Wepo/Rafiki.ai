@@ -22,12 +22,14 @@ import {
   ExclamationTriangleIcon,
   MegaphoneIcon,
 } from '@heroicons/react/24/outline';
-import rafikiAvatar from '../../assets/rafiki_avatar.png';
 import LanguageSelector from '../LanguageSelector';
 import { ConversationHistory } from './ConversationHistory';
 import TranscriptDownload from './TranscriptDownload';
 import '../../styles/dashboard.css';
 import useChatSessions from '../../hooks/useChatSessions';
+import { RafikiTalkingAvatar } from '../avatar';
+import { useAudioAnalyzer } from '../../hooks/useAudioAnalyzer';
+import type { AvatarState } from '../../types/avatar.types';
 
 // Types
 interface QuickAction {
@@ -51,7 +53,7 @@ type SpeechRecognitionInstance = {
 };
 
 // API Base URL
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Quick Actions Data
 const QUICK_ACTIONS: QuickAction[] = [
@@ -121,11 +123,17 @@ export function Dashboard() {
   const [, setLanguage] = useState<'en' | 'sw' | null>(null);
   const [showLanguageSelector, setShowLanguageSelector] = useState(true);
   const [isLanguageLoading, setIsLanguageLoading] = useState(false);
-  
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Drives real mouth/viseme animation on the talking avatar from actual TTS audio
+  const { audioData: avatarAudioData, analyzeAudioElement, stopAnalyzing: stopAvatarAnalyzing } = useAudioAnalyzer();
+
+  const avatarState: AvatarState = isSpeaking ? 'speaking' : isListening ? 'listening' : 'idle';
 
   // Play audio from base64 string
   const playAudio = useCallback((audioBase64: string, mimeType: string = 'audio/mpeg') => {
@@ -135,14 +143,28 @@ export function Dashboard() {
         audioRef.current.pause();
         audioRef.current = null;
       }
-      
+
       const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
       audioRef.current = audio;
+
+      audio.onplay = () => {
+        setIsSpeaking(true);
+        analyzeAudioElement(audio);
+      };
+      audio.onended = () => {
+        setIsSpeaking(false);
+        stopAvatarAnalyzing();
+      };
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        stopAvatarAnalyzing();
+      };
+
       audio.play().catch(err => console.error('Audio playback error:', err));
     } catch (err) {
       console.error('Failed to play audio:', err);
     }
-  }, []);
+  }, [analyzeAudioElement, stopAvatarAnalyzing]);
 
   // Handle language selection and start session
   const handleLanguageSelect = useCallback(async (selectedLang: 'en' | 'sw') => {
@@ -384,12 +406,15 @@ export function Dashboard() {
           <>
             {/* Avatar Card */}
             <div className="avatar-card">
-              {/* Avatar with glow ring */}
+              {/* Talking avatar - animated, reacts to listening/speaking state */}
               <div className="avatar-wrapper">
-                <img
-                  src={rafikiAvatar}
-                  alt="Rafiki AI Assistant"
-                  className="avatar-img"
+                <RafikiTalkingAvatar
+                  state={avatarState}
+                  audioData={avatarState === 'speaking' ? avatarAudioData : undefined}
+                  size={160}
+                  accessible
+                  showParticles={false}
+                  showWaveform={false}
                 />
                 <div className="avatar-glow-ring" aria-hidden="true" />
               </div>

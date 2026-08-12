@@ -1,44 +1,48 @@
 /**
  * Dashboard Styles - Rafiki.ai
- * Implements the "Savanna at Dawn" theme from design mockup
+ * "Savanna Sunrise" theme — warm Kenyan gold + deep forest green,
+ * layered gradients, subtle patterned textures, glowing focal points.
  */
 
 :root {
   /* Brand Colors */
-  --rafiki-sidebar-bg:      #1C3A2E;   /* deep forest green — sidebar background */
-  --rafiki-sidebar-hover:   #254D3C;   /* slightly lighter — sidebar item hover */
+  --rafiki-sidebar-bg:      #0F2A20;   /* deep forest green — sidebar background */
+  --rafiki-sidebar-bg-2:    #163C2C;   /* gradient partner */
+  --rafiki-sidebar-hover:   #1F4A37;   /* slightly lighter — sidebar item hover */
   --rafiki-sidebar-active:  #2D6A4F;   /* active/selected sidebar item */
   --rafiki-green-primary:   #2D6A4F;   /* primary buttons, accents */
-  --rafiki-green-dark:      #1B4332;   /* darker green — logo bg, deep accents */
+  --rafiki-green-dark:      #163C2C;   /* darker green — logo bg, deep accents */
   --rafiki-green-glow:      rgba(45, 106, 79, 0.35);  /* avatar glow color */
-  --rafiki-main-bg:         #F0F2F0;   /* light grey-green — main content bg */
+  --rafiki-gold:            #D4A017;   /* Kenyan gold accent */
+  --rafiki-gold-light:      #F1C453;
+  --rafiki-main-bg:         #F5F1E6;   /* warm sand — main content bg */
   --rafiki-card-bg:         #FFFFFF;   /* white cards */
-  --rafiki-input-bar-bg:    #2A2A2A;   /* near-black — bottom input bar */
+  --rafiki-input-bar-bg:    #12241E;   /* near-black green — bottom input bar */
 
   /* Text */
-  --rafiki-text-primary:    #1A1A1A;   /* main body text */
+  --rafiki-text-primary:    #17251E;   /* main body text */
   --rafiki-text-muted:      #6B7280;   /* secondary/label text */
-  --rafiki-text-sidebar:    #D1FAE5;   /* light green-white — sidebar text */
-  --rafiki-text-sidebar-muted: rgba(209, 250, 229, 0.6); /* muted sidebar text */
+  --rafiki-text-sidebar:    #EAF7EF;   /* light green-white — sidebar text */
+  --rafiki-text-sidebar-muted: rgba(234, 247, 239, 0.62); /* muted sidebar text */
 
   /* Status */
   --rafiki-ready-green:     #22C55E;   /* "Ready" badge */
-  --rafiki-badge-bg:        #7C3AED;   /* purple — notification badge on Transcripts */
+  --rafiki-badge-bg:        #D4A017;   /* gold — notification badge on Transcripts */
   --rafiki-logout-red:      #EF4444;   /* logout button icon */
   --rafiki-error:           #C0392B;
 
   /* Spacing */
-  --sidebar-width:          240px;
-  --input-bar-height:       72px;
+  --sidebar-width:          252px;
+  --input-bar-height:       76px;
 
   /* Typography */
   --font-display:           'Playfair Display', Georgia, serif;
   --font-body:              'DM Sans', sans-serif;
 
   /* Shadows */
-  --shadow-card:   0 2px 12px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
-  --shadow-avatar: 0 0 0 4px #FFFFFF, 0 0 0 8px var(--rafiki-green-primary);
-  --shadow-mic:    0 0 30px var(--rafiki-green-glow), 0 8px 32px rgba(0,0,0,0.25);
+  --shadow-card:   0 2px 14px rgba(23,37,30,0.07), 0 1px 4px rgba(23,37,30,0.05);
+  --shadow-avatar: 0 0 0 4px #FFFFFF, 0 0 0 9px var(--rafiki-gold);
+  --shadow-mic:    0 0 36px rgba(212,160,23,0.45), 0 10px 32px rgba(23,37,30,0.28);
 }
 
 /* ================================================================
@@ -64,11 +68,33 @@
 
 .sidebar {
   grid-area: sidebar;
-  background: var(--rafiki-sidebar-bg);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(212,160,23,0.14) 0%, transparent 45%),
+    linear-gradient(165deg, var(--rafiki-sidebar-bg-2) 0%, var(--rafiki-sidebar-bg) 55%, #0A1F17 100%);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  position: relative;
   animation: fadeUp 350ms 0ms ease both;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.18);
+}
+
+/* Kenyan flag stripe along the very top edge of the sidebar */
+.sidebar::before {
+  content: '';
+  position: sticky;
+  top: 0;
+  display: flex;
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(
+    to right,
+    #000000 0% 25%,
+    #BB0000 25% 50%,
+    #FFFFFF 50% 52%,
+    #006600 52% 100%
+  );
+  z-index: 3;
 }
 
 /* --- Logo / Brand Block --- */
@@ -76,24 +102,25 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 24px 20px 20px;
+  padding: 22px 20px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   animation: fadeUp 350ms 0ms ease both;
 }
 
 .brand-logo {
-  width: 40px;
-  height: 40px;
-  background: var(--rafiki-green-primary);
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(145deg, var(--rafiki-gold-light), var(--rafiki-gold) 55%, var(--rafiki-green-primary));
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #123024;
   flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(212,160,23,0.35), inset 0 0 0 1px rgba(255,255,255,0.25);
 }
 
 .brand-text {
@@ -103,10 +130,10 @@
 
 .brand-name {
   display: block;
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 2px;
+  font-size: 17px;
+  letter-spacing: 1.5px;
   color: #FFFFFF;
 }
 
@@ -114,14 +141,15 @@
   display: block;
   font-family: var(--font-body);
   font-size: 9px;
-  letter-spacing: 1.5px;
-  color: var(--rafiki-text-sidebar-muted);
-  margin-top: 1px;
+  letter-spacing: 1.8px;
+  color: var(--rafiki-gold-light);
+  margin-top: 2px;
+  opacity: 0.85;
 }
 
 /* --- Navigation Items --- */
 .sidebar-nav {
-  padding: 16px 12px;
+  padding: 18px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -133,13 +161,13 @@
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
-  border-radius: 10px;
+  border-radius: 12px;
   text-decoration: none;
   font-family: var(--font-body);
   font-size: 14px;
   font-weight: 500;
   color: var(--rafiki-text-sidebar-muted);
-  transition: background 180ms ease, color 180ms ease;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
   position: relative;
   cursor: pointer;
   border: none;
@@ -151,16 +179,19 @@
 .nav-item:hover {
   background: var(--rafiki-sidebar-hover);
   color: #FFFFFF;
+  transform: translateX(2px);
 }
 
 .nav-item--active {
-  background: var(--rafiki-green-primary);
+  background: linear-gradient(120deg, var(--rafiki-green-primary), #23543F 120%);
   color: #FFFFFF;
   font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(212,160,23,0.25);
 }
 
 .nav-item--active:hover {
-  background: var(--rafiki-green-primary);
+  background: linear-gradient(120deg, var(--rafiki-green-primary), #23543F 120%);
+  transform: none;
 }
 
 .nav-item svg {
@@ -172,7 +203,7 @@
 .nav-badge {
   margin-left: auto;
   background: var(--rafiki-badge-bg);
-  color: #FFFFFF;
+  color: #17251E;
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
@@ -231,20 +262,21 @@
   gap: 10px;
   width: 100%;
   padding: 11px 14px;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid rgba(239, 68, 68, 0.3);
-  background: transparent;
-  color: var(--rafiki-logout-red);
+  background: rgba(239, 68, 68, 0.06);
+  color: #FCA5A5;
   font-family: var(--font-body);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
 }
 
 .logout-btn:hover {
-  background: rgba(239, 68, 68, 0.12);
+  background: rgba(239, 68, 68, 0.16);
   border-color: rgba(239, 68, 68, 0.6);
+  color: #FFFFFF;
 }
 
 .logout-btn svg {
@@ -259,30 +291,53 @@
 .main-content {
   grid-area: main;
   overflow-y: auto;
-  background: var(--rafiki-main-bg);
-  padding: 24px 28px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(212,160,23,0.10) 0%, transparent 40%),
+    radial-gradient(circle at 0% 100%, rgba(45,106,79,0.08) 0%, transparent 45%),
+    var(--rafiki-main-bg);
+  padding: 26px 30px;
   display: flex;
   flex-direction: column;
 }
 
 /* --- Avatar Card --- */
 .avatar-card {
-  background: var(--rafiki-card-bg);
-  border-radius: 20px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FDFBF4 100%);
+  border-radius: 24px;
   box-shadow: var(--shadow-card);
-  padding: 36px 28px 32px;
+  padding: 38px 28px 34px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 26px;
+  position: relative;
+  overflow: hidden;
   animation: fadeUp 400ms 100ms ease both;
+}
+
+/* Faint decorative sunburst / savanna-line texture behind the avatar */
+.avatar-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(212,160,23,0.12) 0%, transparent 55%),
+    repeating-linear-gradient(
+      -35deg,
+      rgba(45,106,79,0.035) 0px,
+      rgba(45,106,79,0.035) 2px,
+      transparent 2px,
+      transparent 14px
+    );
+  pointer-events: none;
 }
 
 .avatar-wrapper {
   position: relative;
   width: 160px;
   height: 160px;
+  z-index: 1;
 }
 
 .avatar-img {
@@ -298,16 +353,18 @@
 
 .avatar-glow-ring {
   position: absolute;
-  inset: -8px;
+  inset: -10px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--rafiki-green-glow) 0%, transparent 70%);
-  animation: avatarPulse 3s ease-in-out infinite;
+  background: conic-gradient(from 0deg, var(--rafiki-gold), var(--rafiki-green-primary), var(--rafiki-gold));
+  opacity: 0.35;
+  filter: blur(10px);
+  animation: avatarPulse 3.2s ease-in-out infinite;
   z-index: 1;
 }
 
 @keyframes avatarPulse {
-  0%, 100% { transform: scale(1);   opacity: 0.6; }
-  50%       { transform: scale(1.1); opacity: 1;   }
+  0%, 100% { transform: scale(1) rotate(0deg);   opacity: 0.35; }
+  50%       { transform: scale(1.12) rotate(180deg); opacity: 0.6;   }
 }
 
 /* --- Status Badge --- */
@@ -323,6 +380,8 @@
   padding: 5px 14px;
   border-radius: 20px;
   margin-top: -8px;
+  z-index: 1;
+  box-shadow: inset 0 0 0 1px rgba(22,101,52,0.12);
 }
 
 .status-dot {
@@ -341,27 +400,29 @@
 /* --- Heading --- */
 .avatar-heading {
   font-family: var(--font-display);
-  font-size: 26px;
+  font-size: 27px;
   font-weight: 700;
   color: var(--rafiki-text-primary);
   text-align: center;
   margin: 0;
   letter-spacing: -0.3px;
+  z-index: 1;
 }
 
 /* --- Microphone Button --- */
 .mic-container {
   position: relative;
-  margin: 8px 0 4px;
+  margin: 10px 0 4px;
+  z-index: 1;
 }
 
 .mic-btn {
   position: relative;
-  width: 110px;
-  height: 110px;
+  width: 112px;
+  height: 112px;
   border-radius: 50%;
-  background: var(--rafiki-green-primary);
-  border: none;
+  background: radial-gradient(circle at 32% 28%, #3E8A66, var(--rafiki-green-primary) 55%, var(--rafiki-green-dark) 100%);
+  border: 3px solid rgba(212,160,23,0.55);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -375,7 +436,8 @@
 }
 
 .mic-btn:hover {
-  transform: scale(1.05);
+  transform: scale(1.06);
+  box-shadow: 0 0 44px rgba(212,160,23,0.6), 0 12px 36px rgba(23,37,30,0.32);
 }
 
 .mic-btn:active {
@@ -383,7 +445,7 @@
 }
 
 .mic-btn:focus {
-  outline: 2px solid var(--rafiki-green-primary);
+  outline: 2px solid var(--rafiki-gold);
   outline-offset: 4px;
 }
 
@@ -403,7 +465,7 @@
 .mic-pulse {
   position: absolute;
   border-radius: 50%;
-  border: 2px solid var(--rafiki-green-primary);
+  border: 2px solid var(--rafiki-gold);
   opacity: 0;
   pointer-events: none;
 }
@@ -427,7 +489,8 @@
 }
 
 .mic-btn--listening {
-  background: var(--rafiki-green-dark);
+  background: radial-gradient(circle at 32% 28%, #d9ae2c, var(--rafiki-gold) 55%, #a97c0f 100%);
+  border-color: rgba(45,106,79,0.6);
 }
 
 @keyframes ripple {
@@ -442,6 +505,7 @@
   color: var(--rafiki-text-muted);
   margin: 0;
   text-align: center;
+  z-index: 1;
 }
 
 /* ================================================================
@@ -449,21 +513,37 @@
    ================================================================ */
 
 .quick-actions {
+  display: block;
+  width: 100%;
   animation: fadeUp 400ms 200ms ease both;
 }
 
 .quick-actions-title {
-  font-family: var(--font-body);
-  font-size: 17px;
+  font-family: var(--font-display);
+  font-size: 19px;
   font-weight: 700;
   color: var(--rafiki-text-primary);
   margin: 0 0 14px;
+  width: 100%;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-actions-title::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rafiki-gold);
 }
 
 .actions-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
 }
 
 .action-card {
@@ -471,20 +551,38 @@
   align-items: flex-start;
   gap: 14px;
   background: var(--rafiki-card-bg);
-  border: 1px solid rgba(0,0,0,0.06);
-  border-radius: 14px;
+  border: 1px solid rgba(23,37,30,0.06);
+  border-radius: 16px;
   padding: 16px;
   cursor: pointer;
   text-align: left;
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
   animation: fadeUp 400ms ease both;
   box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(to right, var(--rafiki-gold), var(--rafiki-green-primary));
+  opacity: 0;
+  transition: opacity 160ms ease;
 }
 
 .action-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
-  border-color: rgba(45,106,79,0.2);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(23,37,30,0.12);
+  border-color: rgba(212,160,23,0.3);
+}
+
+.action-card:hover::before {
+  opacity: 1;
 }
 
 .action-card:active {
@@ -504,16 +602,23 @@
 .action-card:nth-child(6) { animation-delay: 420ms; }
 
 .action-icon-wrap {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(45, 106, 79, 0.08);
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--rafiki-green-primary);
+  color: #FFFFFF;
 }
+
+/* Give each quick action its own accent color, savanna palette */
+.action-card:nth-child(1) .action-icon-wrap { background: linear-gradient(145deg, #2D6A4F, #1B4332); }
+.action-card:nth-child(2) .action-icon-wrap { background: linear-gradient(145deg, #E5A823, #B9860E); }
+.action-card:nth-child(3) .action-icon-wrap { background: linear-gradient(145deg, #1B4332, #0F2A20); }
+.action-card:nth-child(4) .action-icon-wrap { background: linear-gradient(145deg, #BB0000, #7A0000); }
+.action-card:nth-child(5) .action-icon-wrap { background: linear-gradient(145deg, #2D2D2D, #111111); }
+.action-card:nth-child(6) .action-icon-wrap { background: linear-gradient(145deg, #E5A823, #2D6A4F); }
 
 .action-icon-wrap svg {
   width: 22px;
@@ -550,7 +655,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 20px 0 8px;
+  padding: 22px 0 8px;
   font-family: var(--font-body);
   font-size: 12px;
   color: var(--rafiki-text-muted);
@@ -576,17 +681,17 @@
 
 .input-bar {
   grid-area: inputbar;
-  background: var(--rafiki-input-bar-bg);
+  background: linear-gradient(180deg, #16281F 0%, var(--rafiki-input-bar-bg) 100%);
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 20px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 14px 22px;
+  border-top: 1px solid rgba(212,160,23,0.15);
 }
 
 .input-mic-btn {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: rgba(255,255,255,0.08);
   border: none;
@@ -596,21 +701,22 @@
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 180ms ease, color 180ms ease;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
 .input-mic-btn:hover {
   background: rgba(255,255,255,0.14);
   color: #FFFFFF;
+  transform: scale(1.05);
 }
 
 .input-mic-btn--active {
-  background: var(--rafiki-green-primary);
-  color: #FFFFFF;
+  background: var(--rafiki-gold);
+  color: #17251E;
 }
 
 .input-mic-btn:focus {
-  outline: 2px solid var(--rafiki-green-primary);
+  outline: 2px solid var(--rafiki-gold);
   outline-offset: 2px;
 }
 
@@ -623,8 +729,8 @@
   flex: 1;
   background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 24px;
-  padding: 11px 20px;
+  border-radius: 26px;
+  padding: 12px 20px;
   color: #FFFFFF;
   font-family: var(--font-body);
   font-size: 14px;
@@ -637,15 +743,15 @@
 }
 
 .input-field:focus {
-  border-color: var(--rafiki-green-primary);
+  border-color: var(--rafiki-gold);
   background: rgba(255,255,255,0.10);
 }
 
 .input-send-btn {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  background: var(--rafiki-green-primary);
+  background: linear-gradient(145deg, var(--rafiki-green-primary), var(--rafiki-green-dark));
   border: none;
   color: #FFFFFF;
   display: flex;
@@ -657,7 +763,7 @@
 }
 
 .input-send-btn:hover {
-  background: var(--rafiki-green-dark);
+  transform: scale(1.05);
 }
 
 .input-send-btn:active {
@@ -670,7 +776,7 @@
 }
 
 .input-send-btn:focus {
-  outline: 2px solid var(--rafiki-green-primary);
+  outline: 2px solid var(--rafiki-gold);
   outline-offset: 2px;
 }
 
@@ -856,7 +962,7 @@
 .input-mic-btn:focus-visible,
 .input-send-btn:focus-visible,
 .logout-btn:focus-visible {
-  outline: 2px solid var(--rafiki-green-primary);
+  outline: 2px solid var(--rafiki-gold);
   outline-offset: 2px;
 }
 
@@ -878,7 +984,7 @@
 .language-selector-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(28, 58, 46, 0.85);
+  background: rgba(15, 42, 32, 0.88);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -897,10 +1003,28 @@
   border-radius: 24px;
   padding: 3rem 4rem;
   text-align: center;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
   max-width: 480px;
   width: 90%;
+  position: relative;
+  overflow: hidden;
   animation: slideUp 0.4s ease-out;
+}
+
+.language-selector-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(
+    to right,
+    #000000 0% 25%,
+    #BB0000 25% 50%,
+    #FFFFFF 50% 52%,
+    #006600 52% 100%
+  );
 }
 
 @keyframes slideUp {
@@ -931,7 +1055,7 @@
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--rafiki-green-primary);
+  color: var(--rafiki-gold);
   margin: 0 0 1.5rem 0;
 }
 

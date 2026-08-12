@@ -1,0 +1,399 @@
+/**
+ * Rafiki.ai Landing Page Styles
+ * Matches frontend/design/IMG-20260811-WA0404.jpg (screen 1)
+ */
+
+.landing-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fdfcf8 0%, #f6f4ec 100%);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: var(--ke-black, #1a1a1a);
+  overflow-x: hidden;
+}
+
+/* ---------------- Nav ---------------- */
+.landing-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.landing-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.landing-nav-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.landing-nav-name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ke-green, #006600);
+  line-height: 1.1;
+}
+
+.landing-nav-tagline {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.landing-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.landing-nav-link:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.landing-nav-link--signin {
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ke-green-dark, #004d00);
+}
+
+.landing-signin-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--ke-green-dark, #004d00);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.landing-signin-button:hover {
+  background: var(--ke-green, #006600);
+  transform: translateY(-1px);
+}
+
+/* ---------------- Hero ---------------- */
+.landing-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 40px;
+  align-items: center;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 56px 32px 40px;
+}
+
+@media (max-width: 900px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+    padding: 40px 20px;
+  }
+}
+
+.landing-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fdf1de;
+  color: #92660c;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  margin-bottom: 20px;
+}
+
+.landing-hero-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: 18px;
+  color: #111827;
+}
+
+.landing-hero-highlight {
+  color: var(--ke-green, #006600);
+}
+
+.landing-hero-subtitle {
+  font-size: 16px;
+  color: #4b5563;
+  max-width: 460px;
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+
+.landing-hero-cta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.landing-cta-primary,
+.landing-cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.landing-cta-primary {
+  background: var(--ke-green-dark, #004d00);
+  color: white;
+}
+
+.landing-cta-primary:hover {
+  background: var(--ke-green, #006600);
+  transform: translateY(-1px);
+}
+
+.landing-cta-sub {
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+.landing-cta-secondary {
+  background: white;
+  color: #1f2937;
+  border: 1.5px solid #e5e7eb;
+}
+
+.landing-cta-secondary:hover {
+  border-color: var(--ke-green, #006600);
+  color: var(--ke-green, #006600);
+}
+
+.landing-hero-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ---------------- Hero visual ---------------- */
+.landing-hero-visual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.landing-mascot-halo {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.landing-mascot {
+  width: 62%;
+  height: auto;
+  border-radius: 16px;
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.15));
+}
+
+.landing-service-badge {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 1;
+}
+
+.landing-service-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 102, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ke-green, #006600);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.landing-service-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.badge-top { top: -6%; left: 50%; transform: translateX(-50%); }
+.badge-top-right { top: 8%; right: -6%; }
+.badge-top-left { top: 8%; left: -6%; }
+.badge-right { top: 42%; right: -14%; }
+.badge-left { top: 42%; left: -14%; }
+.badge-bottom-right { bottom: 18%; right: 0; }
+.badge-bottom { bottom: 4%; left: 50%; transform: translateX(-50%); }
+
+@media (max-width: 900px) {
+  .landing-service-label { display: none; }
+  .landing-service-icon { width: 38px; height: 38px; }
+}
+
+.landing-chat-bubble {
+  margin-top: 28px;
+  background: white;
+  border-radius: 16px;
+  padding: 14px 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  max-width: 320px;
+}
+
+.landing-chat-bubble-sub {
+  color: #6b7280;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+/* ---------------- Quick actions ---------------- */
+.landing-quick-actions {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 12px 32px 48px;
+}
+
+.landing-quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .landing-quick-actions-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .landing-quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.landing-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 12px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 16px;
+  text-decoration: none;
+  color: #1f2937;
+  text-align: center;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.landing-action-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.landing-action-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.qa-green .landing-action-icon { background: var(--ke-green, #006600); }
+.qa-gold .landing-action-icon { background: #d4a017; }
+.qa-dark .landing-action-icon { background: var(--ke-green-dark, #004d00); }
+.qa-red .landing-action-icon { background: var(--ke-red, #bb0000); }
+.qa-black .landing-action-icon { background: #1a1a1a; }
+
+.landing-action-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.landing-more-services {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 10px 16px;
+  background: #f0fdf4;
+  border-radius: 999px;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 500;
+  max-width: fit-content;
+  margin-inline: auto;
+}
+
+/* ---------------- Trust bar ---------------- */
+.landing-trust-bar {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+  background: var(--ke-green-dark, #004d00);
+  color: white;
+}
+
+.landing-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.landing-trust-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.landing-trust-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}

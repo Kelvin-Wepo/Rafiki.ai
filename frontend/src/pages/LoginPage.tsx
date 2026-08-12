@@ -5,14 +5,12 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Lock, AlertCircle } from 'lucide-react';
+import { User, Lock, AlertCircle, ShieldCheck, Landmark } from 'lucide-react';
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
 import { useAuth } from '../contexts/AuthContext';
 import loginBg from '../assets/login.png';
 import rafikiAvatar from '../assets/rafiki_avatar.png';
 import '../styles/auth.css';
-
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 interface FormData {
   emailOrPhone: string;
@@ -125,71 +123,59 @@ export function LoginPage() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    // TODO: Implement Google OAuth
-    window.location.href = `${API_BASE}/auth/google`;
+  const [showEcitizenNotice, setShowEcitizenNotice] = useState(false);
+
+  const handleEcitizenSignIn = () => {
+    // eCitizen SSO is not wired up yet - UI placeholder only.
+    setShowEcitizenNotice(true);
+    setTimeout(() => setShowEcitizenNotice(false), 3000);
   };
 
   return (
-    <div className="auth-page">
-      {/* Background Panel - Desktop */}
-      <div className="auth-bg-panel">
-        <img
-          src={loginBg}
-          alt=""
-          className="auth-bg-image absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="auth-bg-overlay" />
-        <div className="auth-bg-content">
-          <img
-            src={rafikiAvatar}
-            alt=""
-            className="rafiki-glow w-20 h-20 mb-6"
-            aria-hidden="true"
-          />
-          <h1 className="font-playfair text-4xl lg:text-5xl text-white leading-tight mb-2">
-            Welcome back.
-          </h1>
-          <h2 className="font-playfair text-4xl lg:text-5xl leading-tight mb-4" style={{ color: '#C8860A' }}>
-            Rafiki is ready.
-          </h2>
-          <p className="font-dm-sans text-base text-white/70 max-w-md">
-            Your government services are just a conversation away.
-          </p>
-        </div>
+    <div className="login-page">
+      <img src={loginBg} alt="" className="login-page-bg" aria-hidden="true" />
+      <div className="login-page-overlay" />
+
+      <div className="login-kenya-chip">
+        <span aria-hidden="true">🇰🇪</span> Kenya
       </div>
 
-      {/* Mobile Background */}
-      <div className="auth-mobile-bg lg:hidden">
-        <img src={loginBg} alt="" className="w-full h-full object-cover" />
-        <div className="auth-mobile-overlay" />
-      </div>
-
-      {/* Form Panel */}
-      <div className="auth-form-panel">
-        <AuthCard shake={shake}>
+      <div className="login-content">
+        <AuthCard shake={shake} className="login-card">
+          <div className="auth-flag-stripe" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
           <form onSubmit={handleSubmit} noValidate>
+            {/* Brand Header */}
+            <div className="login-brand fade-up">
+              <img
+                src={rafikiAvatar}
+                alt=""
+                className="login-brand-logo"
+                aria-hidden="true"
+              />
+              <div>
+                <h1 className="login-brand-name">Rafiki</h1>
+                <p className="login-brand-tagline">AI Government Assistant</p>
+              </div>
+            </div>
+
             {/* Returning User Greeting */}
             {lastUserName && (
               <div className="text-center mb-2 fade-up">
-                <p className="font-dm-sans text-sm" style={{ color: '#C8860A' }}>
+                <p className="font-dm-sans text-sm" style={{ color: 'var(--rafiki-gold)' }}>
                   Welcome back, {lastUserName}
                 </p>
               </div>
             )}
 
             {/* Header */}
-            <div className="text-center mb-8 fade-up">
-              <img
-                src={rafikiAvatar}
-                alt="Rafiki AI"
-                className="rafiki-glow-subtle w-12 h-12 mx-auto mb-4"
-              />
-              <h1 className="font-playfair text-2xl md:text-3xl text-gray-900 mb-2">
-                Sign in to Rafiki
-              </h1>
-              <p className="font-dm-sans text-sm text-gray-500">
-                Good to have you back
+            <div className="text-center mb-6 fade-up">
+              <h1 className="login-title">Welcome back!</h1>
+              <p className="login-subtitle">
+                Let's securely connect to your eCitizen account so I can help you.
               </p>
             </div>
 
@@ -206,8 +192,8 @@ export function LoginPage() {
               {/* Email or Phone */}
               <div className="fade-up fade-up-delay-1">
                 <AuthInput
-                  label="Email or Phone"
-                  placeholder="Email address or 07XX XXX XXX"
+                  label="Email or Phone Number"
+                  placeholder="Enter your email or phone number"
                   icon={<User size={20} aria-hidden="true" />}
                   value={formData.emailOrPhone}
                   onChange={(v) => updateField('emailOrPhone', v)}
@@ -221,7 +207,7 @@ export function LoginPage() {
               <div className="fade-up fade-up-delay-2">
                 <AuthInput
                   label="Password"
-                  placeholder="Your password"
+                  placeholder="Enter your password"
                   icon={<Lock size={20} aria-hidden="true" />}
                   value={formData.password}
                   onChange={(v) => updateField('password', v)}
@@ -247,34 +233,53 @@ export function LoginPage() {
                   fullWidth
                   loading={loading}
                 >
-                  Sign In
+                  <Lock size={18} aria-hidden="true" />
+                  <span>Sign in securely</span>
                 </AuthButton>
               </div>
 
               {/* Divider */}
               <div className="auth-divider fade-up fade-up-delay-5">
                 <div className="auth-divider-line" />
-                <span className="auth-divider-text">or</span>
+                <span className="auth-divider-text">OR</span>
                 <div className="auth-divider-line" />
               </div>
 
-              {/* Google Button */}
+              {/* eCitizen Button */}
               <div className="fade-up fade-up-delay-5">
-                <AuthButton
-                  variant="google"
-                  fullWidth
-                  onClick={handleGoogleSignIn}
+                <button
+                  type="button"
+                  className="ecitizen-button"
+                  onClick={handleEcitizenSignIn}
                 >
-                  Continue with Google
-                </AuthButton>
+                  <Landmark size={18} aria-hidden="true" />
+                  <span>Continue with eCitizen</span>
+                </button>
+                {showEcitizenNotice && (
+                  <p className="ecitizen-notice" role="status">
+                    eCitizen sign-in is coming soon.
+                  </p>
+                )}
+              </div>
+
+              {/* Security Note */}
+              <div className="login-security-note fade-up fade-up-delay-6">
+                <ShieldCheck size={18} aria-hidden="true" />
+                <p>
+                  Your credentials are only used to access your eCitizen account with your
+                  permission.{' '}
+                  <Link to="/privacy" className="auth-link">
+                    Learn more
+                  </Link>
+                </p>
               </div>
 
               {/* Footer Link */}
-              <div className="text-center pt-4 fade-up fade-up-delay-6">
+              <div className="text-center pt-2 fade-up fade-up-delay-6">
                 <p className="font-dm-sans text-sm text-gray-600">
-                  Don't have an account?{' '}
+                  New to Rafiki?{' '}
                   <Link to="/signup" className="auth-link">
-                    Create one
+                    Create an account
                   </Link>
                 </p>
               </div>
@@ -282,6 +287,8 @@ export function LoginPage() {
           </form>
         </AuthCard>
       </div>
+
+      <div className="login-footer-bar">Proudly Kenyan 🇰🇪</div>
     </div>
   );
 }

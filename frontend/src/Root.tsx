@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OTPVerification } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
-import { SignUpPage, LoginPage } from './pages';
+import { SignUpPage, LoginPage, LandingPage } from './pages';
 
 /**
  * Loading Screen Component
@@ -28,15 +28,16 @@ function LoadingScreen() {
  */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  
+  if (import.meta.env.VITE_DEV_SCREENSHOT) return <>{children}</>;
+
   if (isLoading) {
     return <LoadingScreen />;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -45,15 +46,33 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
  */
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return <LoadingScreen />;
   }
-  
+
   if (isAuthenticated) {
     return <Navigate to="/chat" replace />;
   }
-  
+
+  return <>{children}</>;
+}
+
+/**
+ * Public Route Wrapper - redirects to chat if already authenticated,
+ * otherwise renders public marketing content (e.g. the landing page)
+ */
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/chat" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -88,15 +107,17 @@ function AppRouter() {
         }
       />
 
-      {/* Protected Routes */}
+      {/* Public Landing Page */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
+          <PublicRoute>
+            <LandingPage />
+          </PublicRoute>
         }
       />
+
+      {/* Protected Routes */}
       <Route
         path="/chat"
         element={

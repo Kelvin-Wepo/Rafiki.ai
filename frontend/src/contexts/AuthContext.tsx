@@ -28,6 +28,8 @@ import {
   getStoredUser,
   clearAuthData,
   passwordLogin as passwordLoginApi,
+  storeToken,
+  storeUser,
 } from '../services/authService';
 
 // Auth state interface
@@ -46,6 +48,7 @@ interface AuthContextType extends AuthState {
   verify: (phoneNumber: string, otp: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   clearError: () => void;
+  completeSession: (user: User, token: string, sessionId?: string) => void;
   
   // Auth state helpers
   pendingPhone: string | null;
@@ -247,6 +250,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
   }, []);
 
+  /**
+   * Complete an authenticated session started outside the normal login flows
+   * (e.g. after signup + OTP verification). Persists the token/user and
+   * updates context state so ProtectedRoute recognizes the session.
+   */
+  const completeSession = useCallback((newUser: User, token: string, sessionId?: string) => {
+    storeToken(token);
+    storeUser(newUser);
+    if (sessionId) {
+      localStorage.setItem('rafiki_session_id', sessionId);
+    }
+    setUser(newUser);
+    setIsAuthenticated(true);
+  }, []);
+
   // Context value
   const value: AuthContextType = {
     user,
@@ -258,6 +276,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     verify,
     logout,
     clearError,
+    completeSession,
     pendingPhone,
     setPendingPhone,
     isVerifying,

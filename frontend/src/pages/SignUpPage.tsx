@@ -6,13 +6,27 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, CreditCard, Lock, Check, AlertCircle, X, RefreshCw } from 'lucide-react';
+import {
+  User,
+  Mail,
+  Phone,
+  CreditCard,
+  Lock,
+  Check,
+  AlertCircle,
+  X,
+  RefreshCw,
+  ShieldCheck,
+  Landmark,
+  Sparkles,
+} from 'lucide-react';
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
+import { useAuth } from '../contexts/AuthContext';
 import signupBg from '../assets/signup.png';
 import rafikiAvatar from '../assets/rafiki_avatar.png';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface FormData {
   fullName: string;
@@ -153,6 +167,7 @@ function AuthCheckbox({
 
 export function SignUpPage() {
   const navigate = useNavigate();
+  const { completeSession } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
@@ -168,7 +183,8 @@ export function SignUpPage() {
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  
+  const [ecitizenNotice, setEcitizenNotice] = useState(false);
+
   // OTP verification state
   const [otpState, setOtpState] = useState<OtpState>({
     showModal: false,
@@ -360,9 +376,8 @@ export function SignUpPage() {
         throw new Error(data.message || data.detail || 'Verification failed');
       }
 
-      // Success - store session and redirect
-      localStorage.setItem('rafiki_session_id', data.session_id);
-      localStorage.setItem('rafiki_token', data.access_token);
+      // Success - complete the session so AuthContext/ProtectedRoute recognize it
+      completeSession(data.user || { full_name: formData.fullName }, data.access_token, data.session_id);
       localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
       navigate('/chat');
     } catch (err: any) {
@@ -418,62 +433,55 @@ export function SignUpPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleGoogleSignUp = () => {
-    // TODO: Implement Google OAuth
-    window.location.href = `${API_BASE}/auth/google`;
+  const handleEcitizenSignUp = () => {
+    // eCitizen SSO is not wired up yet - UI placeholder only.
+    setEcitizenNotice(true);
+    setTimeout(() => setEcitizenNotice(false), 3000);
   };
 
   return (
-    <div className="auth-page">
-      {/* Background Panel - Desktop */}
-      <div className="auth-bg-panel">
-        <img
-          src={signupBg}
-          alt=""
-          className="auth-bg-image absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="auth-bg-overlay" />
-        <div className="auth-bg-content">
-          <img
-            src={rafikiAvatar}
-            alt=""
-            className="rafiki-glow w-20 h-20 mb-6"
-            aria-hidden="true"
-          />
-          <h1 className="font-playfair text-4xl lg:text-5xl text-white leading-tight mb-2">
-            Your Government.
-          </h1>
-          <h2 className="font-playfair text-4xl lg:text-5xl leading-tight mb-4" style={{ color: '#C8860A' }}>
-            Made Simple.
-          </h2>
-          <p className="font-dm-sans text-base text-white/70 max-w-md">
-            Access all Kenyan government services from one place.
-          </p>
-        </div>
+    <div className="signup-page">
+      <img src={signupBg} alt="" className="signup-page-bg" aria-hidden="true" />
+      <div className="signup-page-overlay" />
+
+      <div className="signup-kenya-chip">
+        <span aria-hidden="true">🇰🇪</span> Kenya
       </div>
 
-      {/* Mobile Background */}
-      <div className="auth-mobile-bg lg:hidden">
-        <img src={signupBg} alt="" className="w-full h-full object-cover" />
-        <div className="auth-mobile-overlay" />
-      </div>
-
-      {/* Form Panel */}
-      <div className="auth-form-panel">
-        <AuthCard>
+      <div className="signup-content">
+        <AuthCard className="signup-card">
+          <div className="auth-flag-stripe" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
           <form onSubmit={handleSubmit} noValidate>
+            {/* Brand + Progress */}
+            <div className="signup-brand fade-up">
+              <img src={rafikiAvatar} alt="" className="signup-brand-logo" aria-hidden="true" />
+              <div>
+                <h1 className="signup-brand-name">Rafiki</h1>
+                <p className="signup-brand-tagline">AI Government Assistant</p>
+              </div>
+            </div>
+
+            <div className="signup-progress fade-up">
+              <div className="signup-progress-step active">
+                <span className="signup-progress-dot">1</span>
+                Account details
+              </div>
+              <div className="signup-progress-line" />
+              <div className="signup-progress-step">
+                <span className="signup-progress-dot">2</span>
+                Verify
+              </div>
+            </div>
+
             {/* Header */}
-            <div className="text-center mb-8 fade-up">
-              <img
-                src={rafikiAvatar}
-                alt="Rafiki AI"
-                className="rafiki-glow-subtle w-12 h-12 mx-auto mb-4"
-              />
-              <h1 className="font-playfair text-2xl md:text-3xl text-gray-900 mb-2">
-                Create your account
-              </h1>
-              <p className="font-dm-sans text-sm text-gray-500">
-                Join thousands of Kenyans accessing government services online
+            <div className="text-center mb-6 fade-up">
+              <h1 className="signup-title">Create your account</h1>
+              <p className="signup-subtitle">
+                Join thousands of Kenyans accessing government services in one place.
               </p>
             </div>
 
@@ -612,30 +620,46 @@ export function SignUpPage() {
                   fullWidth
                   loading={loading}
                 >
-                  Create Account
+                  <Sparkles size={18} aria-hidden="true" />
+                  <span>Create Account</span>
                 </AuthButton>
               </div>
 
               {/* Divider */}
               <div className="auth-divider fade-up fade-up-delay-10">
                 <div className="auth-divider-line" />
-                <span className="auth-divider-text">or sign up with</span>
+                <span className="auth-divider-text">OR</span>
                 <div className="auth-divider-line" />
               </div>
 
-              {/* Google Button */}
+              {/* eCitizen Button */}
               <div className="fade-up fade-up-delay-10">
-                <AuthButton
-                  variant="google"
-                  fullWidth
-                  onClick={handleGoogleSignUp}
+                <button
+                  type="button"
+                  className="ecitizen-button"
+                  onClick={handleEcitizenSignUp}
                 >
-                  Continue with Google
-                </AuthButton>
+                  <Landmark size={18} aria-hidden="true" />
+                  <span>Continue with eCitizen</span>
+                </button>
+                {ecitizenNotice && (
+                  <p className="ecitizen-notice" role="status">
+                    eCitizen sign-up is coming soon.
+                  </p>
+                )}
+              </div>
+
+              {/* Security Note */}
+              <div className="login-security-note fade-up fade-up-delay-10">
+                <ShieldCheck size={18} aria-hidden="true" />
+                <p>
+                  Your details are encrypted and only used to verify your identity with
+                  Kenyan government services.
+                </p>
               </div>
 
               {/* Footer Link */}
-              <div className="text-center pt-4 fade-up fade-up-delay-10">
+              <div className="text-center pt-2 fade-up fade-up-delay-10">
                 <p className="font-dm-sans text-sm text-gray-600">
                   Already have an account?{' '}
                   <Link to="/login" className="auth-link">
@@ -647,6 +671,8 @@ export function SignUpPage() {
           </form>
         </AuthCard>
       </div>
+
+      <div className="login-footer-bar">Proudly Kenyan 🇰🇪</div>
 
       {/* OTP Verification Modal */}
       {otpState.showModal && (
@@ -664,7 +690,7 @@ export function SignUpPage() {
 
             {/* Header */}
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-700 to-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock size={28} className="text-white" />
               </div>
               <h3 className="font-playfair text-2xl text-gray-900 mb-2">Verify Your Account</h3>
@@ -690,7 +716,7 @@ export function SignUpPage() {
                   onChange={(e) => handleOtpChange(index, e.target.value)}
                   onKeyDown={(e) => handleOtpKeyDown(index, e)}
                   className="w-12 h-14 text-center text-2xl font-bold border-2 rounded-xl 
-                    focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none
+                    focus:border-green-700 focus:ring-2 focus:ring-green-200 outline-none
                     transition-all text-gray-900"
                   aria-label={`Digit ${index + 1}`}
                 />
@@ -701,7 +727,7 @@ export function SignUpPage() {
             <div className="text-center mb-4">
               {otpState.expiresIn > 0 ? (
                 <p className="font-dm-sans text-sm text-gray-500">
-                  Code expires in <span className="font-medium text-amber-600">{formatTime(otpState.expiresIn)}</span>
+                  Code expires in <span className="font-medium text-green-700">{formatTime(otpState.expiresIn)}</span>
                 </p>
               ) : (
                 <p className="font-dm-sans text-sm text-red-500">
@@ -740,7 +766,7 @@ export function SignUpPage() {
                   onClick={() => handleResendOtp('sms')}
                   disabled={otpState.resending}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium 
-                    text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg 
+                    text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg 
                     transition-colors disabled:opacity-50"
                 >
                   {otpState.resending ? <RefreshCw size={14} className="animate-spin" /> : <Phone size={14} />}
@@ -751,7 +777,7 @@ export function SignUpPage() {
                   onClick={() => handleResendOtp('voice')}
                   disabled={otpState.resending}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium 
-                    text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg 
+                    text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg 
                     transition-colors disabled:opacity-50"
                 >
                   {otpState.resending ? <RefreshCw size={14} className="animate-spin" /> : null}
@@ -762,7 +788,7 @@ export function SignUpPage() {
                   onClick={() => handleResendOtp('email')}
                   disabled={otpState.resending}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium 
-                    text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg 
+                    text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg 
                     transition-colors disabled:opacity-50"
                 >
                   {otpState.resending ? <RefreshCw size={14} className="animate-spin" /> : <Mail size={14} />}

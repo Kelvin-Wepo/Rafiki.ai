@@ -608,3 +608,358 @@
   width: 20px;
   height: 20px;
 }
+
+/* ============================================================
+   LOGIN PAGE (single centered card, per mockup)
+   ============================================================ */
+.login-page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 56px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.login-page-bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+.login-page-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(250, 243, 224, 0.94) 0%,
+    rgba(250, 243, 224, 0.88) 45%,
+    rgba(13, 17, 23, 0.55) 100%
+  );
+  z-index: -1;
+}
+
+.login-kenya-chip {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rafiki-night);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 5;
+}
+
+.login-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.login-card {
+  max-width: 460px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.login-brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.login-brand-name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--rafiki-green);
+  line-height: 1.1;
+}
+
+.login-brand-tagline {
+  font-size: 12px;
+  color: var(--rafiki-muted);
+}
+
+.login-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 26px;
+  color: var(--rafiki-night);
+  margin-bottom: 6px;
+}
+
+.login-subtitle {
+  font-size: 14px;
+  color: var(--rafiki-muted);
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+.ecitizen-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--rafiki-night);
+  background: white;
+  border: 2px solid #E0D9C8;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.ecitizen-button:hover {
+  background: #FAFAFA;
+  border-color: var(--rafiki-gold);
+}
+
+.ecitizen-notice {
+  margin-top: 8px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--rafiki-green);
+}
+
+.login-security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--ke-green-bg, #f0fdf4);
+  border: 1px solid var(--ke-green-border, #bbf7d0);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--rafiki-green);
+}
+
+.login-security-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.login-security-note p {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+.login-footer-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  text-align: center;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--rafiki-green);
+}
+
+@media (max-width: 640px) {
+  .login-kenya-chip {
+    top: 12px;
+    right: 12px;
+  }
+}
+
+/* ============================================================
+   SHARED FLAG STRIPE ACCENT (top edge of auth cards)
+   ============================================================ */
+.auth-flag-stripe {
+  display: flex;
+  height: 5px;
+  margin: -40px -40px 24px;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+
+@media (max-width: 767px) {
+  .auth-flag-stripe {
+    margin: -24px -24px 20px;
+  }
+}
+
+.auth-flag-stripe span {
+  flex: 1;
+}
+
+.auth-flag-stripe span:nth-child(1) { background: var(--ke-black, #1a1a1a); }
+.auth-flag-stripe span:nth-child(2) { background: var(--ke-red, #bb0000); }
+.auth-flag-stripe span:nth-child(3) { background: var(--rafiki-green); }
+
+/* ============================================================
+   SIGN UP PAGE (single centered card, per redesigned login)
+   ============================================================ */
+.signup-page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 56px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.signup-page-bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+.signup-page-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(250, 243, 224, 0.94) 0%,
+    rgba(250, 243, 224, 0.9) 45%,
+    rgba(13, 17, 23, 0.6) 100%
+  );
+  z-index: -1;
+}
+
+.signup-kenya-chip {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rafiki-night);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 5;
+}
+
+.signup-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.signup-card {
+  max-width: 520px;
+}
+
+.signup-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.signup-brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.signup-brand-name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--rafiki-green);
+  line-height: 1.1;
+}
+
+.signup-brand-tagline {
+  font-size: 12px;
+  color: var(--rafiki-muted);
+}
+
+.signup-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 26px;
+  color: var(--rafiki-night);
+  margin-bottom: 6px;
+}
+
+.signup-subtitle {
+  font-size: 14px;
+  color: var(--rafiki-muted);
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+.signup-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.signup-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rafiki-muted);
+}
+
+.signup-progress-step.active {
+  color: var(--rafiki-green);
+}
+
+.signup-progress-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.signup-progress-step.active .signup-progress-dot {
+  background: var(--rafiki-green);
+  color: white;
+}
+
+.signup-progress-line {
+  width: 40px;
+  height: 2px;
+  background: #e5e7eb;
+}
