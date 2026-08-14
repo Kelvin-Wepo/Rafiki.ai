@@ -20,8 +20,18 @@ except ImportError:
     BCRYPT_AVAILABLE = False
     import hashlib as fallback_hash
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from rafiki_settings import get_settings
 from utils.logger import get_logger
+from database import AsyncSessionLocal
+from models.db_models import (
+    User as DBUser,
+    Session as DBSession,
+    UserStatus as DBUserStatus,
+    AuthProvider as DBAuthProvider,
+)
 from models.user import (
     User, Session, Conversation, UserStatus, AuthProvider,
     UserProfile, ConversationSummary, AuthAuditLog,
@@ -81,13 +91,17 @@ class AuthService:
         # Initialize OTP service lazily to allow tests to patch get_otp_service()
         self.otp_service = None
         
-        # In-memory stores (replace with database in production)
-        self._users: Dict[str, User] = {}  # user_id -> User
-        self._users_by_phone: Dict[str, str] = {}  # phone_hash -> user_id
-        self._users_by_email: Dict[str, str] = {}  # email_hash -> user_id
-        self._users_by_id_number: Dict[str, str] = {}  # id_number_hash -> user_id
+        # Users, sessions and OTP verification state are persisted in Postgres
+        # via the SQLAlchemy models in models/db_models.py (see _db_* helpers
+        # below). Only genuinely ephemeral, short-lived data stays in-memory:
+        #   - _pending_registrations: unverified registration form data. If a
+        #     redeploy wipes this mid-flow, the user just has to register
+        #     again (no OTP schema field exists to stash arbitrary form data,
+        #     and OTPs themselves expire in 5 minutes anyway, so the blast
+        #     radius is tiny compared to losing completed accounts forever).
+        #   - _conversations / _generated_transcripts / _audit_logs: not part
+        #     of this fix; left untouched.
         self._pending_registrations: Dict[str, Dict] = {}  # email_hash -> registration data
-        self._sessions: Dict[str, Session] = {}  # session_id -> Session
         self._conversations: Dict[str, Conversation] = {}  # conv_id -> Conversation
         self._user_conversations: Dict[str, List[str]] = {}  # user_id -> [conv_ids]
         self._audit_logs: List[AuthAuditLog] = []
@@ -162,7 +176,55 @@ class AuthService:
             logger.info(f"Auth event: {event_type} - User: {user_id}")
         else:
             logger.warning(f"Auth event: {event_type} - Failed: {failure_reason}")
-    
+
+    # ============== Database-backed User/Session helpers ==============
+    # These replace the old in-memory dicts (self._users, self._sessions, etc.)
+    # so accounts survive process restarts / redeploys.
+
+    async def _get_user_by_id(self, db: AsyncSession, user_id: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.id == user_id))
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_phone_hash(self, db: AsyncSession, phone_hash: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.phone_number_hash == phone_hash))
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_email_hash(self, db: AsyncSession, email_hash: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.email_hash == email_hash))
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_id_number_hash(self, db: AsyncSession, id_hash: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.id_number_hash == id_hash))
+        return result.scalar_one_or_none()
+
+    async def _create_session(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        access_token: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> DBSession:
+        session = DBSession(
+            user_id=user_id,
+            token_hash=hash_value(access_token),
+            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        db.add(session)
+        await db.flush()
+        return session
+
+    def _user_to_dict(self, user: DBUser) -> Dict[str, Any]:
+        return {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email_masked": user.email_masked,
+            "phone_masked": user.phone_number_masked,
+            "status": user.status
+        }
+
     async def initiate_login(
         self,
         phone_number: str,
@@ -184,10 +246,12 @@ class AuthService:
             Result with OTP request status
         """
         phone_hash = hash_value(phone_number)
-        
+
         # Check if user exists
-        is_new_user = phone_hash not in self._users_by_phone
-        
+        async with AsyncSessionLocal() as db:
+            existing_user = await self._get_user_by_phone_hash(db, phone_hash)
+        is_new_user = existing_user is None
+
         # Fraud checks (rate limit OTP requests)
         from services.fraud_service import get_fraud_service as _get_fraud_service
         fraud = _get_fraud_service()
@@ -311,45 +375,42 @@ class AuthService:
             return verify_result
         
         phone_hash = hash_value(phone_number)
-        
-        # Get or create user
-        if phone_hash in self._users_by_phone:
-            # Existing user
-            user_id = self._users_by_phone[phone_hash]
-            user = self._users[user_id]
-            user.last_login = datetime.utcnow()
-            user.failed_attempts = 0
-            is_new_user = False
-        else:
-            # New user registration
-            user_id = generate_user_id()
-            user = User(
-                id=user_id,
-                phone_number_hash=phone_hash,
-                phone_number_masked=mask_phone_number(phone_number),
-                auth_provider=AuthProvider.PHONE,
-                status=UserStatus.ACTIVE,
-                last_login=datetime.utcnow()
+
+        async with AsyncSessionLocal() as db:
+            # Get or create user
+            user = await self._get_user_by_phone_hash(db, phone_hash)
+            if user:
+                user.last_login = datetime.utcnow()
+                user.failed_attempts = 0
+                is_new_user = False
+            else:
+                user = DBUser(
+                    phone_number_hash=phone_hash,
+                    phone_number_masked=mask_phone_number(phone_number),
+                    auth_provider=DBAuthProvider.PHONE,
+                    status=DBUserStatus.ACTIVE,
+                    last_login=datetime.utcnow()
+                )
+                db.add(user)
+                await db.flush()
+                is_new_user = True
+
+            user_id = user.id
+
+            # Create session
+            access_token = self._create_access_token(user_id)
+            session = await self._create_session(
+                db, user_id, access_token, ip_address=ip_address, user_agent=user_agent
             )
-            self._users[user_id] = user
-            self._users_by_phone[phone_hash] = user_id
-            self._user_conversations[user_id] = []
-            is_new_user = True
-        
-        # Create session
-        access_token = self._create_access_token(user_id)
-        session_id = generate_session_id()
-        
-        session = Session(
-            id=session_id,
-            user_id=user_id,
-            token_hash=hash_value(access_token),
-            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        self._sessions[session_id] = session
-        
+            session_id = session.id
+
+            created_at = user.created_at
+            last_login = user.last_login
+            phone_masked = user.phone_number_masked
+            status = user.status
+
+            await db.commit()
+
         self._log_audit_event(
             "login_success",
             user_id=user_id,
@@ -359,7 +420,7 @@ class AuthService:
             user_agent=user_agent,
             metadata={"is_new_user": is_new_user, "session_id": session_id}
         )
-        
+
         return {
             "success": True,
             "message": "Login successful",
@@ -370,10 +431,10 @@ class AuthService:
             "is_new_user": is_new_user,
             "user": {
                 "id": user_id,
-                "phone_masked": user.phone_number_masked,
-                "status": user.status,
-                "created_at": user.created_at.isoformat(),
-                "last_login": user.last_login.isoformat() if user.last_login else None
+                "phone_masked": phone_masked,
+                "status": status,
+                "created_at": created_at.isoformat(),
+                "last_login": last_login.isoformat() if last_login else None
             }
         }
     
@@ -391,16 +452,18 @@ class AuthService:
             return None
         
         user_id = payload.get("sub")
-        
+
         if not user_id:
             return None
-        
+
         # If user exists, confirm status; otherwise allow token-based validation
-        user = self._users.get(user_id)
-        if user and user.status != UserStatus.ACTIVE:
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
+
+        if user and user.status != DBUserStatus.ACTIVE:
             logger.warning(f"User {user_id} has non-active status: {user.status}")
             return None
-        
+
         return {
             "user_id": user_id,
             "phone_masked": user.phone_number_masked if user else None,
@@ -432,17 +495,15 @@ class AuthService:
         
         user_id = payload.get("sub")
         token_hash = hash_value(token)
-        
+
         # Find and invalidate session
-        session_to_remove = None
-        for session_id, session in self._sessions.items():
-            if session.token_hash == token_hash:
-                session_to_remove = session_id
-                break
-        
-        if session_to_remove:
-            del self._sessions[session_to_remove]
-        
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(DBSession).where(DBSession.token_hash == token_hash))
+            session = result.scalar_one_or_none()
+            if session:
+                await db.delete(session)
+                await db.commit()
+
         self._log_audit_event(
             "logout",
             user_id=user_id,
@@ -490,26 +551,27 @@ class AuthService:
         id_hash = hash_value(id_number)
         
         # Check for existing accounts
-        if email_hash in self._users_by_email:
-            return {
-                "success": False,
-                "error": "email_exists",
-                "message": "An account with this email already exists."
-            }
-        
-        if phone_hash in self._users_by_phone:
-            return {
-                "success": False,
-                "error": "phone_exists",
-                "message": "An account with this phone number already exists."
-            }
-        
-        if id_hash in self._users_by_id_number:
-            return {
-                "success": False,
-                "error": "id_exists",
-                "message": "An account with this ID number already exists."
-            }
+        async with AsyncSessionLocal() as db:
+            if await self._get_user_by_email_hash(db, email_hash):
+                return {
+                    "success": False,
+                    "error": "email_exists",
+                    "message": "An account with this email already exists."
+                }
+
+            if await self._get_user_by_phone_hash(db, phone_hash):
+                return {
+                    "success": False,
+                    "error": "phone_exists",
+                    "message": "An account with this phone number already exists."
+                }
+
+            if await self._get_user_by_id_number_hash(db, id_hash):
+                return {
+                    "success": False,
+                    "error": "id_exists",
+                    "message": "An account with this ID number already exists."
+                }
         
         # Hash password
         password_hashed = hash_password(password)
@@ -679,49 +741,42 @@ class AuthService:
             return otp_result
         
         # Create user account
-        user_id = generate_user_id()
-        
-        user = User(
-            id=user_id,
-            phone_number_hash=pending["phone_hash"],
-            phone_number_masked=mask_phone_number(pending["phone"]),
-            email_hash=pending["email_hash"],
-            email_masked=mask_email(pending["email"]),
-            password_hash=pending["password_hash"],
-            full_name=pending["full_name"],
-            id_number_hash=pending["id_number_hash"],
-            has_disability=pending["has_disability"],
-            auth_provider=AuthProvider.PHONE,
-            status=UserStatus.ACTIVE,
-            email_verified=True,
-            phone_verified=True,
-            last_login=datetime.utcnow()
-        )
-        
-        # Store user
-        self._users[user_id] = user
-        self._users_by_phone[pending["phone_hash"]] = user_id
-        self._users_by_email[pending["email_hash"]] = user_id
-        self._users_by_id_number[pending["id_number_hash"]] = user_id
+        async with AsyncSessionLocal() as db:
+            user = DBUser(
+                phone_number_hash=pending["phone_hash"],
+                phone_number_masked=mask_phone_number(pending["phone"]),
+                email_hash=pending["email_hash"],
+                email_masked=mask_email(pending["email"]),
+                password_hash=pending["password_hash"],
+                full_name=pending["full_name"],
+                id_number_hash=pending["id_number_hash"],
+                has_disability=pending["has_disability"],
+                auth_provider=DBAuthProvider.PHONE,
+                status=DBUserStatus.ACTIVE,
+                email_verified=True,
+                phone_verified=True,
+                last_login=datetime.utcnow()
+            )
+            db.add(user)
+            await db.flush()
+            user_id = user.id
+
+            # Create session
+            access_token = self._create_access_token(user_id)
+            session = await self._create_session(
+                db, user_id, access_token, ip_address=ip_address, user_agent=user_agent
+            )
+            session_id = session.id
+
+            user_dict = self._user_to_dict(user)
+
+            await db.commit()
+
         self._user_conversations[user_id] = []
-        
+
         # Clean up pending registration
         del self._pending_registrations[email_hash]
-        
-        # Create session
-        access_token = self._create_access_token(user_id)
-        session_id = generate_session_id()
-        
-        session = Session(
-            id=session_id,
-            user_id=user_id,
-            token_hash=hash_value(access_token),
-            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        self._sessions[session_id] = session
-        
+
         self._log_audit_event(
             "registration_complete",
             user_id=user_id,
@@ -747,15 +802,9 @@ class AuthService:
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "id": user_id,
-                "full_name": user.full_name,
-                "email_masked": user.email_masked,
-                "phone_masked": user.phone_number_masked,
-                "status": user.status
-            }
+            "user": user_dict
         }
-    
+
     async def login_with_password(
         self,
         identifier: str,
@@ -777,125 +826,118 @@ class AuthService:
         """
         # Determine if identifier is email or phone
         is_email = "@" in identifier
-        
-        if is_email:
-            identifier_hash = hash_value(identifier.lower())
-            user_id = self._users_by_email.get(identifier_hash)
-        else:
-            identifier_hash = hash_value(identifier)
-            user_id = self._users_by_phone.get(identifier_hash)
-        
-        # User not found
-        if not user_id:
-            self._log_audit_event(
-                "login_password_failed",
-                phone_hash=identifier_hash,
-                success=False,
-                failure_reason="user_not_found",
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            return {
-                "success": False,
-                "error": "invalid_credentials",
-                "message": "Invalid email/phone or password."
-            }
-        
-        user = self._users.get(user_id)
-        
-        if not user:
-            return {
-                "success": False,
-                "error": "invalid_credentials",
-                "message": "Invalid email/phone or password."
-            }
-        
-        # Check account status
-        if user.status == UserStatus.PENDING:
-            return {
-                "success": False,
-                "error": "account_pending",
-                "message": "Please verify your account first."
-            }
-        
-        if user.status in [UserStatus.BLOCKED, UserStatus.SUSPENDED]:
-            return {
-                "success": False,
-                "error": "account_blocked",
-                "message": "Your account has been suspended."
-            }
-        
-        # Check lockout
-        if user.locked_until and datetime.utcnow() < user.locked_until:
-            remaining = int((user.locked_until - datetime.utcnow()).total_seconds())
-            return {
-                "success": False,
-                "error": "account_locked",
-                "message": f"Account locked. Try again in {remaining} seconds.",
-                "retry_after": remaining
-            }
-        
-        # Verify password
-        if not user.password_hash or not verify_password(password, user.password_hash):
-            user.failed_attempts += 1
-            
-            # Lock after 5 failed attempts
-            if user.failed_attempts >= 5:
-                user.locked_until = datetime.utcnow() + timedelta(minutes=15)
-                user.failed_attempts = 0
-                
+
+        async with AsyncSessionLocal() as db:
+            if is_email:
+                identifier_hash = hash_value(identifier.lower())
+                user = await self._get_user_by_email_hash(db, identifier_hash)
+            else:
+                identifier_hash = hash_value(identifier)
+                user = await self._get_user_by_phone_hash(db, identifier_hash)
+
+            # User not found
+            if not user:
                 self._log_audit_event(
-                    "login_password_locked",
-                    user_id=user_id,
+                    "login_password_failed",
                     phone_hash=identifier_hash,
                     success=False,
-                    failure_reason="max_attempts",
+                    failure_reason="user_not_found",
                     ip_address=ip_address,
                     user_agent=user_agent
                 )
-                
+                return {
+                    "success": False,
+                    "error": "invalid_credentials",
+                    "message": "Invalid email/phone or password."
+                }
+
+            user_id = user.id
+
+            # Check account status
+            if user.status == DBUserStatus.PENDING:
+                return {
+                    "success": False,
+                    "error": "account_pending",
+                    "message": "Please verify your account first."
+                }
+
+            if user.status in [DBUserStatus.BLOCKED, DBUserStatus.SUSPENDED]:
+                return {
+                    "success": False,
+                    "error": "account_blocked",
+                    "message": "Your account has been suspended."
+                }
+
+            # Check lockout
+            if user.locked_until and datetime.utcnow() < user.locked_until:
+                remaining = int((user.locked_until - datetime.utcnow()).total_seconds())
                 return {
                     "success": False,
                     "error": "account_locked",
-                    "message": "Too many failed attempts. Account locked for 15 minutes."
+                    "message": f"Account locked. Try again in {remaining} seconds.",
+                    "retry_after": remaining
                 }
-            
-            self._log_audit_event(
-                "login_password_failed",
-                user_id=user_id,
-                phone_hash=identifier_hash,
-                success=False,
-                failure_reason="wrong_password",
-                ip_address=ip_address,
-                user_agent=user_agent
+
+            # Verify password
+            if not user.password_hash or not verify_password(password, user.password_hash):
+                user.failed_attempts += 1
+
+                # Lock after 5 failed attempts
+                if user.failed_attempts >= 5:
+                    user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+                    user.failed_attempts = 0
+                    await db.commit()
+
+                    self._log_audit_event(
+                        "login_password_locked",
+                        user_id=user_id,
+                        phone_hash=identifier_hash,
+                        success=False,
+                        failure_reason="max_attempts",
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+
+                    return {
+                        "success": False,
+                        "error": "account_locked",
+                        "message": "Too many failed attempts. Account locked for 15 minutes."
+                    }
+
+                remaining = 5 - user.failed_attempts
+                await db.commit()
+
+                self._log_audit_event(
+                    "login_password_failed",
+                    user_id=user_id,
+                    phone_hash=identifier_hash,
+                    success=False,
+                    failure_reason="wrong_password",
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+
+                return {
+                    "success": False,
+                    "error": "invalid_credentials",
+                    "message": f"Invalid password. {remaining} attempts remaining."
+                }
+
+            # Success - reset failed attempts and update last login
+            user.failed_attempts = 0
+            user.locked_until = None
+            user.last_login = datetime.utcnow()
+
+            # Create session
+            access_token = self._create_access_token(user_id)
+            session = await self._create_session(
+                db, user_id, access_token, ip_address=ip_address, user_agent=user_agent
             )
-            
-            remaining = 5 - user.failed_attempts
-            return {
-                "success": False,
-                "error": "invalid_credentials",
-                "message": f"Invalid password. {remaining} attempts remaining."
-            }
-        
-        # Success - reset failed attempts and update last login
-        user.failed_attempts = 0
-        user.locked_until = None
-        user.last_login = datetime.utcnow()
-        
-        # Create session
-        access_token = self._create_access_token(user_id)
-        session_id = generate_session_id()
-        
-        session = Session(
-            id=session_id,
-            user_id=user_id,
-            token_hash=hash_value(access_token),
-            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        self._sessions[session_id] = session
-        
+            session_id = session.id
+            user_dict = self._user_to_dict(user)
+
+            await db.commit()
+
         self._log_audit_event(
             "login_password_success",
             user_id=user_id,
@@ -904,7 +946,7 @@ class AuthService:
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
+
         return {
             "success": True,
             "message": "Login successful!",
@@ -913,13 +955,7 @@ class AuthService:
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "id": user_id,
-                "full_name": user.full_name,
-                "email_masked": user.email_masked,
-                "phone_masked": user.phone_number_masked,
-                "status": user.status
-            }
+            "user": user_dict
         }
     
     async def resend_otp(
@@ -971,13 +1007,14 @@ class AuthService:
                 "message": "Please provide email or phone number."
             }
 
-    def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
+    async def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
         """Get user profile by ID."""
-        user = self._users.get(user_id)
-        
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
+
         if not user:
             return None
-        
+
         return UserProfile(
             user_id=user.id,
             full_name=user.full_name,
@@ -1305,9 +1342,10 @@ class AuthService:
         }
         return summary
 
-    def get_user_history(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_history(self, user_id: str) -> Dict[str, Any]:
         """Return conversation history and receipts for a user."""
-        user = self._users.get(user_id)
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
         if not user:
             return {'conversations': [], 'receipts': []}
 
@@ -1354,9 +1392,10 @@ class AuthService:
                 })
         return sorted(summaries, key=lambda x: x['updated_at'], reverse=True)
 
-    def export_receipt(self, user_id: str, receipt_ref: str) -> Optional[Dict[str, Any]]:
+    async def export_receipt(self, user_id: str, receipt_ref: str) -> Optional[Dict[str, Any]]:
         """Export a payment or booking receipt as PDF for a user."""
-        user = self._users.get(user_id)
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
         if not user:
             return {'success': False, 'error': 'User not found'}
 

@@ -471,7 +471,7 @@ async def get_current_user_profile(
     Get current authenticated user's profile.
     """
     auth_service = get_auth_service()
-    profile = auth_service.get_user_profile(user["user_id"])
+    profile = await auth_service.get_user_profile(user["user_id"])
     
     if not profile:
         raise HTTPException(status_code=404, detail="User not found")
@@ -691,7 +691,7 @@ async def get_user_history(
     Get authenticated user history including conversations and payment receipts.
     """
     auth_service = get_auth_service()
-    history = auth_service.get_user_history(user["user_id"])
+    history = await auth_service.get_user_history(user["user_id"])
     return history
 
 
@@ -704,7 +704,7 @@ async def download_receipt(
     Download a PDF receipt for a booking or application record.
     """
     auth_service = get_auth_service()
-    export_data = auth_service.export_receipt(
+    export_data = await auth_service.export_receipt(
         user_id=user["user_id"],
         receipt_ref=receipt_ref
     )
