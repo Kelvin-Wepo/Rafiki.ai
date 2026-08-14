@@ -308,6 +308,7 @@
   padding: 38px 28px 34px;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   align-items: center;
   gap: 16px;
   margin-bottom: 26px;
@@ -335,8 +336,8 @@
 
 .avatar-wrapper {
   position: relative;
-  width: 160px;
-  height: 160px;
+  width: clamp(120px, 22vw, 160px);
+  height: clamp(120px, 22vw, 160px);
   z-index: 1;
 }
 
@@ -359,7 +360,8 @@
   opacity: 0.35;
   filter: blur(10px);
   animation: avatarPulse 3.2s ease-in-out infinite;
-  z-index: 1;
+  z-index: 0;
+  pointer-events: none;
 }
 
 @keyframes avatarPulse {
@@ -818,8 +820,7 @@
     gap: 10px;
   }
 
-  .avatar-img,
-  .avatar-wrapper {
+  .avatar-img {
     width: 140px;
     height: 140px;
   }
@@ -922,8 +923,7 @@
     padding: 24px 16px;
   }
 
-  .avatar-img,
-  .avatar-wrapper {
+  .avatar-img {
     width: 120px;
     height: 120px;
   }

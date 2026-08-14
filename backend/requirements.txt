@@ -20,6 +20,7 @@ python-jose[cryptography]==3.3.0
 rsa==4.9.1
 six==1.17.0
 SQLAlchemy==2.0.51
+asyncpg==0.30.0
 starlette==0.36.3
 typing-extensions==4.15.0
 uvicorn==0.27.0

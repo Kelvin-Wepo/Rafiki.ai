@@ -411,7 +411,7 @@ export function Dashboard() {
                 <RafikiTalkingAvatar
                   state={avatarState}
                   audioData={avatarState === 'speaking' ? avatarAudioData : undefined}
-                  size={160}
+                  size="100%"
                   accessible
                   showParticles={false}
                   showWaveform={false}
