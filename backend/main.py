@@ -42,6 +42,14 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
+    if not settings.DEBUG:
+        insecure_default = "change-this-to-a-secure-random-string"
+        if settings.SECRET_KEY == insecure_default or settings.SESSION_SECRET_KEY == insecure_default:
+            raise RuntimeError(
+                "SECRET_KEY / SESSION_SECRET_KEY are still set to the insecure default. "
+                "Set real random values via environment variables before running in production."
+            )
+
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     
     # Initialize services in parallel for faster startup
@@ -285,10 +293,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS - Allow all origins in development
+# Configure CORS - restricted to configured origins (required for credentialed requests)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],

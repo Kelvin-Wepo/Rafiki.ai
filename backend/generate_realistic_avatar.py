@@ -9,9 +9,8 @@ import sys
 import requests
 from pathlib import Path
 
-# Your API keys
-GEMINI_API_KEY = "AIzaSyDgR5KbuW5IKAMc8vW0xvoTvr5WsxruPs8"
-OUTPUT_DIR = Path("/home/subchief/5TECH/backend/assets/avatars")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OUTPUT_DIR = Path(__file__).parent / "assets" / "avatars"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def generate_avatar_with_image_generation_api():

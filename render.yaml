@@ -42,6 +42,10 @@ services:
         value: false
       - key: CORS_ORIGINS
         value: https://rafiki-frontend.onrender.com,http://localhost:5173
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_SECRET_KEY
+        generateValue: true
     healthCheckPath: /health
 
   # Frontend Static Site
@@ -56,7 +60,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 18
-      - key: VITE_API_BASE_URL
+      - key: VITE_API_URL
         value: https://rafiki-backend.onrender.com
     routes:
       - type: rewrite
