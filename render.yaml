@@ -42,7 +42,7 @@ services:
       - key: DEBUG
         value: false
       - key: CORS_ORIGINS
-        value: https://rafiki-frontend-gbp1.onrender.com,http://localhost:5173
+        value: https://rafiki-frontend-gbp1.onrender.com,https://rafikiai.co.ke,https://www.rafikiai.co.ke,http://localhost:5173
       - key: SECRET_KEY
         generateValue: true
       - key: SESSION_SECRET_KEY
