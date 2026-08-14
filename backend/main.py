@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
         try:
             from services.gemini_service import gemini_service
             if settings.GEMINI_API_KEY:
-                gemini_service.initialize()
+                await gemini_service.initialize()
             else:
                 logger.warning("Gemini API key not configured")
         except Exception as e:
