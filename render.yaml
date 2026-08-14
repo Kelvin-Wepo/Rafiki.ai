@@ -1,11 +1,17 @@
+# NOTE: the live deployment (service "Rafiki.ai", https://rafiki-ai-1w68.onrender.com)
+# was provisioned manually via the Render API using the native Python runtime below
+# (buildCommand/startCommand), not the Docker runtime. Both are valid; this file
+# documents the native-Python path actually in use. Update names/URLs here if you
+# ever adopt Render's Blueprint sync for this repo.
 services:
   # Backend API Service
   - type: web
     name: rafiki-backend
-    runtime: docker
+    runtime: python
     region: oregon
     plan: free
-    dockerfilePath: ./Dockerfile
+    buildCommand: pip install --upgrade pip && pip install -r backend/requirements-prod.txt
+    startCommand: bash start-render.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
@@ -33,15 +39,10 @@ services:
         sync: false
       - key: HOST
         value: 0.0.0.0
-      - key: PORT
-        fromService:
-          type: web
-          name: rafiki-backend
-          property: port
       - key: DEBUG
         value: false
       - key: CORS_ORIGINS
-        value: https://rafiki-frontend.onrender.com,http://localhost:5173
+        value: https://rafiki-frontend-gbp1.onrender.com,http://localhost:5173
       - key: SECRET_KEY
         generateValue: true
       - key: SESSION_SECRET_KEY
@@ -61,7 +62,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: VITE_API_URL
-        value: https://rafiki-backend.onrender.com
+        value: https://rafiki-ai-1w68.onrender.com
     routes:
       - type: rewrite
         source: /*
