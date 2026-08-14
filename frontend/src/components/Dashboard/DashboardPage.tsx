@@ -6,6 +6,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useConversation } from '@elevenlabs/react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   PlusIcon,
@@ -40,20 +41,11 @@ interface QuickAction {
   icon: React.ReactNode;
 }
 
-// Simplified Speech Recognition type (use any for browser compatibility)
-type SpeechRecognitionInstance = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-};
-
 // API Base URL
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// ElevenLabs Conversational AI Agent (voice mode)
+const ELEVENLABS_AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID || '';
 
 // Quick Actions Data
 const QUICK_ACTIONS: QuickAction[] = [
@@ -127,13 +119,32 @@ export function Dashboard() {
 
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Drives real mouth/viseme animation on the talking avatar from actual TTS audio
   const { audioData: avatarAudioData, analyzeAudioElement, stopAnalyzing: stopAvatarAnalyzing } = useAudioAnalyzer();
 
-  const avatarState: AvatarState = isSpeaking ? 'speaking' : isListening ? 'listening' : 'idle';
+  // ElevenLabs Conversational AI Agent - handles STT + LLM + TTS for voice mode
+  const conversation = useConversation({
+    onConnect: () => console.log('Voice agent connected'),
+    onDisconnect: () => setIsListening(false),
+    onMessage: (message: any) => console.log('Voice agent message:', message),
+    onError: (error: any) => {
+      console.error('Voice agent error:', error);
+      setIsListening(false);
+    },
+  });
+
+  const isVoiceConnected = conversation.status === 'connected';
+  const avatarState: AvatarState = conversation.isSpeaking
+    ? 'speaking'
+    : isVoiceConnected
+      ? 'listening'
+      : isSpeaking
+        ? 'speaking'
+        : isListening
+          ? 'listening'
+          : 'idle';
 
   // Play audio from base64 string
   const playAudio = useCallback((audioBase64: string, mimeType: string = 'audio/mpeg') => {
@@ -253,43 +264,32 @@ export function Dashboard() {
     sendMessage(action.message);
   }, [sendMessage]);
 
-  // Handle mic toggle for speech recognition
-  const handleMicToggle = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const win = window as any;
-    
-    if (!win.webkitSpeechRecognition && !win.SpeechRecognition) {
-      alert('Voice input is not supported in your browser. Please use Chrome.');
+  // Handle mic toggle - starts/stops the ElevenLabs voice conversation agent
+  const handleMicToggle = useCallback(async () => {
+    if (!ELEVENLABS_AGENT_ID) {
+      alert('Voice mode is not configured. Please contact the administrator.');
       return;
     }
 
-    if (isListening) {
-      recognitionRef.current?.stop();
+    if (isVoiceConnected) {
+      await conversation.endSession();
       setIsListening(false);
       return;
     }
 
-    const SpeechRecognitionClass = win.SpeechRecognition || win.webkitSpeechRecognition;
-    const recognition = new SpeechRecognitionClass() as SpeechRecognitionInstance;
-    recognition.lang = 'en-KE';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setChatInput(transcript);
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      await conversation.startSession({
+        agentId: ELEVENLABS_AGENT_ID,
+        connectionType: 'webrtc',
+      });
+      setIsListening(true);
+    } catch (err) {
+      console.error('Failed to start voice conversation:', err);
+      alert('Microphone access is required for voice mode. Please allow microphone permissions.');
       setIsListening(false);
-      // Auto-send after voice input
-      sendMessage(transcript);
-    };
-
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-
-    recognition.start();
-    recognitionRef.current = recognition;
-    setIsListening(true);
-  }, [isListening, sendMessage]);
+    }
+  }, [conversation, isVoiceConnected]);
 
   // Handle send
   const handleSend = useCallback(() => {

@@ -63,6 +63,8 @@ services:
         value: 20
       - key: VITE_API_URL
         value: https://rafiki-ai-1w68.onrender.com
+      - key: VITE_ELEVENLABS_AGENT_ID
+        sync: false
     routes:
       - type: rewrite
         source: /*
