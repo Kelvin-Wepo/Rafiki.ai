@@ -6,7 +6,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useConversation } from '@elevenlabs/react';
+import { useConversation, ConversationProvider } from '@elevenlabs/react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   PlusIcon,
@@ -97,6 +97,14 @@ const QUICK_ACTIONS: QuickAction[] = [
 type NavSection = 'chat' | 'history' | 'transcripts';
 
 export function Dashboard() {
+  return (
+    <ConversationProvider>
+      <DashboardInner />
+    </ConversationProvider>
+  );
+}
+
+function DashboardInner() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const {
