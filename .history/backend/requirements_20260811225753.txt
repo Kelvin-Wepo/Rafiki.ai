@@ -9,7 +9,8 @@ fastapi==0.110.0
 python-multipart==0.0.6
 
 # Pydantic for data validation
-# v2 is required by google-genai (>=2.0)
+# v2 is required by google-genai (>=2.0); prebuilt wheels exist for
+# Python 3.9-3.12 on manylinux, so no Rust compilation is needed.
 pydantic==2.10.3
 pydantic-settings==2.1.0
 
@@ -23,15 +24,15 @@ h11==0.16.0
 idna==3.18
 pyasn1==0.6.3
 pycparser>=2.20
+pydantic==2.13.4
+pydantic_core==2.46.4
+pydantic-settings==2.0.0
 google-genai>=0.1.0
+python-jose[cryptography]==3.3.0
 rsa==4.9.1
 six==1.17.0
-
-# Database
 SQLAlchemy==2.0.51
 starlette==0.36.3
-
-# Runtime
 typing-extensions==4.15.0
 uvicorn==0.27.0
 fpdf==1.7.2

@@ -18,11 +18,11 @@ import {
   Globe,
   ChevronDown,
   Accessibility,
+  Volume2,
   Lock,
   Heart,
 } from 'lucide-react';
 import { RafikiLogo } from '../components/RafikiLogo';
-import { LinkedInIcon, XIcon, TikTokIcon } from '../components/SocialIcons';
 import '../styles/auth.css';
 import '../styles/landing.css';
 
@@ -324,46 +324,6 @@ export function LandingPage() {
                   Rafiki is your AI companion for navigating Kenya's government
                   services with ease.
                 </p>
-
-                {/* Social profiles. TODO: confirm each URL — these are the
-                    expected /rafikiai handles, not verified accounts, and are
-                    the only outbound links on this page that the app does not
-                    already publish elsewhere. */}
-                <ul className="rl-footer-social" aria-label="Rafiki on social media">
-                  <li>
-                    <a
-                      href="https://www.linkedin.com/company/rafikiai"
-                      className="rl-footer-social-link"
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Rafiki on LinkedIn"
-                    >
-                      <LinkedInIcon size={19} />
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://x.com/rafikiai"
-                      className="rl-footer-social-link"
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Rafiki on X"
-                    >
-                      <XIcon size={18} />
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://www.tiktok.com/@rafikiai"
-                      className="rl-footer-social-link"
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Rafiki on TikTok"
-                    >
-                      <TikTokIcon size={19} />
-                    </a>
-                  </li>
-                </ul>
               </div>
 
               {FOOTER_COLUMNS.map(({ heading, items }) => (
