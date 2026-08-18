@@ -110,6 +110,20 @@ class OTPService:
     def _generate_otp(self) -> str:
         """Generate cryptographically secure OTP."""
         return ''.join([str(secrets.randbelow(10)) for _ in range(self.OTP_LENGTH)])
+
+    @staticmethod
+    def _normalize_phone(phone: str) -> str:
+        """
+        Normalize a Kenyan phone number to E.164 (+254XXXXXXXXX).
+        """
+        p = phone.strip().replace(" ", "")
+        if p.startswith("+"):
+            return p
+        if p.startswith("254"):
+            return f"+{p}"
+        if p.startswith("0"):
+            return f"+254{p[1:]}"
+        return p
     
     def _is_rate_limited(self, phone_hash: str) -> Tuple[bool, Optional[int]]:
         """
@@ -363,7 +377,8 @@ class OTPService:
             </Say>
         </Response>
         """
-        
+        phone_number = self._normalize_phone(phone_number)
+
         # Log for debugging
         otp_log_msg = f"📞 VOICE OTP CALL - Phone: {phone_number}, OTP: {otp}"
         logger.warning(otp_log_msg)
@@ -421,7 +436,9 @@ class OTPService:
             Result dict with success status
         """
         message = f"Your Rafiki.ai verification code is: {otp}. Valid for {self.OTP_EXPIRY_MINUTES} minutes. Do not share this code."
-        
+
+        phone_number = self._normalize_phone(phone_number)
+
         # Always log the OTP for debugging (remove in real production with actual SMS)
         import sys
         otp_log_msg = f"🔐 OTP GENERATED - Phone: {phone_number}, OTP: {otp}"

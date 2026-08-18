@@ -1,399 +1,1591 @@
 /**
- * Rafiki.ai Landing Page Styles
- * Matches frontend/design/IMG-20260811-WA0404.jpg (screen 1)
+ * Rafiki.ai — Landing Page Styles
+ *
+ * STAGE 1: HEADER ONLY.
+ * Hero, services, Nairobi environmental layer and footer are untouched and
+ * still styled by styles/auth.css + Tailwind utilities in LandingPage.tsx.
+ *
+ * Everything here is namespaced `.rl-*` (rafiki-landing) and nothing in this
+ * file may be moved into styles/auth.css — that file is shared by LoginPage,
+ * SignUpPage and ForgotPasswordPage, so edits there would restyle auth.
  */
 
-.landing-page {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #fdfcf8 0%, #f6f4ec 100%);
-  font-family: 'DM Sans', system-ui, sans-serif;
-  color: var(--ke-black, #1a1a1a);
-  overflow-x: hidden;
+/* ============================================================
+   SHARED DESIGN TOKENS
+   One coherent palette for the whole redesigned landing page,
+   sampled from the approved redesign reference. Declared on
+   .rl-page — never :root — so these can never reach LoginPage,
+   SignUpPage or ForgotPasswordPage through styles/auth.css.
+   ============================================================ */
+.rl-page {
+  --rl-header-h: 88px;
+  --rafiki-primary: #14532d;
+  --rafiki-primary-dark: #0f3d21;
+  --rafiki-accent: #15803d;
+  --rafiki-accent-soft: #74c69d;
+  --rafiki-background: #f7f9f6;
+  --rafiki-surface: #ffffff;
+  --rafiki-surface-tint: #eef3ee;
+  --rafiki-ivory: #f3efe5;
+  --rafiki-text: #16191c;
+  --rafiki-muted-text: #5b6470;
+  --rafiki-border: #e3e7e3;
+  --rl-max-w: 1200px;
+  --rl-gutter: 32px;
+  padding-top: var(--rl-header-h);
 }
 
-/* ---------------- Nav ---------------- */
-.landing-nav {
+@media (prefers-contrast: more) {
+  .rl-page {
+    --rafiki-muted-text: #3d454e;
+    --rafiki-border: #9aa2ac;
+  }
+}
+
+/* ============================================================
+   FIXED HEADER
+   Persistent: never hides, shrinks or transforms on scroll.
+   No scroll listeners, no scroll-driven animation.
+   ============================================================ */
+.rl-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: var(--rl-header-h, 88px);
+  background: #ffffff;
+  border-bottom: 1px solid #ebe9e2;
+  box-shadow: 0 1px 3px rgba(22, 25, 28, 0.04);
+}
+
+.rl-header-inner {
+  max-width: var(--rl-max-w);
+  margin: 0 auto;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 32px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  flex-wrap: wrap;
-  gap: 16px;
+  gap: 20px;
+  padding: 0 var(--rl-gutter);
 }
 
-.landing-nav-brand {
-  display: flex;
+.rl-brand {
+  display: inline-flex;
   align-items: center;
   gap: 12px;
+  color: var(--rafiki-primary);
+  text-decoration: none;
 }
 
-.landing-nav-logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.landing-nav-name {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 20px;
+.rl-brand-tagline {
+  font-size: 0.72rem;
   font-weight: 700;
-  color: var(--ke-green, #006600);
-  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rafiki-muted-text);
 }
 
-.landing-nav-tagline {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.landing-nav-actions {
+.rl-controls {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-.landing-nav-link {
+.rl-control {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 8px;
+  background: var(--rafiki-surface-tint);
+  border: 1px solid var(--rafiki-border);
   border-radius: 999px;
-  border: none;
+  padding: 0.52rem 0.9rem;
+  color: var(--rafiki-text);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.rl-control-muted {
   background: transparent;
-  color: #374151;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 150ms ease;
 }
 
-.landing-nav-link:hover {
-  background: rgba(0, 0, 0, 0.05);
+.rl-control-label {
+  white-space: nowrap;
 }
 
-.landing-nav-link--signin {
-  font-weight: 600;
-  text-decoration: none;
-  color: var(--ke-green-dark, #004d00);
+.rl-control-chevron {
+  opacity: 0.7;
 }
 
-.landing-signin-button {
+.rl-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--rafiki-border);
+}
+
+.rl-voice {
   display: inline-flex;
   align-items: center;
-  padding: 10px 20px;
+  padding: 0.8rem 1.3rem;
   border-radius: 999px;
-  background: var(--ke-green-dark, #004d00);
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
+  background: var(--rafiki-primary);
+  color: #fff;
   text-decoration: none;
-  transition: background 150ms ease, transform 150ms ease;
+  font-weight: 700;
 }
 
-.landing-signin-button:hover {
-  background: var(--ke-green, #006600);
-  transform: translateY(-1px);
+.rl-voice-label {
+  white-space: nowrap;
 }
 
-/* ---------------- Hero ---------------- */
-.landing-hero {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 40px;
-  align-items: center;
-  max-width: 1180px;
+/* ============================================================
+   TRUST BAND / FOOTER BASE STYLES
+   ============================================================ */
+.rl-trust {
+  background: var(--rafiki-ivory);
+  border-top: 1px solid var(--rafiki-border);
+  border-bottom: 1px solid var(--rafiki-border);
+}
+
+.rl-trust-inner {
+  max-width: var(--rl-max-w);
   margin: 0 auto;
-  padding: 56px 32px 40px;
+  padding: 1.1rem var(--rl-gutter);
 }
 
-@media (max-width: 900px) {
-  .landing-hero {
-    grid-template-columns: 1fr;
-    padding: 40px 20px;
-  }
+.rl-trust-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
 }
 
-.landing-badge-pill {
+.rl-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.4rem 0;
+}
+
+.rl-trust-icon {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: #fdf1de;
-  color: #92660c;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 999px;
-  margin-bottom: 20px;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(20, 83, 45, 0.08);
+  color: var(--rafiki-primary);
 }
 
-.landing-hero-title {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: clamp(32px, 5vw, 48px);
+.rl-trust-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rl-trust-title {
+  font-size: 0.95rem;
   font-weight: 800;
-  line-height: 1.15;
-  margin-bottom: 18px;
-  color: #111827;
+  color: var(--rafiki-text);
 }
 
-.landing-hero-highlight {
-  color: var(--ke-green, #006600);
+.rl-trust-sub {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--rafiki-muted-text);
 }
 
-.landing-hero-subtitle {
-  font-size: 16px;
-  color: #4b5563;
-  max-width: 460px;
-  margin-bottom: 28px;
+.rl-footer {
+  background: var(--rafiki-primary);
+  color: #fff;
+}
+
+.rl-footer-main {
+  max-width: var(--rl-max-w);
+  margin: 0 auto;
+  padding: 0 var(--rl-gutter) 1.75rem;
+}
+
+.rl-footer-inner {
+  padding-top: 2rem;
+}
+
+.rl-footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 2rem;
+}
+
+.rl-footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.rl-footer-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rl-footer-tagline {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.rl-footer-about {
+  margin: 0;
+  max-width: 28ch;
+  color: rgba(255, 255, 255, 0.78);
   line-height: 1.6;
 }
 
-.landing-hero-cta {
+.rl-footer-social {
+  list-style: none;
   display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
 }
 
-.landing-cta-primary,
-.landing-cta-secondary {
+.rl-footer-social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.rl-footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.rl-footer-col-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--rafiki-accent-soft);
+}
+
+.rl-footer-col-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.rl-footer-link,
+.rl-footer-label {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+}
+
+.rl-footer-bottom {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.rl-footer-assurance,
+.rl-footer-copyright {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 22px;
-  border-radius: 12px;
-  font-size: 15px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+}
+
+.rl-footer-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.rl-footer-lang-btn {
+  border: 0;
+  background: transparent;
+  color: #fff;
   font-weight: 600;
+  cursor: pointer;
+}
+
+.rl-footer-lang-btn-muted {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.rl-footer-lang-sep {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 900px) {
+  .rl-footer-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .rl-header-inner,
+  .rl-footer-main,
+  .rl-trust-inner {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .rl-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rl-footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Brand: existing RafikiLogo component + tagline ----------
+   RafikiLogo renders the flag arc and "rafiki" wordmark as inline SVG, so it
+   stays crisp at any size and carries its own role="img" label. The component
+   itself is NOT modified — the tagline is rendered here instead of via its
+   `showTagline` prop so the type size can match the redesign reference. */
+.rl-brand {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   text-decoration: none;
-  transition: transform 150ms ease, background 150ms ease;
+  flex-shrink: 0;
+  border-radius: 10px;
+  padding: 2px;
 }
 
-.landing-cta-primary {
-  background: var(--ke-green-dark, #004d00);
-  color: white;
-}
-
-.landing-cta-primary:hover {
-  background: var(--ke-green, #006600);
-  transform: translateY(-1px);
-}
-
-.landing-cta-sub {
-  opacity: 0.8;
+.rl-brand-tagline {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12.5px;
   font-weight: 400;
-}
-
-.landing-cta-secondary {
-  background: white;
-  color: #1f2937;
-  border: 1.5px solid #e5e7eb;
-}
-
-.landing-cta-secondary:hover {
-  border-color: var(--ke-green, #006600);
-  color: var(--ke-green, #006600);
-}
-
-.landing-hero-note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  line-height: 1.2;
   color: #6b7280;
+  white-space: nowrap;
 }
 
-/* ---------------- Hero visual ---------------- */
-.landing-hero-visual {
-  position: relative;
+/* ---------- Controls cluster ---------- */
+.rl-controls {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.landing-mascot-halo {
-  position: relative;
-  width: 100%;
-  max-width: 380px;
-  aspect-ratio: 1 / 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.landing-mascot {
-  width: 62%;
-  height: auto;
-  border-radius: 16px;
-  position: relative;
-  z-index: 2;
-  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.15));
-}
-
-.landing-service-badge {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 4px;
-  z-index: 1;
+  flex-shrink: 0;
 }
 
-.landing-service-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 102, 0, 0.15);
+.rl-divider {
+  width: 1px;
+  height: 26px;
+  background: #e5e7eb;
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+/* Text/icon control — language + accessibility entry points.
+   44px minimum target height for touch and motor accessibility. */
+.rl-control {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.rl-control:hover {
+  background: #f3f6f3;
+  border-color: #e3ebe5;
+  color: #17603a;
+}
+
+.rl-control svg {
+  flex-shrink: 0;
+  color: #4b5563;
+  transition: color 0.15s ease;
+}
+
+.rl-control:hover svg {
+  color: #17603a;
+}
+
+/* Secondary language option — visually lighter than the current one */
+.rl-control-muted {
+  color: #6b7280;
+}
+
+.rl-control-chevron {
+  margin-left: -2px;
+  color: #9ca3af;
+}
+
+/* ---------- Voice Mode ---------- */
+.rl-voice {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 22px;
+  margin-left: 8px;
+  background: #14532d;
+  color: #ffffff;
+  border: 1px solid #14532d;
+  border-radius: 9px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(20, 83, 45, 0.16);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rl-voice:hover {
+  background: #0f3d21;
+  border-color: #0f3d21;
+  box-shadow: 0 4px 14px rgba(20, 83, 45, 0.24);
+}
+
+.rl-voice svg {
+  flex-shrink: 0;
+}
+
+/* ---------- Focus states ----------
+   Explicit and high-contrast; must survive on the white header. */
+.rl-header a:focus-visible,
+.rl-header button:focus-visible {
+  outline: 3px solid #17603a;
+  outline-offset: 2px;
+}
+
+.rl-voice:focus-visible {
+  outline: 3px solid #14532d;
+  outline-offset: 3px;
+}
+
+/* ============================================================
+   RESPONSIVE
+   The header stays fixed at every width; only its contents reflow.
+   ============================================================ */
+
+/* Laptop: tighten the control cluster before anything is dropped */
+@media (max-width: 1180px) {
+  .rl-header-inner {
+    padding: 0 24px;
+    gap: 16px;
+  }
+
+  .rl-divider {
+    margin: 0 6px;
+  }
+
+  .rl-control {
+    padding: 10px 10px;
+  }
+}
+
+/* Tablet: drop the tagline and the secondary language option */
+@media (max-width: 980px) {
+  .rl-brand-tagline {
+    display: none;
+  }
+
+  .rl-control-kiswahili,
+  .rl-control-kiswahili + .rl-divider {
+    display: none;
+  }
+}
+
+/* Small tablet: collapse the accessibility + language labels to icons only.
+   Accessible names are preserved via aria-label on each control. */
+@media (max-width: 820px) {
+  .rl-control-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .rl-control-chevron {
+    display: none;
+  }
+
+  .rl-control {
+    padding: 10px;
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+
+/* Mobile: shorter bar, smaller logo, Voice Mode reduced to its icon */
+@media (max-width: 640px) {
+  .rl-page {
+    --rl-header-h: 68px;
+  }
+
+  .rl-header-inner {
+    padding: 0 16px;
+    gap: 10px;
+  }
+
+  .rl-divider {
+    display: none;
+  }
+
+  .rl-voice {
+    margin-left: 2px;
+    padding: 11px 14px;
+    min-height: 44px;
+  }
+
+  .rl-voice .rl-voice-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+
+/* Respect reduced-motion: remove the hover transitions on this header.
+   (theme.css already neutralises animations globally.) */
+@media (prefers-reduced-motion: reduce) {
+  .rl-control,
+  .rl-control svg,
+  .rl-voice {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   STAGE 2 — HERO
+   Tokens are scoped to .rl-hero (never :root) so they cannot reach
+   LoginPage / SignUpPage / ForgotPasswordPage via styles/auth.css.
+   Values are sampled from the approved redesign reference.
+   ============================================================ */
+.rl-hero {
+  /* Tokens are inherited from .rl-page — identical values, declared once. */
+  background: var(--rafiki-background);
+  padding: 44px 0 40px;
+}
+
+.rl-hero-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 40px;
+  align-items: center;
+}
+
+.rl-hero-copy {
+  min-width: 0;
+}
+
+/* ---------- Assurance pill ---------- */
+.rl-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px 9px 14px;
+  margin-bottom: 26px;
+  background: var(--rafiki-surface-tint);
+  border: 1px solid #e1eae2;
+  border-radius: 9px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #33413a;
+}
+
+.rl-hero-pill svg {
+  flex-shrink: 0;
+  color: var(--rafiki-primary);
+}
+
+/* ---------- Headline ---------- */
+.rl-hero-title {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(2.05rem, 3.5vw, 3.3rem);
+  line-height: 1.13;
+  letter-spacing: -0.022em;
+  color: var(--rafiki-text);
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+
+.rl-hero-title-accent {
+  display: block;
+  color: var(--rafiki-accent);
+}
+
+.rl-hero-lede {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  color: var(--rafiki-muted-text);
+  max-width: 22.5rem;
+  margin: 0 0 30px;
+}
+
+/* ---------- Calls to action ---------- */
+.rl-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.rl-hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  padding: 15px 26px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  transition: background-color 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.rl-hero-cta svg {
+  flex-shrink: 0;
+}
+
+.rl-hero-cta-title {
+  display: block;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.rl-hero-cta-sub {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.3;
+  margin-top: 3px;
+}
+
+.rl-hero-cta-primary {
+  background: var(--rafiki-primary);
+  border: 1px solid var(--rafiki-primary);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(20, 83, 45, 0.18);
+}
+
+.rl-hero-cta-primary:hover {
+  background: var(--rafiki-primary-dark);
+  border-color: var(--rafiki-primary-dark);
+  box-shadow: 0 6px 18px rgba(20, 83, 45, 0.22);
+}
+
+.rl-hero-cta-primary .rl-hero-cta-sub {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.rl-hero-cta-secondary {
+  background: var(--rafiki-surface);
+  border: 1px solid var(--rafiki-border);
+  color: var(--rafiki-text);
+}
+
+.rl-hero-cta-secondary:hover {
+  border-color: var(--rafiki-primary);
+  box-shadow: 0 4px 14px rgba(22, 25, 28, 0.07);
+}
+
+.rl-hero-cta-secondary svg {
+  color: #374151;
+}
+
+.rl-hero-cta-secondary .rl-hero-cta-sub {
+  color: var(--rafiki-muted-text);
+}
+
+/* ---------- Privacy reassurance ---------- */
+.rl-hero-assure {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.84375rem;
+  line-height: 1.5;
+  color: var(--rafiki-muted-text);
+}
+
+.rl-hero-assure svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--rafiki-primary);
+}
+
+/* ---------- Citizen artwork ----------
+   Transparent PNG: no blend mode and no mask, so the cut-out edges and the
+   flag ribbon stay exactly as supplied. */
+.rl-hero-figure {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ke-green, #006600);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  margin: 0;
+  min-width: 0;
 }
 
-.landing-service-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #4b5563;
+/* Faint Kenya map outline behind the citizens, as in the reference.
+   Drawn as a pseudo-element so the DOM is untouched — the artwork's
+   onError fallback resolves via nextElementSibling and must not gain
+   a new sibling. Decorative, so it is invisible to assistive tech.
+
+   Outline only (the SVG has fill:none), kept small enough that it never
+   reaches the fixed header, and masked so the lower edge dissolves into
+   the page instead of ending on a hard line. */
+.rl-hero-figure::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* max-height is relative to the figure, so however the grid row settles
+     the outline can never grow tall enough to reach the fixed header —
+     the width cap alone would not guarantee that on every viewport. */
+  width: 58%;
+  max-width: 370px;
+  max-height: 106%;
+  aspect-ratio: 400 / 480;
+  background: url('/images/kenya-map-outline.svg') center / contain no-repeat;
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 92%);
 }
 
-.badge-top { top: -6%; left: 50%; transform: translateX(-50%); }
-.badge-top-right { top: 8%; right: -6%; }
-.badge-top-left { top: 8%; left: -6%; }
-.badge-right { top: 42%; right: -14%; }
-.badge-left { top: 42%; left: -14%; }
-.badge-bottom-right { bottom: 18%; right: 0; }
-.badge-bottom { bottom: 4%; left: 50%; transform: translateX(-50%); }
-
-@media (max-width: 900px) {
-  .landing-service-label { display: none; }
-  .landing-service-icon { width: 38px; height: 38px; }
+.rl-hero-art {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  /* Soften the cut-out's lower edge so the citizens sit in the page
+     rather than being pasted on top of it. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 80%, transparent 99%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 80%, transparent 99%);
 }
 
-.landing-chat-bubble {
-  margin-top: 28px;
-  background: white;
-  border-radius: 16px;
-  padding: 14px 20px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  text-align: center;
-  max-width: 320px;
+/* ---------- Focus ---------- */
+.rl-hero a:focus-visible {
+  outline: 3px solid var(--rafiki-primary);
+  outline-offset: 3px;
 }
 
-.landing-chat-bubble-sub {
-  color: #6b7280;
-  font-size: 14px;
-  margin-top: 2px;
+/* ---------- Responsive ---------- */
+
+/* Tablet / small laptop: stack, artwork below the copy */
+@media (max-width: 980px) {
+  .rl-hero {
+    padding: 34px 0 36px;
+  }
+
+  .rl-hero-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 30px;
+  }
+
+  .rl-hero-lede {
+    max-width: 34rem;
+  }
+
+  .rl-hero-art {
+    max-width: 520px;
+    margin: 0 auto;
+  }
 }
 
-/* ---------------- Quick actions ---------------- */
-.landing-quick-actions {
-  max-width: 1180px;
+/* Mobile: full-width actions, tighter rhythm, artwork never dominates */
+@media (max-width: 640px) {
+  .rl-hero {
+    padding: 26px 0 30px;
+  }
+
+  .rl-hero-inner {
+    padding: 0 18px;
+    gap: 24px;
+  }
+
+  .rl-hero-pill {
+    margin-bottom: 20px;
+    font-size: 12.5px;
+    padding: 9px 14px;
+  }
+
+  .rl-hero-lede {
+    margin-bottom: 24px;
+  }
+
+  .rl-hero-actions {
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+
+  .rl-hero-cta {
+    width: 100%;
+    min-height: 66px;
+    padding: 14px 20px;
+  }
+
+  .rl-hero-art {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-hero-cta {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   STAGE 3 — POPULAR SERVICES
+   One consistent card treatment. Hierarchy comes from typography,
+   iconography and spacing — not from per-card colours.
+   ============================================================ */
+.rl-services {
+  background: var(--rafiki-surface);
+  padding: 52px 0 44px;
+}
+
+.rl-services-inner {
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 12px 32px 48px;
+  padding: 0 32px;
 }
 
-.landing-quick-actions-grid {
+.rl-services-head {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.rl-services-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.6rem, 2.6vw, 1.95rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--rafiki-primary);
+  margin: 0 0 7px;
+}
+
+.rl-services-sub {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--rafiki-muted-text);
+  margin: 0;
+}
+
+.rl-services-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-@media (max-width: 900px) {
-  .landing-quick-actions-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 560px) {
-  .landing-quick-actions-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.landing-action-card {
+/* Single card treatment — identical for every service */
+.rl-service-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 20px 12px;
-  background: white;
-  border: 1px solid #eee;
-  border-radius: 16px;
-  text-decoration: none;
-  color: #1f2937;
+  justify-content: center;
+  gap: 14px;
+  height: 100%;
+  min-height: 132px;
+  padding: 22px 12px;
+  background: var(--rafiki-surface);
+  border: 1px solid var(--rafiki-border);
+  border-radius: 10px;
   text-align: center;
-  transition: transform 150ms ease, box-shadow 150ms ease;
+  text-decoration: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease,
+    background-color 0.16s ease;
 }
 
-.landing-action-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+.rl-service-card:hover {
+  border-color: var(--rafiki-accent);
+  background: var(--rafiki-surface-tint);
+  box-shadow: 0 4px 14px rgba(20, 83, 45, 0.08);
 }
 
-.landing-action-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
+.rl-service-card:focus-visible {
+  outline: 3px solid var(--rafiki-primary);
+  outline-offset: 3px;
 }
 
-.qa-green .landing-action-icon { background: var(--ke-green, #006600); }
-.qa-gold .landing-action-icon { background: #d4a017; }
-.qa-dark .landing-action-icon { background: var(--ke-green-dark, #004d00); }
-.qa-red .landing-action-icon { background: var(--ke-red, #bb0000); }
-.qa-black .landing-action-icon { background: #1a1a1a; }
-
-.landing-action-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1.3;
+.rl-service-card svg {
+  color: var(--rafiki-accent);
+  flex-shrink: 0;
 }
 
-.landing-more-services {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 20px;
-  padding: 10px 16px;
-  background: #f0fdf4;
-  border-radius: 999px;
-  color: #166534;
-  font-size: 13px;
+.rl-service-name {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.875rem;
   font-weight: 500;
-  max-width: fit-content;
-  margin-inline: auto;
+  line-height: 1.35;
+  color: #1f2937;
+  text-wrap: balance;
 }
 
-/* ---------------- Trust bar ---------------- */
-.landing-trust-bar {
-  display: flex;
-  justify-content: center;
-  gap: 48px;
-  flex-wrap: wrap;
-  padding: 20px 24px;
-  background: var(--ke-green-dark, #004d00);
-  color: white;
-}
-
-.landing-trust-item {
+/* ---------- "Rafiki can also help" bar ---------- */
+.rl-services-more {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+  max-width: 860px;
+  margin: 30px auto 0;
+  padding: 15px 24px;
+  background: var(--rafiki-surface-tint);
+  border: 1px solid #e1eae2;
+  border-radius: 10px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.90625rem;
+  line-height: 1.5;
+  color: #374151;
 }
 
-.landing-trust-title {
-  font-size: 14px;
+.rl-services-more svg {
+  flex-shrink: 0;
+  color: var(--rafiki-accent);
+}
+
+.rl-services-more-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.rl-services-more-cue {
   font-weight: 700;
+  color: var(--rafiki-primary);
+  white-space: nowrap;
 }
 
-.landing-trust-desc {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.75);
+/* ---------- Responsive ----------
+   Column count steps down so cards keep a usable width and a
+   44px+ touch target at every breakpoint. */
+@media (max-width: 1199px) {
+  .rl-services-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .rl-services {
+    padding: 42px 0 38px;
+  }
+
+  .rl-services-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .rl-services {
+    padding: 34px 0 32px;
+  }
+
+  .rl-services-inner {
+    padding: 0 18px;
+  }
+
+  .rl-services-head {
+    margin-bottom: 24px;
+  }
+
+  .rl-services-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .rl-service-card {
+    min-height: 120px;
+    padding: 18px 10px;
+    gap: 12px;
+  }
+
+  .rl-services-more {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 22px;
+    padding: 15px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-service-card {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   STAGE 4 — TRUST BAND + FOOTER
+   Two stacked bands: a warm ivory trust/benefits strip, then the
+   deep-green footer. Palette is the same green/ivory used by the
+   header, hero and services — no gradients, no decorative colours,
+   and no Nairobi imagery (the previous skyline, beadwork strip and
+   red rule are gone; an approved environment asset can be added
+   later without disturbing this structure).
+   ============================================================ */
+.rl-footer {
+  background: var(--rafiki-ivory);
+}
+
+/* ---------- Trust / benefits band ----------
+   One shared treatment for all three items: same chip, same icon
+   size, same type. Hierarchy comes from spacing, not colour. */
+.rl-trust {
+  background: var(--rafiki-ivory);
+  padding: 52px 0;
+}
+
+.rl-trust-inner {
+  max-width: var(--rl-max-w);
+  margin: 0 auto;
+  padding: 0 var(--rl-gutter);
+}
+
+.rl-trust-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rl-trust-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  min-width: 0;
+  padding: 2px 36px;
+}
+
+.rl-trust-item:first-child {
+  padding-left: 0;
+}
+
+.rl-trust-item:last-child {
+  padding-right: 0;
+}
+
+.rl-trust-item + .rl-trust-item {
+  border-left: 1px solid rgba(20, 83, 45, 0.16);
+}
+
+.rl-trust-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #e6ebe1;
+  color: var(--rafiki-primary);
+}
+
+.rl-trust-copy {
+  min-width: 0;
+}
+
+.rl-trust-title {
+  display: block;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--rafiki-primary);
+  margin-bottom: 7px;
+}
+
+.rl-trust-sub {
+  display: block;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #47504a;
+  max-width: 17rem;
+}
+
+/* ---------- Deep-green footer ----------
+   Same green as the footer strip on LoginPage / SignUpPage
+   (--rafiki-green-ink in styles/auth.css) so the two pages read as one
+   product. Copied as a literal rather than imported: auth.css declares that
+   token on :root and this page must not depend on it. */
+.rl-footer-main {
+  background: #1b4332;
+}
+
+/* Kenyan flag stripe, as on the auth pages (.kenya-stripe in auth.css).
+   Sits at the very top of the green block, above the link columns. */
+.rl-footer-stripe {
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #161616 0 33.3%,
+    #c8102e 33.3% 66.6%,
+    #007a33 66.6% 100%
+  );
+}
+
+.rl-footer-inner {
+  max-width: var(--rl-max-w);
+  margin: 0 auto;
+  padding: 0 var(--rl-gutter);
+}
+
+.rl-footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: 44px;
+  padding: 64px 0 60px;
+}
+
+/* ---------- Brand column ---------- */
+.rl-footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+/* Same logo as the header: the RafikiLogo component in its own flag colours,
+   not recoloured. Its black letters would be unreadable directly on the dark
+   green, so it sits on a light chip — the colours stay exactly as in the
+   header and the wordmark keeps full contrast. */
+.rl-footer-logo {
+  display: inline-block;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 8px 18px 10px;
+}
+
+.rl-footer-tagline {
+  margin-top: 10px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--rafiki-accent-soft);
+}
+
+.rl-footer-about {
+  margin: 24px 0 0;
+  max-width: 19rem;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* ---------- Social links ----------
+   Sit under the description in the brand column. Circular chips, 44px so the
+   touch target meets the same minimum as the language buttons below. */
+.rl-footer-social {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+}
+
+.rl-footer-social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.rl-footer-social-link:hover {
+  background: var(--rafiki-accent-soft);
+  border-color: var(--rafiki-accent-soft);
+  /* The deep green of the footer, so the mark stays legible when inverted */
+  color: #1b4332;
+}
+
+/* ---------- Navigation columns ----------
+   Dividers sit between the three navigation groups only, as in the
+   reference — the brand column is not fenced off. */
+.rl-footer-col {
+  min-width: 0;
+}
+
+.rl-footer-col + .rl-footer-col {
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  padding-left: 44px;
+}
+
+.rl-footer-col-title {
+  margin: 0 0 24px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rafiki-accent-soft);
+}
+
+.rl-footer-col-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rl-footer-link,
+.rl-footer-label {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.rl-footer-link {
+  display: inline-block;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.rl-footer-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Labels whose page does not exist yet: plain text, so no pointer cursor,
+   no hover affordance and no focus stop suggest an action that isn't there. */
+.rl-footer-label {
+  display: inline-block;
+  cursor: default;
+}
+
+/* ---------- Bottom bar ---------- */
+.rl-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  padding: 26px 0 34px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.rl-footer-assurance {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.90625rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.rl-footer-assurance svg {
+  flex-shrink: 0;
+  color: var(--rafiki-accent-soft);
+}
+
+.rl-footer-copyright {
+  margin: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.rl-footer-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rl-footer-lang > svg {
+  flex-shrink: 0;
+  color: var(--rafiki-accent-soft);
+}
+
+.rl-footer-lang-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rl-footer-lang-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rl-footer-lang-btn-muted {
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.rl-footer-lang-btn-muted:hover {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.rl-footer-lang-sep {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+/* ---------- Focus ----------
+   White on the green ground so it survives at full contrast. */
+.rl-footer-main a:focus-visible,
+.rl-footer-main button:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 3px;
+}
+
+/* ---------- Responsive ---------- */
+
+/* Laptop: tighten the column rhythm before anything reflows */
+@media (max-width: 1180px) {
+  .rl-trust-inner,
+  .rl-footer-inner {
+    padding: 0 24px;
+  }
+
+  .rl-trust-item {
+    padding: 2px 26px;
+    gap: 16px;
+  }
+
+  .rl-footer-grid {
+    gap: 32px;
+  }
+
+  .rl-footer-col + .rl-footer-col {
+    padding-left: 32px;
+  }
+}
+
+/* Tablet: trust items stack with horizontal rules; brand spans the grid and
+   the navigation groups pair up. Vertical dividers are dropped so wrapped
+   rows never show a rule against the gutter. */
+@media (max-width: 900px) {
+  .rl-trust {
+    padding: 40px 0;
+  }
+
+  .rl-trust-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rl-trust-item,
+  .rl-trust-item:first-child,
+  .rl-trust-item:last-child {
+    padding: 0;
+  }
+
+  .rl-trust-item + .rl-trust-item {
+    border-left: 0;
+    border-top: 1px solid rgba(20, 83, 45, 0.14);
+    margin-top: 24px;
+    padding-top: 24px;
+  }
+
+  .rl-trust-sub {
+    max-width: 34rem;
+  }
+
+  .rl-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 40px;
+    padding: 52px 0 48px;
+  }
+
+  .rl-footer-brand {
+    grid-column: 1 / -1;
+  }
+
+  .rl-footer-about {
+    max-width: 30rem;
+  }
+
+  .rl-footer-col + .rl-footer-col {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+/* Mobile: single column, gutters matched to the hero and services sections,
+   bottom bar stacks in reading order. */
+@media (max-width: 640px) {
+  .rl-trust {
+    padding: 32px 0;
+  }
+
+  .rl-trust-inner,
+  .rl-footer-inner {
+    padding: 0 18px;
+  }
+
+  .rl-trust-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+
+  .rl-footer-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 34px;
+    padding: 42px 0 36px;
+  }
+
+  .rl-footer-col-title {
+    margin-bottom: 18px;
+  }
+
+  .rl-footer-col-list {
+    gap: 16px;
+  }
+
+  .rl-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 24px 0 30px;
+  }
+
+  .rl-footer-lang {
+    margin-left: -10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-footer-link,
+  .rl-footer-lang-btn {
+    transition: none;
+  }
+}
+
+/* Honour OS/browser high-contrast preferences */
+@media (prefers-contrast: more) {
+  .rl-header {
+    border-bottom-color: #9aa2ac;
+  }
+
+  .rl-control {
+    color: #1f2937;
+  }
+
+  .rl-control-muted {
+    color: #374151;
+  }
+
+  .rl-brand-tagline {
+    color: #4b5563;
+  }
+
+  .rl-trust-sub {
+    color: #333b35;
+  }
+
+  .rl-trust-item + .rl-trust-item {
+    border-left-color: rgba(20, 83, 45, 0.4);
+  }
+
+  .rl-footer-about,
+  .rl-footer-link,
+  .rl-footer-label,
+  .rl-footer-assurance,
+  .rl-footer-copyright {
+    color: #ffffff;
+  }
+
+  .rl-footer-lang-btn-muted {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .rl-footer-col + .rl-footer-col,
+  .rl-footer-bottom,
+  .rl-footer-social-link {
+    border-color: rgba(255, 255, 255, 0.45);
+  }
 }

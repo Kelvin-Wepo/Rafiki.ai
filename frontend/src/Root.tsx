@@ -7,17 +7,22 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OTPVerification } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
-import { SignUpPage, LoginPage, LandingPage } from './pages';
+import { SignUpPage, LoginPage, LandingPage, ForgotPasswordPage } from './pages';
 
 /**
  * Loading Screen Component
  */
 function LoadingScreen() {
+  // Cream/gold to match both the pre-React splash (index.html) and the
+  // auth pages, so session validation reads as one continuous load
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#FAF3E0' }}>
       <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-cyan-400 border-t-transparent animate-spin" />
-        <p className="text-slate-400">Verifying session...</p>
+        <div
+          className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin"
+          style={{ borderColor: 'rgba(200, 134, 10, 0.25)', borderTopColor: '#C8860A' }}
+        />
+        <p style={{ color: '#6B7280' }}>Verifying session...</p>
       </div>
     </div>
   );
@@ -59,21 +64,16 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Public Route Wrapper - redirects to chat if already authenticated,
- * otherwise renders public marketing content (e.g. the landing page)
+ * Home Route — marketing landing for visitors, Dashboard once signed in
  */
-function PublicRoute({ children }: { children: React.ReactNode }) {
+function HomeRoute() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return <LoadingScreen />;
   }
 
-  if (isAuthenticated) {
-    return <Navigate to="/chat" replace />;
-  }
-
-  return <>{children}</>;
+  return isAuthenticated ? <Dashboard /> : <LandingPage />;
 }
 
 /**
@@ -106,16 +106,17 @@ function AppRouter() {
           </AuthRoute>
         }
       />
-
-      {/* Public Landing Page */}
       <Route
-        path="/"
+        path="/forgot-password"
         element={
-          <PublicRoute>
-            <LandingPage />
-          </PublicRoute>
+          <AuthRoute>
+            <ForgotPasswordPage />
+          </AuthRoute>
         }
       />
+
+      {/* Public Landing Page and home route */}
+      <Route path="/" element={<HomeRoute />} />
 
       {/* Protected Routes */}
       <Route

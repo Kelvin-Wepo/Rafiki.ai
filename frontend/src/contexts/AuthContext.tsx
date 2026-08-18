@@ -46,6 +46,8 @@ interface AuthContextType extends AuthState {
   login: (phoneNumber: string, deliveryMethod?: OTPDeliveryMethod) => Promise<AuthResponse>;
   passwordLogin: (identifier: string, password: string) => Promise<PasswordLoginResponse>;
   verify: (phoneNumber: string, otp: string) => Promise<AuthResponse>;
+
+  completeAuth: (user?: User | null) => void;
   logout: () => Promise<void>;
   clearError: () => void;
   completeSession: (user: User, token: string, sessionId?: string) => void;
@@ -74,7 +76,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Core auth state
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const [isLoading, setIsLoading] = useState(() => Boolean(getStoredToken()));
   const [error, setError] = useState<string | null>(null);
   
   // OTP flow state
@@ -231,6 +234,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const completeAuth = useCallback((newUser?: User | null) => {
+    if (newUser) {
+      setUser(newUser);
+    }
+    setIsAuthenticated(true);
+    setError(null);
+  }, []);
+
   /**
    * Clear error message.
    */
@@ -262,6 +273,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     passwordLogin,
     verify,
+    completeAuth,
     logout,
     clearError,
     completeSession,

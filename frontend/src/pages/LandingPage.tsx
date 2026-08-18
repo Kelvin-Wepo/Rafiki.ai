@@ -1,175 +1,362 @@
 /**
- * LandingPage - Rafiki.ai public marketing/home page
- * Shown to logged-out visitors at "/".
+ * LandingPage — public marketing home ("/" for unauthenticated visitors).
+ * eCitizen-green redesign: hero + service grid + trust footer.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Globe,
-  Accessibility,
   Mic,
-  MessageSquare,
+  Keyboard,
   ShieldCheck,
+  BookUser,
   Car,
-  Plane,
-  FileText,
-  Briefcase,
-  HeartPulse,
-  GraduationCap,
   IdCard,
-  Baby,
-  Landmark,
-  Sparkles,
-  Clock,
+  Briefcase,
+  Home,
+  LayoutGrid,
+  Headset,
+  Globe,
+  ChevronDown,
+  Accessibility,
+  Lock,
   Heart,
 } from 'lucide-react';
-import rafikiAvatar from '../assets/rafiki_avatar.png';
+import { RafikiLogo } from '../components/RafikiLogo';
+import { LinkedInIcon, XIcon, TikTokIcon } from '../components/SocialIcons';
+import '../styles/auth.css';
 import '../styles/landing.css';
 
-const SERVICE_BADGES = [
-  { id: 'ecitizen', label: 'eCitizen', icon: Globe, position: 'badge-top' },
-  { id: 'ntsa', label: 'NTSA', icon: Car, position: 'badge-top-right' },
-  { id: 'kra', label: 'KRA', icon: FileText, position: 'badge-right' },
-  { id: 'health', label: 'Health', icon: HeartPulse, position: 'badge-bottom-right' },
-  { id: 'education', label: 'Education', icon: GraduationCap, position: 'badge-bottom' },
-  { id: 'business', label: 'Business', icon: Briefcase, position: 'badge-left' },
-  { id: 'immigration', label: 'Immigration', icon: Plane, position: 'badge-top-left' },
-];
-
-const QUICK_ACTIONS = [
-  { id: 'passport', title: 'Apply for\nPassport', icon: IdCard, color: 'qa-green' },
-  { id: 'license', title: 'Renew\nDriving Licence', icon: Car, color: 'qa-gold' },
-  { id: 'business', title: 'Register\nBusiness', icon: Briefcase, color: 'qa-dark' },
-  { id: 'birth', title: 'Birth\nCertificate', icon: Baby, color: 'qa-red' },
-  { id: 'police', title: 'Police\nClearance', icon: ShieldCheck, color: 'qa-black' },
-  { id: 'land', title: 'Land\nServices', icon: Landmark, color: 'qa-gold' },
+const SERVICES = [
+  { name: 'Apply for Passport', icon: BookUser },
+  { name: 'Renew Driving Licence', icon: Car },
+  { name: 'Replace Lost ID', icon: IdCard },
+  { name: 'Register a Business', icon: Briefcase },
+  { name: 'Police Clearance', icon: ShieldCheck },
+  { name: 'Land Services', icon: Home },
+  { name: 'More Services', icon: LayoutGrid },
 ];
 
 const TRUST_ITEMS = [
-  { icon: ShieldCheck, title: 'Secure', desc: 'Your data is protected' },
-  { icon: Accessibility, title: 'Accessible', desc: 'For everyone, everywhere' },
-  { icon: Clock, title: 'Reliable', desc: 'Always here to help' },
-  { icon: Heart, title: 'Kenyan', desc: 'Built for Kenyans' },
+  {
+    icon: Accessibility,
+    title: 'Accessible for Everyone',
+    sub: 'Voice, text, screen reader and more.',
+  },
+  {
+    icon: Lock,
+    title: 'Secure & Private',
+    sub: 'Your information is protected at all times.',
+  },
+  {
+    icon: Heart,
+    title: 'Built for Kenyans',
+    sub: 'Designed with you in mind, for a better experience.',
+  },
+];
+
+const FOOTER_COLUMNS: Array<{
+  heading: string;
+  items: Array<{ label: string; href?: string }>;
+}> = [
+  {
+    heading: 'Rafiki',
+    items: [
+      { label: 'About Rafiki' },
+      { label: 'How it Works' },
+      { label: 'Accessibility' },
+      { label: 'Our Impact' },
+    ],
+  },
+  {
+    heading: 'Support',
+    items: [
+      { label: 'Help Center' },
+      { label: 'FAQs' },
+      { label: 'Contact Us', href: 'mailto:support@rafiki.ai' },
+      { label: 'Feedback' },
+    ],
+  },
+  {
+    heading: 'Legal',
+    items: [
+      { label: 'Privacy Policy' },
+      { label: 'Terms of Use' },
+      { label: 'Security' },
+    ],
+  },
 ];
 
 export function LandingPage() {
   return (
-    <div className="landing-page">
-      {/* Top nav */}
-      <header className="landing-nav">
-        <div className="landing-nav-brand">
-          <img src={rafikiAvatar} alt="" className="landing-nav-logo" aria-hidden="true" />
-          <div>
-            <p className="landing-nav-name">Rafiki</p>
-            <p className="landing-nav-tagline">AI Government Assistant</p>
-          </div>
-        </div>
-        <div className="landing-nav-actions">
-          <button type="button" className="landing-nav-link">
-            <Globe size={16} aria-hidden="true" />
-            English
-          </button>
-          <button type="button" className="landing-nav-link">
-            <Accessibility size={16} aria-hidden="true" />
-            Accessibility
-          </button>
-          <Link to="/login" className="landing-nav-link landing-nav-link--signin">
-            Sign in
+    <div
+      className="rl-page min-h-screen flex flex-col font-dm-sans"
+      style={{
+        backgroundColor: '#F8F3E7',
+        backgroundImage:
+          'repeating-linear-gradient(45deg, rgba(27,67,50,0.010) 0 2px, transparent 2px 16px),' +
+          'repeating-linear-gradient(-45deg, rgba(200,134,10,0.008) 0 2px, transparent 2px 16px)',
+      }}
+    >
+      <header className="rl-header">
+        <div className="rl-header-inner">
+          <Link to="/" className="rl-brand" aria-label="Rafiki — AI Government Assistant, home">
+            <RafikiLogo size={30} />
+            <span className="rl-brand-tagline">AI Government Assistant</span>
           </Link>
-          <Link to="/signup" className="landing-signin-button">
-            Sign up
-          </Link>
+
+          <nav className="rl-controls" aria-label="Site">
+            <button type="button" className="rl-control" aria-label="Language: English">
+              <Globe size={19} aria-hidden="true" />
+              <span className="rl-control-label">English</span>
+              <ChevronDown size={16} aria-hidden="true" className="rl-control-chevron" />
+            </button>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <button
+              type="button"
+              className="rl-control rl-control-muted rl-control-kiswahili"
+              aria-label="Language: Kiswahili"
+            >
+              <span className="rl-control-label">Kiswahili</span>
+            </button>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <button type="button" className="rl-control" aria-label="Accessibility">
+              <Accessibility size={19} aria-hidden="true" />
+              <span className="rl-control-label">Accessibility</span>
+            </button>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <Link to="/login" className="rl-voice">
+              <span className="rl-voice-label">Sign up</span>
+            </Link>
+          </nav>
         </div>
       </header>
 
-      <main>
-        {/* Hero */}
-        <section className="landing-hero">
-          <div className="landing-hero-copy">
-            <span className="landing-badge-pill">
-              <span aria-hidden="true">🇰🇪</span> Proudly built for Kenya
-            </span>
-            <h1 className="landing-hero-title">
-              Your AI Assistant for <span className="landing-hero-highlight">Government Services</span>
-            </h1>
-            <p className="landing-hero-subtitle">
-              Tell Rafiki what you need, and I'll handle the rest. Fast, simple, secure.
-            </p>
-            <div className="landing-hero-cta">
-              <Link to="/login" className="landing-cta-primary">
-                <Mic size={18} aria-hidden="true" />
-                Ask Rafiki <span className="landing-cta-sub">(Voice)</span>
-              </Link>
-              <Link to="/login" className="landing-cta-secondary">
-                <MessageSquare size={18} aria-hidden="true" />
-                Type your request
-              </Link>
-            </div>
-            <p className="landing-hero-note">
-              <ShieldCheck size={14} aria-hidden="true" />
-              Your data is secure and will only be used with your permission.
-            </p>
-          </div>
-
-          <div className="landing-hero-visual">
-            <div className="landing-mascot-halo">
-              <img src={rafikiAvatar} alt="Rafiki, your AI government assistant" className="landing-mascot" />
-              {SERVICE_BADGES.map(({ id, label, icon: Icon, position }) => (
-                <div key={id} className={`landing-service-badge ${position}`}>
-                  <span className="landing-service-icon">
-                    <Icon size={18} aria-hidden="true" />
-                  </span>
-                  <span className="landing-service-label">{label}</span>
-                </div>
-              ))}
-            </div>
-            <div className="landing-chat-bubble">
-              <p>
-                <span aria-hidden="true">👋</span> <strong>Habari, I'm Rafiki</strong>
+      <main className="flex-1">
+        <section className="rl-hero" aria-labelledby="hero-heading">
+          <div className="rl-hero-inner">
+            <div className="rl-hero-copy">
+              <p className="rl-hero-pill">
+                <ShieldCheck size={18} aria-hidden="true" />
+                Rafiki is a secure assistant that helps you access government services on eCitizen.
               </p>
-              <p className="landing-chat-bubble-sub">How can I help you today?</p>
+
+              <h1 id="hero-heading" className="rl-hero-title">
+                Hello, I'm Rafiki.
+                <span className="rl-hero-title-accent">How can I help you today?</span>
+              </h1>
+
+              <p className="rl-hero-lede">
+                I make it easy to access government services. Just tell me what you need,
+                and I'll take care of the rest.
+              </p>
+
+              <div className="rl-hero-actions">
+                <Link to="/login" className="rl-hero-cta rl-hero-cta-primary">
+                  <Mic size={26} strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="rl-hero-cta-title">Speak to Rafiki</span>
+                    <span className="rl-hero-cta-sub">(Voice Input)</span>
+                  </span>
+                </Link>
+                <Link to="/login" className="rl-hero-cta rl-hero-cta-secondary">
+                  <Keyboard size={26} strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="rl-hero-cta-title">Type your request</span>
+                    <span className="rl-hero-cta-sub">(Text Input)</span>
+                  </span>
+                </Link>
+              </div>
+
+              <p className="rl-hero-assure">
+                <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
+                <span>
+                  Your data is private and secure.
+                  <br />
+                  You're always in control.
+                </span>
+              </p>
             </div>
+
+            <figure className="rl-hero-figure">
+              <img
+                src="/images/hero-citizens.png"
+                alt="Four Kenyan citizens using Rafiki on their phones — an older man in a flat cap, a young woman in glasses, a man seated in a wheelchair, and a woman in a patterned headwrap — in front of the Kenyan flag."
+                className="rl-hero-art"
+                width={612}
+                height={408}
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  img.style.display = 'none';
+                  img.nextElementSibling?.classList.replace('hidden', 'flex');
+                }}
+              />
+              <div
+                className="hidden w-72 h-72 lg:w-80 lg:h-80 rounded-full items-center justify-center"
+                style={{
+                  background:
+                    'radial-gradient(circle at 50% 40%, rgba(45,106,79,0.14), rgba(200,134,10,0.08) 70%, transparent)',
+                }}
+              >
+                <RafikiLogo size={56} />
+              </div>
+            </figure>
           </div>
         </section>
 
-        {/* Quick actions */}
-        <section className="landing-quick-actions">
-          <div className="landing-quick-actions-grid">
-            {QUICK_ACTIONS.map(({ id, title, icon: Icon, color }) => (
-              <Link key={id} to="/login" className={`landing-action-card ${color}`}>
-                <span className="landing-action-icon">
-                  <Icon size={22} aria-hidden="true" />
-                </span>
-                <span className="landing-action-title">
-                  {title.split('\n').map((line, i) => (
-                    <React.Fragment key={i}>
-                      {line}
-                      {i === 0 && <br />}
-                    </React.Fragment>
-                  ))}
-                </span>
-              </Link>
-            ))}
+        <section className="rl-services" aria-labelledby="services-heading">
+          <div className="rl-services-inner">
+            <div className="rl-services-head">
+              <h2 id="services-heading" className="rl-services-title">
+                Popular Services
+              </h2>
+              <p className="rl-services-sub">Tell me which service you need help with.</p>
+            </div>
+
+            <ul className="rl-services-grid">
+              {SERVICES.map(({ name, icon: Icon }) => (
+                <li key={name}>
+                  <Link to="/login" className="rl-service-card">
+                    <Icon size={32} strokeWidth={1.75} aria-hidden="true" />
+                    <span className="rl-service-name">{name}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            <p className="rl-services-more">
+              <Headset size={22} strokeWidth={1.75} aria-hidden="true" />
+              <span className="rl-services-more-text">
+                Rafiki can also help you with NHIF (SHA), KRA, HELB, eAIMS, and more.
+              </span>
+              <span className="rl-services-more-cue">Just ask.</span>
+            </p>
           </div>
-          <p className="landing-more-services">
-            <Sparkles size={14} aria-hidden="true" />
-            More services coming soon. Tell me what you need!
-          </p>
         </section>
       </main>
 
-      {/* Trust footer bar */}
-      <footer className="landing-trust-bar">
-        {TRUST_ITEMS.map(({ icon: Icon, title, desc }) => (
-          <div key={title} className="landing-trust-item">
-            <Icon size={20} aria-hidden="true" />
-            <div>
-              <p className="landing-trust-title">{title}</p>
-              <p className="landing-trust-desc">{desc}</p>
+      <footer className="rl-footer">
+        <div className="rl-trust">
+          <div className="rl-trust-inner">
+            <ul className="rl-trust-list">
+              {TRUST_ITEMS.map(({ icon: Icon, title, sub }) => (
+                <li key={title} className="rl-trust-item">
+                  <span className="rl-trust-icon">
+                    <Icon size={28} strokeWidth={1.75} aria-hidden="true" />
+                  </span>
+                  <span className="rl-trust-copy">
+                    <span className="rl-trust-title">{title}</span>
+                    <span className="rl-trust-sub">{sub}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="rl-footer-main">
+          <div className="rl-footer-stripe" aria-hidden="true" />
+
+          <div className="rl-footer-inner">
+            <div className="rl-footer-grid">
+              <div className="rl-footer-brand">
+                <span className="rl-footer-logo">
+                  <RafikiLogo size={44} />
+                </span>
+                <span className="rl-footer-tagline">AI Government Assistant</span>
+                <p className="rl-footer-about">
+                  Rafiki is your AI companion for navigating Kenya's government services with ease.
+                </p>
+
+                <ul className="rl-footer-social" aria-label="Rafiki on social media">
+                  <li>
+                    <a
+                      href="https://www.linkedin.com/company/rafikiai"
+                      className="rl-footer-social-link"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Rafiki on LinkedIn"
+                    >
+                      <LinkedInIcon size={19} />
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://x.com/rafikiai"
+                      className="rl-footer-social-link"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Rafiki on X"
+                    >
+                      <XIcon size={18} />
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://www.tiktok.com/@rafikiai"
+                      className="rl-footer-social-link"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Rafiki on TikTok"
+                    >
+                      <TikTokIcon size={19} />
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              {FOOTER_COLUMNS.map(({ heading, items }) => (
+                <div key={heading} className="rl-footer-col">
+                  <h2 className="rl-footer-col-title">{heading}</h2>
+                  <ul className="rl-footer-col-list">
+                    {items.map(({ label, href }) => (
+                      <li key={label}>
+                        {href ? (
+                          <a href={href} className="rl-footer-link">
+                            {label}
+                          </a>
+                        ) : (
+                          <span className="rl-footer-label">{label}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div className="rl-footer-bottom">
+              <p className="rl-footer-assurance">
+                <ShieldCheck size={21} strokeWidth={1.75} aria-hidden="true" />
+                Trusted. Secure. Always here for you.
+              </p>
+
+              <p className="rl-footer-copyright">
+                © {new Date().getFullYear()} Rafiki. All rights reserved.
+              </p>
+
+              <div className="rl-footer-lang">
+                <Globe size={19} aria-hidden="true" />
+                <button type="button" className="rl-footer-lang-btn" aria-label="Language: English">
+                  English
+                </button>
+                <span className="rl-footer-lang-sep" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="rl-footer-lang-btn rl-footer-lang-btn-muted"
+                  aria-label="Language: Kiswahili"
+                >
+                  Kiswahili
+                </button>
+              </div>
             </div>
           </div>
-        ))}
+        </div>
       </footer>
     </div>
   );

@@ -1,7 +1,6 @@
 /**
  * SignUpPage - Rafiki.ai Registration
- * "Savanna at Dawn" themed sign up page
- * Supports OTP verification via SMS, voice, or email
+ * Supports OTP verification via SMS, voice, or email.
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -61,33 +60,22 @@ interface OtpState {
   error: string | null;
 }
 
-// Validation helpers
-const validateEmail = (email: string): boolean => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-};
-
-const validatePhone = (phone: string): boolean => {
-  return /^(\+?254|0)7\d{8}$/.test(phone.replace(/\s/g, ''));
-};
-
-const validateIdNumber = (id: string): boolean => {
-  return /^\d{7,8}$/.test(id);
-};
-
+const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const validatePhone = (phone: string): boolean => /^(\+?254|0)7\d{8}$/.test(phone.replace(/\s/g, ''));
+const validateIdNumber = (id: string): boolean => /^\d{7,8}$/.test(id);
 const validateName = (name: string): boolean => {
   const words = name.trim().split(/\s+/);
   return words.length >= 2 && /^[a-zA-Z\s'-]+$/.test(name);
 };
 
-// Password strength calculator
 const getPasswordStrength = (password: string): { level: number; label: string } => {
   if (password.length === 0) return { level: 0, label: '' };
   if (password.length < 8) return { level: 1, label: 'Weak' };
-  
+
   const hasUppercase = /[A-Z]/.test(password);
   const hasNumber = /\d/.test(password);
   const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-  
+
   if (hasUppercase && hasNumber && hasSymbol) return { level: 4, label: 'Strong' };
   if ((hasUppercase && hasNumber) || (hasUppercase && hasSymbol) || (hasNumber && hasSymbol)) {
     return { level: 3, label: 'Good' };
@@ -95,14 +83,12 @@ const getPasswordStrength = (password: string): { level: number; label: string }
   return { level: 2, label: 'Fair' };
 };
 
-// Password Strength Bar Component
 function PasswordStrengthBar({ password }: { password: string }) {
   const { level, label } = getPasswordStrength(password);
-  
   if (password.length === 0) return null;
-  
+
   const labelClass = level === 1 ? 'weak' : level === 2 ? 'fair' : level === 3 ? 'good' : 'strong';
-  
+
   return (
     <div>
       <div className="strength-bar">
@@ -113,14 +99,11 @@ function PasswordStrengthBar({ password }: { password: string }) {
           />
         ))}
       </div>
-      <div className={`strength-label ${labelClass}`}>
-        {label}
-      </div>
+      <div className={`strength-label ${labelClass}`}>{label}</div>
     </div>
   );
 }
 
-// Custom Checkbox Component
 function AuthCheckbox({
   checked,
   onChange,
@@ -128,6 +111,7 @@ function AuthCheckbox({
   subtext,
   highlighted = false,
   error,
+  inputRef,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -135,12 +119,14 @@ function AuthCheckbox({
   subtext?: string;
   highlighted?: boolean;
   error?: string;
+  inputRef?: React.Ref<HTMLInputElement>;
 }) {
   return (
     <div>
       <label className={`auth-checkbox-wrapper ${highlighted && checked ? 'highlighted' : ''}`}>
         <div className="auth-checkbox">
           <input
+            ref={inputRef}
             type="checkbox"
             checked={checked}
             onChange={(e) => onChange(e.target.checked)}
@@ -167,9 +153,10 @@ function AuthCheckbox({
 
 export function SignUpPage() {
   const navigate = useNavigate();
-  const { completeSession } = useAuth();
+  const { completeSession, completeAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ecitizenNotice, setEcitizenNotice] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
     email: '',
@@ -183,9 +170,22 @@ export function SignUpPage() {
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  const [ecitizenNotice, setEcitizenNotice] = useState(false);
 
-  // OTP verification state
+  const fieldRefs = {
+    fullName: useRef<HTMLInputElement>(null),
+    email: useRef<HTMLInputElement>(null),
+    phone: useRef<HTMLInputElement>(null),
+    idNumber: useRef<HTMLInputElement>(null),
+    password: useRef<HTMLInputElement>(null),
+    confirmPassword: useRef<HTMLInputElement>(null),
+    agreeToTerms: useRef<HTMLInputElement>(null),
+  };
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error) errorBannerRef.current?.focus();
+  }, [error]);
+
   const [otpState, setOtpState] = useState<OtpState>({
     showModal: false,
     code: ['', '', '', '', '', ''],
@@ -197,8 +197,7 @@ export function SignUpPage() {
     error: null,
   });
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  
-  // OTP timer countdown
+
   useEffect(() => {
     if (!otpState.showModal || otpState.expiresIn <= 0) return;
     const timer = setInterval(() => {
@@ -213,50 +212,33 @@ export function SignUpPage() {
     setError(null);
   }, []);
 
-  const validateForm = useCallback((): boolean => {
+  const validateForm = useCallback((): FormErrors => {
     const errors: FormErrors = {};
 
-    if (!validateName(formData.fullName)) {
-      errors.fullName = 'Please enter your full name as on your National ID';
-    }
-
-    if (!validateEmail(formData.email)) {
-      errors.email = 'Please enter a valid email address';
-    }
-
-    if (!validatePhone(formData.phone)) {
-      errors.phone = 'Please enter a valid Kenyan phone number';
-    }
-
-    if (!validateIdNumber(formData.idNumber)) {
-      errors.idNumber = 'Please enter a valid 7 or 8 digit ID number';
-    }
-
-    if (formData.password.length < 8) {
-      errors.password = 'Password must be at least 8 characters';
-    } else if (!/[A-Z]/.test(formData.password) || !/\d/.test(formData.password)) {
+    if (!validateName(formData.fullName)) errors.fullName = 'Please enter your full name as on your National ID';
+    if (!validateEmail(formData.email)) errors.email = 'Please enter a valid email address';
+    if (!validatePhone(formData.phone)) errors.phone = 'Please enter a valid Kenyan phone number';
+    if (!validateIdNumber(formData.idNumber)) errors.idNumber = 'Please enter a valid 7 or 8 digit ID number';
+    if (formData.password.length < 8) errors.password = 'Password must be at least 8 characters';
+    else if (!/[A-Z]/.test(formData.password) || !/\d/.test(formData.password)) {
       errors.password = 'Password must contain at least one uppercase letter and one number';
     }
-
-    if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-
-    if (!formData.agreeToTerms) {
-      errors.agreeToTerms = 'You must agree to the terms to continue';
-    }
+    if (formData.password !== formData.confirmPassword) errors.confirmPassword = 'Passwords do not match';
+    if (!formData.agreeToTerms) errors.agreeToTerms = 'You must agree to the terms to continue';
 
     setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
   }, [formData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Mark all fields as touched
     setTouched(new Set(['fullName', 'email', 'phone', 'idNumber', 'password', 'confirmPassword', 'agreeToTerms']));
 
-    if (!validateForm()) {
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      const fieldOrder = ['fullName', 'email', 'phone', 'idNumber', 'password', 'confirmPassword', 'agreeToTerms'] as const;
+      const firstInvalid = fieldOrder.find((f) => errors[f]);
+      if (firstInvalid) fieldRefs[firstInvalid].current?.focus();
       return;
     }
 
@@ -281,18 +263,12 @@ export function SignUpPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Handle specific error cases
-        if (data.error === 'email_exists') {
-          throw new Error('An account with this email already exists');
-        } else if (data.error === 'phone_exists') {
-          throw new Error('An account with this phone number already exists');
-        } else if (data.error === 'id_exists') {
-          throw new Error('An account with this ID number already exists');
-        }
+        if (data.error === 'email_exists') throw new Error('An account with this email already exists');
+        if (data.error === 'phone_exists') throw new Error('An account with this phone number already exists');
+        if (data.error === 'id_exists') throw new Error('An account with this ID number already exists');
         throw new Error(data.message || data.detail || 'Registration failed');
       }
 
-      // Show OTP verification modal if required
       if (data.requires_verification) {
         setOtpState({
           showModal: true,
@@ -304,33 +280,26 @@ export function SignUpPage() {
           verifying: false,
           error: null,
         });
-        // Focus first OTP input
         setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
       } else {
-        // Direct login (shouldn't happen but handle it)
         localStorage.setItem('rafiki_session_id', data.session_id);
         localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
+        completeAuth(data.user ?? null);
         navigate('/chat');
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle OTP input
   const handleOtpChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return; // Only allow digits
-    
+    if (!/^\d*$/.test(value)) return;
     const newCode = [...otpState.code];
-    newCode[index] = value.slice(-1); // Only take last character
+    newCode[index] = value.slice(-1);
     setOtpState(prev => ({ ...prev, code: newCode, error: null }));
-    
-    // Auto-focus next input
-    if (value && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
+    if (value && index < 5) otpInputRefs.current[index + 1]?.focus();
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -349,7 +318,6 @@ export function SignUpPage() {
     }
   };
 
-  // Verify OTP
   const handleVerifyOtp = async () => {
     const otp = otpState.code.join('');
     if (otp.length !== 6) {
@@ -366,30 +334,26 @@ export function SignUpPage() {
         body: JSON.stringify({
           email: formData.email,
           phone: formData.phone.replace(/\s/g, ''),
-          otp: otp,
+          otp,
         }),
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.detail || 'Verification failed');
 
-      if (!res.ok) {
-        throw new Error(data.message || data.detail || 'Verification failed');
-      }
-
-      // Success - complete the session so AuthContext/ProtectedRoute recognize it
       completeSession(data.user || { full_name: formData.fullName }, data.access_token, data.session_id);
       localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
+      completeAuth(data.user ?? null);
       navigate('/chat');
-    } catch (err: any) {
-      setOtpState(prev => ({ 
-        ...prev, 
-        verifying: false, 
-        error: err.message || 'Invalid OTP. Please try again.' 
+    } catch (err) {
+      setOtpState(prev => ({
+        ...prev,
+        verifying: false,
+        error: err instanceof Error && err.message ? err.message : 'Invalid OTP. Please try again.',
       }));
     }
   };
 
-  // Resend OTP
   const handleResendOtp = async (method: 'sms' | 'voice' | 'email') => {
     setOtpState(prev => ({ ...prev, resending: true, error: null }));
 
@@ -405,24 +369,20 @@ export function SignUpPage() {
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.detail || 'Failed to resend OTP');
 
-      if (!res.ok) {
-        throw new Error(data.message || data.detail || 'Failed to resend OTP');
-      }
-
-      // Reset code and timer
-      setOtpState(prev => ({ 
-        ...prev, 
+      setOtpState(prev => ({
+        ...prev,
         code: ['', '', '', '', '', ''],
         expiresIn: data.expires_in || 300,
         resending: false,
       }));
       otpInputRefs.current[0]?.focus();
-    } catch (err: any) {
-      setOtpState(prev => ({ 
-        ...prev, 
-        resending: false, 
-        error: err.message || 'Failed to resend OTP' 
+    } catch (err) {
+      setOtpState(prev => ({
+        ...prev,
+        resending: false,
+        error: err instanceof Error && err.message ? err.message : 'Failed to resend OTP',
       }));
     }
   };
@@ -434,7 +394,6 @@ export function SignUpPage() {
   };
 
   const handleEcitizenSignUp = () => {
-    // eCitizen SSO is not wired up yet - UI placeholder only.
     setEcitizenNotice(true);
     setTimeout(() => setEcitizenNotice(false), 3000);
   };
@@ -456,7 +415,6 @@ export function SignUpPage() {
             <span />
           </div>
           <form onSubmit={handleSubmit} noValidate>
-            {/* Brand + Progress */}
             <div className="signup-brand fade-up">
               <img src={rafikiAvatar} alt="" className="signup-brand-logo" aria-hidden="true" />
               <div>
@@ -477,26 +435,28 @@ export function SignUpPage() {
               </div>
             </div>
 
-            {/* Header */}
             <div className="text-center mb-6 fade-up">
               <h1 className="signup-title">Create your account</h1>
               <p className="signup-subtitle">
                 Join thousands of Kenyans accessing government services in one place.
               </p>
+              <p className="font-dm-sans text-sm text-gray-600 mt-2">
+                Already have an account?{' '}
+                <Link to="/login" className="auth-link">
+                  Sign in
+                </Link>
+              </p>
             </div>
 
-            {/* Error Banner */}
             {error && (
-              <div className="auth-error-banner mb-6 fade-up" role="alert">
+              <div ref={errorBannerRef} className="auth-error-banner mb-6" role="alert" tabIndex={-1}>
                 <AlertCircle size={20} aria-hidden="true" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Form Fields */}
             <div className="space-y-5">
-              {/* Full Name */}
-              <div className="fade-up fade-up-delay-1">
+              <div className="grid md:grid-cols-2 gap-5 fade-up fade-up-delay-1">
                 <AuthInput
                   label="Full Name"
                   placeholder="As it appears on your National ID"
@@ -506,11 +466,8 @@ export function SignUpPage() {
                   error={touched.has('fullName') ? formErrors.fullName : undefined}
                   autoComplete="name"
                   required
+                  inputRef={fieldRefs.fullName}
                 />
-              </div>
-
-              {/* Email */}
-              <div className="fade-up fade-up-delay-2">
                 <AuthInput
                   label="Email Address"
                   placeholder="yourname@email.com"
@@ -521,11 +478,11 @@ export function SignUpPage() {
                   error={touched.has('email') ? formErrors.email : undefined}
                   autoComplete="email"
                   required
+                  inputRef={fieldRefs.email}
                 />
               </div>
 
-              {/* Phone */}
-              <div className="fade-up fade-up-delay-3">
+              <div className="grid md:grid-cols-2 gap-5 fade-up fade-up-delay-2">
                 <AuthInput
                   label="Phone Number"
                   placeholder="07XX XXX XXX"
@@ -536,11 +493,8 @@ export function SignUpPage() {
                   error={touched.has('phone') ? formErrors.phone : undefined}
                   autoComplete="tel"
                   required
+                  inputRef={fieldRefs.phone}
                 />
-              </div>
-
-              {/* National ID */}
-              <div className="fade-up fade-up-delay-4">
                 <AuthInput
                   label="National ID Number"
                   placeholder="7 or 8 digit ID number"
@@ -550,27 +504,26 @@ export function SignUpPage() {
                   error={touched.has('idNumber') ? formErrors.idNumber : undefined}
                   autoComplete="off"
                   required
+                  inputRef={fieldRefs.idNumber}
                 />
               </div>
 
-              {/* Password */}
-              <div className="fade-up fade-up-delay-5">
-                <AuthInput
-                  label="Password"
-                  placeholder="Create a strong password"
-                  icon={<Lock size={20} aria-hidden="true" />}
-                  value={formData.password}
-                  onChange={(v) => updateField('password', v)}
-                  error={touched.has('password') ? formErrors.password : undefined}
-                  showPasswordToggle
-                  autoComplete="new-password"
-                  required
-                />
-                <PasswordStrengthBar password={formData.password} />
-              </div>
-
-              {/* Confirm Password */}
-              <div className="fade-up fade-up-delay-6">
+              <div className="grid md:grid-cols-2 gap-5 fade-up fade-up-delay-3">
+                <div>
+                  <AuthInput
+                    label="Password"
+                    placeholder="Create a strong password"
+                    icon={<Lock size={20} aria-hidden="true" />}
+                    value={formData.password}
+                    onChange={(v) => updateField('password', v)}
+                    error={touched.has('password') ? formErrors.password : undefined}
+                    showPasswordToggle
+                    autoComplete="new-password"
+                    required
+                    inputRef={fieldRefs.password}
+                  />
+                  <PasswordStrengthBar password={formData.password} />
+                </div>
                 <AuthInput
                   label="Confirm Password"
                   placeholder="Re-enter your password"
@@ -581,10 +534,10 @@ export function SignUpPage() {
                   showPasswordToggle
                   autoComplete="new-password"
                   required
+                  inputRef={fieldRefs.confirmPassword}
                 />
               </div>
 
-              {/* Disability Checkbox */}
               <div className="fade-up fade-up-delay-7 pt-2">
                 <AuthCheckbox
                   checked={formData.hasDisability}
@@ -595,50 +548,35 @@ export function SignUpPage() {
                 />
               </div>
 
-              {/* Terms Checkbox */}
               <div className="fade-up fade-up-delay-8">
                 <AuthCheckbox
                   checked={formData.agreeToTerms}
                   onChange={(v) => updateField('agreeToTerms', v)}
                   label={
                     <>
-                      I agree to the{' '}
-                      <a href="#" onClick={(e) => e.preventDefault()}>Terms of Service</a>
-                      {' '}and{' '}
-                      <a href="#" onClick={(e) => e.preventDefault()}>Privacy Policy</a>
+                      I agree to the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>
                     </>
                   }
                   error={touched.has('agreeToTerms') ? formErrors.agreeToTerms : undefined}
+                  inputRef={fieldRefs.agreeToTerms}
                 />
               </div>
 
-              {/* Submit Button */}
               <div className="fade-up fade-up-delay-9 pt-2">
-                <AuthButton
-                  type="submit"
-                  variant="primary"
-                  fullWidth
-                  loading={loading}
-                >
+                <AuthButton type="submit" variant="primary" fullWidth loading={loading}>
                   <Sparkles size={18} aria-hidden="true" />
                   <span>Create Account</span>
                 </AuthButton>
               </div>
 
-              {/* Divider */}
               <div className="auth-divider fade-up fade-up-delay-10">
                 <div className="auth-divider-line" />
                 <span className="auth-divider-text">OR</span>
                 <div className="auth-divider-line" />
               </div>
 
-              {/* eCitizen Button */}
               <div className="fade-up fade-up-delay-10">
-                <button
-                  type="button"
-                  className="ecitizen-button"
-                  onClick={handleEcitizenSignUp}
-                >
+                <button type="button" className="ecitizen-button" onClick={handleEcitizenSignUp}>
                   <Landmark size={18} aria-hidden="true" />
                   <span>Continue with eCitizen</span>
                 </button>
@@ -649,16 +587,13 @@ export function SignUpPage() {
                 )}
               </div>
 
-              {/* Security Note */}
               <div className="login-security-note fade-up fade-up-delay-10">
                 <ShieldCheck size={18} aria-hidden="true" />
                 <p>
-                  Your details are encrypted and only used to verify your identity with
-                  Kenyan government services.
+                  Your details are encrypted and only used to verify your identity with Kenyan government services.
                 </p>
               </div>
 
-              {/* Footer Link */}
               <div className="text-center pt-2 fade-up fade-up-delay-10">
                 <p className="font-dm-sans text-sm text-gray-600">
                   Already have an account?{' '}
@@ -674,11 +609,14 @@ export function SignUpPage() {
 
       <div className="login-footer-bar">Proudly Kenyan 🇰🇪</div>
 
-      {/* OTP Verification Modal */}
       {otpState.showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
-            {/* Close Button */}
+          <div
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-8"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="otp-heading"
+          >
             <button
               type="button"
               onClick={() => setOtpState(prev => ({ ...prev, showModal: false }))}
@@ -688,12 +626,11 @@ export function SignUpPage() {
               <X size={20} className="text-gray-500" />
             </button>
 
-            {/* Header */}
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-r from-green-700 to-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock size={28} className="text-white" />
               </div>
-              <h3 className="font-playfair text-2xl text-gray-900 mb-2">Verify Your Account</h3>
+              <h3 id="otp-heading" className="font-playfair text-2xl text-gray-900 mb-2">Verify Your Account</h3>
               <p className="font-dm-sans text-gray-600 text-sm">
                 We sent a 6-digit code to{' '}
                 <span className="font-medium">{otpState.phoneMasked}</span>
@@ -703,7 +640,6 @@ export function SignUpPage() {
               </p>
             </div>
 
-            {/* OTP Input */}
             <div className="flex justify-center gap-2 mb-6" onPaste={handleOtpPaste}>
               {otpState.code.map((digit, index) => (
                 <input
@@ -715,87 +651,36 @@ export function SignUpPage() {
                   value={digit}
                   onChange={(e) => handleOtpChange(index, e.target.value)}
                   onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                  className="w-12 h-14 text-center text-2xl font-bold border-2 rounded-xl 
-                    focus:border-green-700 focus:ring-2 focus:ring-green-200 outline-none
-                    transition-all text-gray-900"
+                  className="w-12 h-14 text-center text-2xl font-bold border-2 rounded-xl focus:border-green-700 focus:ring-2 focus:ring-green-200 outline-none transition-all text-gray-900"
                   aria-label={`Digit ${index + 1}`}
                 />
               ))}
             </div>
 
-            {/* Timer */}
-            <div className="text-center mb-4">
-              {otpState.expiresIn > 0 ? (
-                <p className="font-dm-sans text-sm text-gray-500">
-                  Code expires in <span className="font-medium text-green-700">{formatTime(otpState.expiresIn)}</span>
-                </p>
-              ) : (
-                <p className="font-dm-sans text-sm text-red-500">
-                  Code expired. Please request a new one.
-                </p>
-              )}
-            </div>
-
-            {/* Error */}
             {otpState.error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
-                <span className="font-dm-sans text-sm text-red-700">{otpState.error}</span>
+              <div className="auth-error-banner mb-4" role="alert">
+                <AlertCircle size={18} aria-hidden="true" />
+                <span>{otpState.error}</span>
               </div>
             )}
 
-            {/* Verify Button */}
-            <AuthButton
-              variant="primary"
-              fullWidth
-              onClick={handleVerifyOtp}
-              loading={otpState.verifying}
-              disabled={otpState.code.join('').length !== 6 || otpState.expiresIn <= 0}
-            >
-              Verify & Continue
-            </AuthButton>
-
-            {/* Resend Options */}
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <p className="font-dm-sans text-sm text-gray-500 text-center mb-3">
-                Didn't receive the code?
-              </p>
-              <div className="flex justify-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleResendOtp('sms')}
-                  disabled={otpState.resending}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium 
-                    text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg 
-                    transition-colors disabled:opacity-50"
-                >
-                  {otpState.resending ? <RefreshCw size={14} className="animate-spin" /> : <Phone size={14} />}
-                  SMS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleResendOtp('voice')}
-                  disabled={otpState.resending}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium 
-                    text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg 
-                    transition-colors disabled:opacity-50"
-                >
-                  {otpState.resending ? <RefreshCw size={14} className="animate-spin" /> : null}
-                  📞 Voice Call
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleResendOtp('email')}
-                  disabled={otpState.resending}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium 
-                    text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg 
-                    transition-colors disabled:opacity-50"
-                >
-                  {otpState.resending ? <RefreshCw size={14} className="animate-spin" /> : <Mail size={14} />}
-                  Email
-                </button>
-              </div>
+            <div className="flex justify-between items-center mb-6 text-sm text-gray-600">
+              <span>Code expires in {formatTime(otpState.expiresIn)}</span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-medium"
+                onClick={() => handleResendOtp(formData.otpDelivery)}
+                disabled={otpState.resending}
+              >
+                <RefreshCw size={16} className={otpState.resending ? 'animate-spin' : ''} />
+                {otpState.resending ? 'Sending...' : 'Resend'}
+              </button>
             </div>
+
+            <AuthButton type="button" variant="primary" fullWidth loading={otpState.verifying} onClick={handleVerifyOtp}>
+              <ShieldCheck size={18} aria-hidden="true" />
+              <span>Verify & continue</span>
+            </AuthButton>
           </div>
         </div>
       )}

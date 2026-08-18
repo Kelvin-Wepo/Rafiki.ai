@@ -1,0 +1,37 @@
+annotated-types==0.7.0
+anyio==4.14.1
+aiofiles==23.1.0
+africastalking==2.0.2
+click==8.4.2
+cryptography>=40.0.0
+ecdsa==0.19.2
+fastapi==0.110.0
+python-multipart==0.0.6
+
+# Pydantic for data validation
+# v2 is required by google-genai (>=2.0)
+pydantic==2.10.3
+pydantic-settings==2.1.0
+
+# Security
+bcrypt==4.1.2
+python-jose[cryptography]==3.3.0
+
+# Google AI Services
+greenlet>=3.0.0
+h11==0.16.0
+idna==3.18
+pyasn1==0.6.3
+pycparser>=2.20
+google-genai>=0.1.0
+rsa==4.9.1
+six==1.17.0
+
+# Database
+SQLAlchemy==2.0.51
+starlette==0.36.3
+
+# Runtime
+typing-extensions==4.15.0
+uvicorn==0.27.0
+fpdf==1.7.2
