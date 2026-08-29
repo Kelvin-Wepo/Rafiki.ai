@@ -47,17 +47,30 @@ router = APIRouter()
 # TTS Helper
 # ---------------------------------------------------------------------------
 
-async def generate_tts_audio(text: str, language: str = "en") -> Optional[str]:
+async def generate_tts_audio(text: str, language: str = "en", session_id: Optional[str] = None) -> Optional[str]:
     """Generate TTS audio for response text. Returns base64 string or None."""
     try:
-        # Select voice based on language
-        voice_id = "EXAVITQu4vr4xnSDxMaL" if language == "en" else "pNInz6obpgDQGcFmaJgB"
+        # Resolve the voice once per session so we don't drift across concurrent welcome requests.
+        voice_id = None
+        if session_id:
+            from services.agency_workflows import get_or_create_session
+            state = get_or_create_session(session_id)
+            voice_id = state.voice_id
+
+        if not voice_id:
+            voice_id = (
+                "EXAVITQu4vr4xnSDxMaL" if language == "en" else "pNInz6obpgDQGcFmaJgB"
+            )
+            if session_id:
+                from services.agency_workflows import get_or_create_session
+                state = get_or_create_session(session_id)
+                state.voice_id = voice_id
         
         result = await elevenlabs_service.text_to_speech(
             text=text,
             voice_id=voice_id,
             language=language,
-            model_id="eleven_multilingual_v2"  # Supports Kiswahili
+            model_id="eleven_flash_v2_5"
         )
         
         if result.get("success") and result.get("audio_data"):
@@ -323,8 +336,10 @@ async def start_chat():
     response_text = handle_message(session_id, "__new_session__")
     state = get_or_create_session(session_id)
 
-    # Generate TTS audio for the greeting
-    audio_base64 = await generate_tts_audio(response_text, state.language)
+    state.voice_id = state.voice_id or (
+        "EXAVITQu4vr4xnSDxMaL" if state.language == "en" else "pNInz6obpgDQGcFmaJgB"
+    )
+    audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
 
     return ChatResponse(
         session_id=session_id,

@@ -39,6 +39,7 @@ class Session:
     conversation_context: Dict[str, Any] = field(default_factory=dict)
     user_preferences: Dict[str, Any] = field(default_factory=dict)
     booking_state: Dict[str, Any] = field(default_factory=dict)
+    voice_id: Optional[str] = None
     
     # Encrypted storage for sensitive data
     _encrypted_context: Optional[str] = field(default=None, repr=False)
@@ -72,6 +73,7 @@ class Session:
             "conversation_context": self.conversation_context,
             "user_preferences": self.user_preferences,
             "booking_state": self.booking_state,
+            "voice_id": self.voice_id,
             "pii_detected": self._pii_summary
         }
         
@@ -199,12 +201,16 @@ class SessionManager:
             
             now = datetime.utcnow()
             
+            preferences = user_preferences or {}
+            voice_id = preferences.get("voice_id") or getattr(settings, "ELEVENLABS_VOICE_ID", None)
+
             session = Session(
                 session_id=session_id,
                 created_at=now,
                 last_activity=now,
                 expires_at=now + timedelta(minutes=self._expire_minutes),
-                user_preferences=user_preferences or {}
+                user_preferences=preferences,
+                voice_id=voice_id
             )
             
             self._sessions[session_id] = session
@@ -298,6 +304,10 @@ class SessionManager:
             
             if user_preferences is not None:
                 session.user_preferences.update(user_preferences)
+                if "voice_id" in user_preferences and user_preferences["voice_id"]:
+                    session.voice_id = user_preferences["voice_id"]
+                elif not session.voice_id and session.user_preferences.get("voice_id"):
+                    session.voice_id = session.user_preferences["voice_id"]
             
             session.update_activity()
             

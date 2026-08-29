@@ -41,6 +41,7 @@ class SessionState:
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     step: str = "LANGUAGE_SELECT"           # Start with language selection
     language: str = "en"                    # 'en' for English, 'sw' for Kiswahili
+    voice_id: Optional[str] = None
     agency: Optional[str] = None
     service: Optional[str] = None
     sub_service: Optional[str] = None

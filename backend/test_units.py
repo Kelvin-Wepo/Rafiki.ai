@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from services.kra_service import KRAService
 from services.elevenlabs_service import ElevenLabsService
 from services.sadtalker_service import SadTalkerService
+from utils.session_manager import SessionManager
 
 # --- KRA Service Tests ---
 
@@ -76,6 +77,31 @@ async def test_elevenlabs_tts_success(elevenlabs_service):
             
             assert path is not None
             assert str(path).endswith(".mp3") or str(path).endswith(".wav")
+
+
+def test_elevenlabs_uses_flash_model_by_default():
+    """Welcome TTS should prefer the faster flash model unless overridden."""
+    service = ElevenLabsService()
+    assert service.default_model_id == "eleven_flash_v2_5"
+
+
+@pytest.mark.asyncio
+async def test_session_voice_id_persists_per_session():
+    """Voice IDs must be pinned to the session and not just the global singleton."""
+    manager = SessionManager()
+    session = await manager.create_session(user_preferences={"voice_id": "voice_session_123"})
+
+    assert session.voice_id == "voice_session_123"
+    assert session.user_preferences["voice_id"] == "voice_session_123"
+
+    updated = await manager.update_session(
+        session.session_id,
+        user_preferences={"voice_id": "voice_session_456"}
+    )
+
+    assert updated is not None
+    assert updated.voice_id == "voice_session_456"
+    assert updated.user_preferences["voice_id"] == "voice_session_456"
 
 # --- SadTalker Service Tests ---
 

@@ -30,6 +30,14 @@ class SignedUrlResponse(BaseModel):
     error: Optional[str] = None
 
 
+class ConversationTokenResponse(BaseModel):
+    """WebRTC conversation token response model."""
+    success: bool
+    token: Optional[str] = None
+    agent_id: Optional[str] = None
+    error: Optional[str] = None
+
+
 class TTSResponse(BaseModel):
     """TTS response model."""
     success: bool
@@ -75,6 +83,41 @@ async def get_signed_url(
             
     except Exception as e:
         logger.error(f"Error getting signed URL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/conversation-token",
+    response_model=ConversationTokenResponse,
+    summary="Get WebRTC conversation token for ElevenLabs agent",
+    description="Mint a short-lived token so the browser can open a WebRTC session with a private agent"
+)
+async def get_conversation_token(
+    agent_id: Optional[str] = Query(None, description="Optional agent ID override")
+):
+    """
+    Get a WebRTC conversation token for the configured agent.
+
+    Returns success=False rather than raising so the frontend can fall back to
+    connecting with a public agent ID.
+    """
+    try:
+        result = await elevenlabs_service.get_conversation_token(agent_id)
+
+        if result.get("success"):
+            return ConversationTokenResponse(
+                success=True,
+                token=result["token"],
+                agent_id=result["agent_id"]
+            )
+
+        return ConversationTokenResponse(
+            success=False,
+            error=result.get("error", "Unknown error")
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting conversation token: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

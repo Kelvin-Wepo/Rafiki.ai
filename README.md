@@ -160,7 +160,7 @@ This activates the venv inside `backend/` and runs `uvicorn main:app` from the `
 ```bash
 cd backend
 source virtual/bin/activate   # or: source venv/bin/activate
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+ -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 > Run uvicorn as `main:app` from inside `backend/`, not `backend.main:app` from the repo root — `backend/main.py` supports both import styles, but `main:app` is the maintained convention (matches `app.py` and the shell scripts).
@@ -183,7 +183,7 @@ The application will be available at:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
-
+python
 ### Option 3: Google Colab GPU Setup (Fastest)
 
 For 50-100x faster video generation, set up a free GPU backend:

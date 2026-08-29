@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # CORS Settings
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    # Include the Vite frontend default (5173) and the common React default (3000).
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
     
     # Google Gemini API
     GEMINI_API_KEY: str = ""

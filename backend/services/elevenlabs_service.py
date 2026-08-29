@@ -7,11 +7,32 @@ Optimized for warm Kenyan accent voices with natural pacing and emphasis
 import httpx
 import base64
 import re
+import time
 from typing import Optional, Dict, Any, List
+from functools import wraps
 from rafiki_settings import get_settings
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def log_stage_timing(stage_name: str):
+    """Log per-stage timing to isolate latency regressions in the TTS pipeline."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            started = time.perf_counter()
+            try:
+                result = await func(*args, **kwargs)
+                elapsed_ms = round((time.perf_counter() - started) * 1000, 1)
+                logger.info(f"[TTS_STAGE] {stage_name} completed in {elapsed_ms}ms")
+                return result
+            except Exception:
+                elapsed_ms = round((time.perf_counter() - started) * 1000, 1)
+                logger.exception(f"[TTS_STAGE] {stage_name} failed after {elapsed_ms}ms")
+                raise
+        return wrapper
+    return decorator
 
 
 class ElevenLabsService:
@@ -123,6 +144,7 @@ class ElevenLabsService:
         self.agent_id = self.settings.ELEVENLABS_AGENT_ID
         self.branch_id = getattr(self.settings, 'ELEVENLABS_BRANCH_ID', None)
         self._client = None
+        self.default_model_id = "eleven_flash_v2_5"
         
         # Set default voice - using Adam (FREE voice that works without subscription)
         # Switch to KENYAN_VOICES["noah"] if you have a paid subscription
@@ -298,13 +320,58 @@ class ElevenLabsService:
                 "success": False,
                 "error": str(e)
             }
-    
+
+    async def get_conversation_token(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Mint a WebRTC conversation token for the configured agent.
+
+        The browser SDK needs a signed URL for WebSocket transport but a
+        conversation token for WebRTC. Issuing it here keeps the API key on the
+        server and lets the agent stay private.
+
+        Args:
+            agent_id: Optional agent ID override (defaults to configured agent)
+
+        Returns:
+            Dict with the token, or an error the caller can fall back from
+        """
+        try:
+            target_agent = agent_id or self.agent_id
+
+            if not target_agent:
+                return {"success": False, "error": "No agent ID configured"}
+
+            if not self.api_key:
+                return {"success": False, "error": "ElevenLabs API key not configured"}
+
+            response = await self.client.get(
+                "/convai/conversation/token",
+                params={"agent_id": target_agent}
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"Issued conversation token for agent {target_agent}")
+                return {
+                    "success": True,
+                    "token": data.get("token"),
+                    "agent_id": target_agent
+                }
+
+            error_msg = f"Failed to get conversation token: {response.status_code} {response.text[:200]}"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
+
+        except Exception as e:
+            logger.error(f"Error getting conversation token: {e}")
+            return {"success": False, "error": str(e)}
+
     async def text_to_speech(
         self,
         text: str,
         voice_id: Optional[str] = None,
         voice_name: Optional[str] = None,
-        model_id: str = "eleven_multilingual_v2",
+        model_id: Optional[str] = None,
         output_format: str = "mp3_44100_128",
         content_type: str = "conversational",
         optimize_speech: bool = True,
@@ -328,6 +395,7 @@ class ElevenLabsService:
             Dict with audio data (base64) or error
         """
         try:
+            model_id = model_id or self.default_model_id
             # Select voice: prefer voice_name, check FREE_VOICES first then KENYAN_VOICES
             target_voice = None
             voice_display_name = self.current_voice_name
@@ -364,7 +432,7 @@ class ElevenLabsService:
             # Prepare voice settings optimized for Kenyan accent clarity
             voice_settings = self.VOICE_SETTINGS_OPTIMIZED.copy()
             
-            response = await self.client.post(
+            response = await log_stage_timing("elevenlabs_http_call")(lambda: self.client.post(
                 f"/text-to-speech/{target_voice}",
                 json={
                     "text": optimized_text,
@@ -372,7 +440,7 @@ class ElevenLabsService:
                     "voice_settings": voice_settings
                 },
                 params={"output_format": output_format}
-            )
+            ))()
             
             if response.status_code == 200:
                 audio_data = base64.b64encode(response.content).decode("utf-8")

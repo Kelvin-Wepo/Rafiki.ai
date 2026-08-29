@@ -81,7 +81,10 @@ class OTPService:
     def initialize(self) -> bool:
         """Initialize Africa's Talking SMS and Voice clients."""
         if not AFRICASTALKING_AVAILABLE:
-            logger.warning("Africa's Talking not available - using simulation mode")
+            logger.error(
+                "africastalking library is not installed - OTP delivery will fail. "
+                "Run: pip install africastalking"
+            )
             self._initialized = True
             return True
         
@@ -90,7 +93,10 @@ class OTPService:
             api_key = self.settings.AFRICASTALKING_API_KEY
             
             if not username or not api_key:
-                logger.warning("Africa's Talking credentials not configured - using simulation mode")
+                logger.error(
+                    "Africa's Talking credentials not configured - OTP delivery will fail. "
+                    "Set AFRICASTALKING_USERNAME and AFRICASTALKING_API_KEY."
+                )
                 self._initialized = True
                 return True
             
@@ -107,6 +113,16 @@ class OTPService:
             self._initialized = True  # Allow simulation mode
             return True
     
+    @property
+    def _simulation_enabled(self) -> bool:
+        """
+        Whether a failed OTP delivery may be reported as success.
+
+        Deliberately independent of DEBUG: a developer wants API docs and SQL
+        logs without silently turning real SMS into pretend successes.
+        """
+        return bool(getattr(self.settings, 'OTP_SIMULATE', False))
+
     def _generate_otp(self) -> str:
         """Generate cryptographically secure OTP."""
         return ''.join([str(secrets.randbelow(10)) for _ in range(self.OTP_LENGTH)])
@@ -383,10 +399,12 @@ class OTPService:
         otp_log_msg = f"📞 VOICE OTP CALL - Phone: {phone_number}, OTP: {otp}"
         logger.warning(otp_log_msg)
         
-        # If Voice client not available, simulate
         if not self._voice_client:
-            logger.info(f"[SIMULATION MODE] Voice OTP call would be made to {phone_number}")
-            return {"success": True, "simulated": True}
+            if self._simulation_enabled:
+                logger.info(f"[SIMULATION MODE] Voice OTP call would be made to {phone_number}")
+                return {"success": True, "simulated": True}
+            logger.error("Voice OTP requested but Africa's Talking Voice client is unavailable")
+            return {"success": False, "error": "Voice service unavailable"}
         
         try:
             # Get virtual number from settings
@@ -418,9 +436,8 @@ class OTPService:
             
         except Exception as e:
             logger.error(f"Voice call error: {e}")
-            # If call failed but we're in DEBUG mode, fall back to simulated success
-            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
-                logger.info("Voice call failed but DEBUG enabled - falling back to simulation")
+            if self._simulation_enabled:
+                logger.info("Voice call failed but OTP_SIMULATE enabled - falling back to simulation")
                 return {"success": True, "simulated": True}
             return {"success": False, "error": str(e)}
     
@@ -449,10 +466,12 @@ class OTPService:
         sys.stdout.flush()
         sys.stderr.flush()
         
-        # If SMS client not available, simulate
         if not self._sms_client:
-            logger.info(f"[SIMULATION MODE] OTP SMS would be sent to {phone_number}")
-            return {"success": True, "simulated": True}
+            if self._simulation_enabled:
+                logger.info(f"[SIMULATION MODE] OTP SMS would be sent to {phone_number}")
+                return {"success": True, "simulated": True}
+            logger.error("OTP SMS requested but Africa's Talking SMS client is unavailable")
+            return {"success": False, "error": "SMS service unavailable"}
         
         try:
             # Send via Africa's Talking
@@ -474,23 +493,21 @@ class OTPService:
                     return {"success": True, "message_id": recipient.get("messageId")}
                 else:
                     logger.warning(f"SMS recipient status: {recipient.get('status')}")
-                    # If running in debug or simulation mode, fallback to simulated success
-                    if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
-                        logger.info("SMS delivery failed but OTP_SIMULATE/DEBUG enabled - falling back to simulation")
+                    if self._simulation_enabled:
+                        logger.info("SMS delivery failed but OTP_SIMULATE enabled - falling back to simulation")
                         return {"success": True, "simulated": True}
-                    return {"success": False, "error": "SMS delivery failed"}
+                    return {"success": False, "error": f"SMS delivery failed: {recipient.get('status')}"}
             
             # No recipient info - treat as failure unless simulation enabled
-            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
-                logger.info("No SMS recipient info but OTP_SIMULATE/DEBUG enabled - falling back to simulation")
+            if self._simulation_enabled:
+                logger.info("No SMS recipient info but OTP_SIMULATE enabled - falling back to simulation")
                 return {"success": True, "simulated": True}
             return {"success": False, "error": "SMS delivery failed"}
             
         except Exception as e:
             logger.error(f"SMS send error: {e}")
-            # If SMS send failed but we're in DEBUG or OTP_SIMULATE mode, fall back to simulated success
-            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
-                logger.info("SMS send failed but OTP_SIMULATE/DEBUG enabled - falling back to simulation")
+            if self._simulation_enabled:
+                logger.info("SMS send failed but OTP_SIMULATE enabled - falling back to simulation")
                 return {"success": True, "simulated": True}
             return {"success": False, "error": str(e)}
     

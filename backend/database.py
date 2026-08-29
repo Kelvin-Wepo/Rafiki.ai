@@ -6,8 +6,9 @@ Uses SQLAlchemy with async support for production-ready database operations.
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import MetaData
-import os
 from typing import AsyncGenerator
+
+from rafiki_settings import get_settings
 
 # Naming convention for constraints (helps with migrations)
 convention = {
@@ -26,14 +27,17 @@ class Base(DeclarativeBase):
     metadata = metadata
 
 
-# Database URL from environment variable
-# Format: postgresql+asyncpg://user:password@host:port/database
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/rafiki"
-)
+# Read through the settings object rather than os.getenv, so the URL in .env is
+# honoured. Pydantic-settings loads .env into Settings without exporting it to
+# os.environ, so os.getenv would silently miss it and fall back to a default.
+# A real DATABASE_URL environment variable still wins, which is how Render
+# injects its connection string.
+settings = get_settings()
 
-# Handle Render's postgres:// URL format (needs postgresql://)
+# Format: postgresql+asyncpg://user:password@host:port/database
+DATABASE_URL = settings.DATABASE_URL
+
+# Render hands out postgres:// URLs; asyncpg needs the explicit driver.
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL:
@@ -42,7 +46,7 @@ elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL
 # Create async engine
 engine = create_async_engine(
     DATABASE_URL,
-    echo=os.getenv("DEBUG", "false").lower() == "true",  # SQL logging in debug mode
+    echo=settings.DEBUG,  # SQL logging in debug mode
     pool_pre_ping=True,  # Verify connections before use
     pool_size=5,  # Connection pool size
     max_overflow=10,  # Allow up to 10 additional connections
