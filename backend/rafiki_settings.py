@@ -41,6 +41,19 @@ class Settings(BaseSettings):
     ELEVENLABS_AGENT_ID: str = ""
     ELEVENLABS_BRANCH_ID: str = ""
     ELEVENLABS_VOICE_ID: str = "jqcCZkN6Knx8BJ5TBdYR"
+
+    # WhatsApp Business Cloud API
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_VERIFY_TOKEN: str = ""
+    WHATSAPP_APP_SECRET: str = ""
+    WHATSAPP_GRAPH_API_VERSION: str = "v21.0"
+    WHATSAPP_TEMPLATE_NAME: str = ""
+    WHATSAPP_TEMPLATE_LANGUAGE: str = "en"
+    WHATSAPP_REQUIRE_SIGNATURE: bool = True
+
+    # Redis (sessions, idempotency). Empty = in-memory TTL fallback.
+    REDIS_URL: str = ""
     
     # Dialogflow Settings
     DIALOGFLOW_PROJECT_ID: str = ""

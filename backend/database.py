@@ -86,6 +86,7 @@ async def init_db():
     async with engine.begin() as conn:
         # Import all models here to ensure they're registered
         from models.db_models import User, OTPRecord, Session, Conversation, Message, AuditLog
+        from models.identity import AgentSession, VerifiedAttribute, ConsentGrant, HandoffLog  # noqa: F401
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)

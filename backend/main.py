@@ -167,6 +167,7 @@ async def lifespan(app: FastAPI):
         # DEPRECATED: Old workflow system - use /api/agencies/* instead
         # from backend.routes.workflows import router as workflows_router
         from backend.routes.agencies import router as agencies_router
+        from backend.routes.whatsapp import router as whatsapp_router
 
         app.include_router(auth_router)
         app.include_router(voice_router)
@@ -183,6 +184,7 @@ async def lifespan(app: FastAPI):
         # DEPRECATED: Old workflow system replaced by agencies router
         # app.include_router(workflows_router)
         app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
+        app.include_router(whatsapp_router)
 
         logger.info("Core routers registered")
     except ModuleNotFoundError:
@@ -201,6 +203,7 @@ async def lifespan(app: FastAPI):
         # DEPRECATED: Old workflow system - use /api/agencies/* instead
         # from routes.workflows import router as workflows_router
         from routes.agencies import router as agencies_router
+        from routes.whatsapp import router as whatsapp_router
 
         app.include_router(auth_router)
         app.include_router(voice_router)
@@ -217,6 +220,7 @@ async def lifespan(app: FastAPI):
         # DEPRECATED: Old workflow system replaced by agencies router
         # app.include_router(workflows_router)
         app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
+        app.include_router(whatsapp_router)
 
         logger.info("Core routers registered")
     except Exception as e:
