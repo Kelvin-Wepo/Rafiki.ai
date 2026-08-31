@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: str = ""
     ELEVENLABS_AGENT_ID: str = ""
     ELEVENLABS_BRANCH_ID: str = ""
-    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice (default)
+    ELEVENLABS_VOICE_ID: str = "jqcCZkN6Knx8BJ5TBdYR"
     
     # Dialogflow Settings
     DIALOGFLOW_PROJECT_ID: str = ""

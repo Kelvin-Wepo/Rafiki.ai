@@ -146,10 +146,10 @@ class ElevenLabsService:
         self._client = None
         self.default_model_id = "eleven_flash_v2_5"
         
-        # Set default voice - using Adam (FREE voice that works without subscription)
-        # Switch to KENYAN_VOICES["noah"] if you have a paid subscription
-        self.default_voice_id = self.FREE_VOICES["adam"]["voice_id"]
-        self.current_voice_name = "Adam"
+        # Pin the configured voice. Never pick a language-based default here —
+        # that was the NTSA gender-switch bug.
+        self.default_voice_id = self.settings.ELEVENLABS_VOICE_ID or self.FREE_VOICES["adam"]["voice_id"]
+        self.current_voice_name = "configured"
     
     @property
     def client(self) -> httpx.AsyncClient:
@@ -431,6 +431,7 @@ class ElevenLabsService:
             
             # Prepare voice settings optimized for Kenyan accent clarity
             voice_settings = self.VOICE_SETTINGS_OPTIMIZED.copy()
+            started = time.perf_counter()
             
             response = await log_stage_timing("elevenlabs_http_call")(lambda: self.client.post(
                 f"/text-to-speech/{target_voice}",
@@ -441,6 +442,18 @@ class ElevenLabsService:
                 },
                 params={"output_format": output_format}
             ))()
+            # Buffered POST: first byte is not available until the full body arrives,
+            # so ttfb_ms ≈ total_ms. Streaming synthesis is required to measure real TTFB.
+            total_ms = round((time.perf_counter() - started) * 1000, 1)
+            logger.info(
+                "[ELEVENLABS_TTS] ttfb_ms=%s total_ms=%s voice_id=%s model_id=%s "
+                "chars=%s buffered=true",
+                total_ms,
+                total_ms,
+                target_voice,
+                model_id,
+                len(text),
+            )
             
             if response.status_code == 200:
                 audio_data = base64.b64encode(response.content).decode("utf-8")

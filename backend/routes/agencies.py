@@ -58,9 +58,8 @@ async def generate_tts_audio(text: str, language: str = "en", session_id: Option
             voice_id = state.voice_id
 
         if not voice_id:
-            voice_id = (
-                "EXAVITQu4vr4xnSDxMaL" if language == "en" else "pNInz6obpgDQGcFmaJgB"
-            )
+            from rafiki_settings import get_settings
+            voice_id = get_settings().ELEVENLABS_VOICE_ID
             if session_id:
                 from services.agency_workflows import get_or_create_session
                 state = get_or_create_session(session_id)
@@ -308,7 +307,7 @@ async def chat(req: ChatRequest):
                 logger.error(f"Payment initiation error: {e}", exc_info=True)
 
     # Generate TTS audio for the response
-    audio_base64 = await generate_tts_audio(response_text, state.language)
+    audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
 
     return ChatResponse(
         session_id=session_id,
@@ -336,9 +335,8 @@ async def start_chat():
     response_text = handle_message(session_id, "__new_session__")
     state = get_or_create_session(session_id)
 
-    state.voice_id = state.voice_id or (
-        "EXAVITQu4vr4xnSDxMaL" if state.language == "en" else "pNInz6obpgDQGcFmaJgB"
-    )
+    from rafiki_settings import get_settings
+    state.voice_id = state.voice_id or get_settings().ELEVENLABS_VOICE_ID
     audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
 
     return ChatResponse(
