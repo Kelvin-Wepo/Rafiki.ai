@@ -456,5 +456,4 @@ class TranscriptOut(BaseModel):
 
 class UnreadCountOut(BaseModel):
     count: int
-
-    message: str = Field(..., description="Status message")
+    message: str = "ok"

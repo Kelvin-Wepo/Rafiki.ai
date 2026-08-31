@@ -162,7 +162,7 @@ async def unread_count(user=Depends(get_current_user)):
     auth = get_auth_service()
     user_id = user.get("user_id")
     count = auth.unread_transcripts_count(user_id)
-    return {"count": count}
+    return {"count": count, "message": "ok"}
 
 
 @router.post("/sessions/{session_id}/generate-transcript", response_model=dict)
