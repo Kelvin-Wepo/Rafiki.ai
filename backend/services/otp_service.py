@@ -702,9 +702,8 @@ class OTPService:
             return await email_service.send_otp_email(email, otp, self.OTP_EXPIRY_MINUTES)
         except Exception as e:
             logger.error(f"Email OTP send error: {e}")
-            # Fallback to simulated success in debug mode
-            if self.settings.DEBUG or getattr(self.settings, 'OTP_SIMULATE', False):
-                logger.info("Email send failed but DEBUG enabled - simulating success")
+            if getattr(self.settings, 'OTP_SIMULATE', False):
+                logger.info("Email send failed but OTP_SIMULATE enabled - simulating success")
                 return {"success": True, "simulated": True}
             return {"success": False, "error": str(e)}
 

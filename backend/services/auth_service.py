@@ -524,22 +524,22 @@ class AuthService:
         id_number: str,
         password: str,
         has_disability: bool = False,
-        otp_delivery: str = "sms",
+        otp_delivery: str = "email",
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Register a new user with full profile data.
-        Sends OTP for verification.
+        Sends a verification OTP to the user's email.
         
         Args:
             full_name: User's full name
-            email: Email address
+            email: Email address (OTP is sent here)
             phone: Phone number (normalized to +254)
             id_number: National ID number
             password: Plain text password (will be hashed)
             has_disability: Disability flag
-            otp_delivery: OTP delivery method
+            otp_delivery: Kept for API compatibility; codes are always emailed
             ip_address: Client IP
             user_agent: Client user agent
         
@@ -591,64 +591,17 @@ class AuthService:
             "user_agent": user_agent
         }
         
-        # Send OTP based on delivery method
-        from services.otp_service import get_otp_service as _get_otp_service, OTPDeliveryMethod
+        # Verification codes are emailed. Phone is stored on the account
+        # but is no longer used to deliver OTPs.
+        from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
-        
-        delivery_method = otp_delivery.lower()
-        otp_result = None
-        
-        if delivery_method == "email":
-            # Send OTP via email only
-            otp_result = await otp_service.request_otp_for_email(
-                email,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        elif delivery_method in ["sms", "voice", "both"]:
-            # Send OTP via phone
-            try:
-                dm = OTPDeliveryMethod(delivery_method)
-            except ValueError:
-                dm = OTPDeliveryMethod.SMS
-            
-            otp_result = await otp_service.request_otp(
-                phone,
-                delivery_method=dm,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        elif delivery_method == "all":
-            # Send via both phone and email
-            phone_result = await otp_service.request_otp(
-                phone,
-                delivery_method=OTPDeliveryMethod.BOTH,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            email_result = await otp_service.request_otp_for_email(
-                email,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            otp_result = {
-                "success": phone_result.get("success", False) or email_result.get("success", False),
-                "message": "OTP sent via SMS, voice, and email.",
-                "phone_sent": phone_result.get("success", False),
-                "email_sent": email_result.get("success", False),
-                "expires_in": phone_result.get("expires_in", 300)
-            }
-            if phone_result.get("otp"):
-                otp_result["otp"] = phone_result["otp"]
-                otp_result["test_mode"] = True
-        else:
-            # Default to SMS
-            otp_result = await otp_service.request_otp(
-                phone,
-                delivery_method=OTPDeliveryMethod.SMS,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
+
+        otp_result = await otp_service.request_otp_for_email(
+            email,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        otp_delivery = "email"
         
         if otp_result and otp_result.get("success"):
             self._log_audit_event(
@@ -716,22 +669,21 @@ class AuthService:
                 "message": "No pending registration found. Please register again."
             }
         
-        # Verify OTP (try both phone and email verification)
+        # Verify the emailed OTP first, then fall back to a phone OTP
+        # in case an older pending registration is still in memory.
         from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
-        
-        # Try phone OTP first
-        otp_result = await otp_service.verify_otp(
-            phone,
+
+        otp_result = await otp_service.verify_otp_for_email(
+            email,
             otp,
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
-        # If phone OTP failed, try email OTP
-        if not otp_result.get("success"):
-            otp_result = await otp_service.verify_otp_for_email(
-                email,
+
+        if not otp_result.get("success") and otp_result.get("error") == "no_otp":
+            otp_result = await otp_service.verify_otp(
+                phone,
                 otp,
                 ip_address=ip_address,
                 user_agent=user_agent
@@ -962,50 +914,38 @@ class AuthService:
         self,
         email: Optional[str] = None,
         phone: Optional[str] = None,
-        delivery_method: str = "sms",
+        delivery_method: str = "email",
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Resend OTP for verification.
+        Resend the verification OTP to email.
         
         Args:
             email: Email address
-            phone: Phone number
-            delivery_method: How to send OTP
+            phone: Phone number (unused; kept for API compatibility)
+            delivery_method: Kept for API compatibility; codes are always emailed
             ip_address: Client IP
             user_agent: Client user agent
         
         Returns:
             OTP send result
         """
-        from services.otp_service import get_otp_service as _get_otp_service, OTPDeliveryMethod
+        from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
-        
-        if delivery_method == "email" and email:
-            return await otp_service.request_otp_for_email(
-                email,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        elif phone:
-            try:
-                dm = OTPDeliveryMethod(delivery_method.lower())
-            except ValueError:
-                dm = OTPDeliveryMethod.SMS
-            
-            return await otp_service.request_otp(
-                phone,
-                delivery_method=dm,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        else:
+
+        if not email:
             return {
                 "success": False,
                 "error": "missing_contact",
-                "message": "Please provide email or phone number."
+                "message": "Please provide an email address."
             }
+
+        return await otp_service.request_otp_for_email(
+            email,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
 
     async def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
         """Get user profile by ID."""

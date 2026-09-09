@@ -57,7 +57,17 @@ async def lifespan(app: FastAPI):
     
     async def init_core_services():
         """Initialize critical services that block app functionality."""
-        # Initialize SMS Service (critical for OTP)
+        # Initialize Email Service (used for OTP delivery)
+        try:
+            from services.email_service import email_service
+            if email_service.initialize():
+                logger.info("Email service ready for OTP delivery")
+            else:
+                logger.warning("Email service not configured — OTP emails will fail until SMTP is set")
+        except Exception as e:
+            logger.warning(f"Email service unavailable: {e}")
+
+        # Initialize SMS Service (legacy; OTPs are emailed)
         try:
             from services.sms_service import sms_service
             if settings.AFRICASTALKING_USERNAME and settings.AFRICASTALKING_API_KEY:

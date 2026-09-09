@@ -1,7 +1,7 @@
 """
 Authentication API routes with security controls.
-Implements phone-based OTP authentication via Africa's Talking.
-Supports password-based registration and login.
+Registration verification codes are delivered by email.
+Supports password-based login after the account is verified.
 """
 
 from fastapi import APIRouter, HTTPException, Request, Depends, Header
@@ -51,7 +51,7 @@ class RegisterRequest(BaseModel):
     id_number: str = Field(..., min_length=7, max_length=8)
     password: str = Field(..., min_length=8)
     has_disability: bool = Field(default=False)
-    otp_delivery: str = Field(default="sms", description="OTP delivery method: sms, voice, email, both, all")
+    otp_delivery: str = Field(default="email", description="OTP delivery method. Registration codes are sent by email.")
     
     @validator('email')
     def validate_email(cls, v):
@@ -152,7 +152,7 @@ class ResendOTPRequest(BaseModel):
     """Request to resend OTP."""
     email: Optional[str] = None
     phone: Optional[str] = None
-    delivery_method: str = Field(default="sms")
+    delivery_method: str = Field(default="email")
 
     @validator('phone')
     def normalize_phone(cls, v):
@@ -312,18 +312,18 @@ async def register_user(
 ):
     """
     Register a new user with full profile data.
-    Sends OTP for verification via selected method (sms, voice, email, both, all).
+    Sends a 6-digit OTP to the user's email for verification.
     
-    After registration, user must verify their phone/email with /verify-registration.
+    After registration, user must verify with /verify-registration.
     
     **Fields:**
     - full_name: User's full name as on National ID
-    - email: Valid email address
+    - email: Valid email address (OTP is sent here)
     - phone: Kenyan phone number (+254XXXXXXXXX)
     - id_number: 7-8 digit National ID number
     - password: At least 8 chars, 1 uppercase, 1 number
     - has_disability: Optional disability flag
-    - otp_delivery: How to send OTP (sms, voice, email, both, all)
+    - otp_delivery: Ignored; verification codes are always emailed
     """
     ip, user_agent = get_client_info(request)
     auth_service = get_auth_service()
@@ -431,7 +431,7 @@ async def resend_otp(
     body: ResendOTPRequest
 ):
     """
-    Resend OTP to email or phone.
+    Resend the verification OTP to the user's email.
     
     **Rate Limit:** 3 OTP requests per 5 minutes
     """

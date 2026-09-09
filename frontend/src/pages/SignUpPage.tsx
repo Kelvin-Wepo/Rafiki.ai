@@ -1,6 +1,6 @@
 /**
  * SignUpPage - Rafiki.ai Registration
- * Supports OTP verification via SMS, voice, or email.
+ * Verification codes are sent to the user's email address.
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -36,7 +36,6 @@ interface FormData {
   confirmPassword: string;
   hasDisability: boolean;
   agreeToTerms: boolean;
-  otpDelivery: 'sms' | 'voice' | 'email';
 }
 
 interface FormErrors {
@@ -166,7 +165,6 @@ export function SignUpPage() {
     confirmPassword: '',
     hasDisability: false,
     agreeToTerms: false,
-    otpDelivery: 'sms',
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
@@ -256,7 +254,7 @@ export function SignUpPage() {
           id_number: formData.idNumber,
           password: formData.password,
           has_disability: formData.hasDisability,
-          otp_delivery: formData.otpDelivery,
+          otp_delivery: 'email',
         }),
       });
 
@@ -354,7 +352,7 @@ export function SignUpPage() {
     }
   };
 
-  const handleResendOtp = async (method: 'sms' | 'voice' | 'email') => {
+  const handleResendOtp = async () => {
     setOtpState(prev => ({ ...prev, resending: true, error: null }));
 
     try {
@@ -364,7 +362,7 @@ export function SignUpPage() {
         body: JSON.stringify({
           email: formData.email,
           phone: formData.phone.replace(/\s/g, ''),
-          delivery_method: method,
+          delivery_method: 'email',
         }),
       });
 
@@ -468,18 +466,23 @@ export function SignUpPage() {
                   required
                   inputRef={fieldRefs.fullName}
                 />
-                <AuthInput
-                  label="Email Address"
-                  placeholder="yourname@email.com"
-                  type="email"
-                  icon={<Mail size={20} aria-hidden="true" />}
-                  value={formData.email}
-                  onChange={(v) => updateField('email', v)}
-                  error={touched.has('email') ? formErrors.email : undefined}
-                  autoComplete="email"
-                  required
-                  inputRef={fieldRefs.email}
-                />
+                <div>
+                  <AuthInput
+                    label="Email Address"
+                    placeholder="yourname@email.com"
+                    type="email"
+                    icon={<Mail size={20} aria-hidden="true" />}
+                    value={formData.email}
+                    onChange={(v) => updateField('email', v)}
+                    error={touched.has('email') ? formErrors.email : undefined}
+                    autoComplete="email"
+                    required
+                    inputRef={fieldRefs.email}
+                  />
+                  <p className="font-dm-sans text-xs text-gray-500 mt-1.5">
+                    Your 6-digit verification code will be sent to this email.
+                  </p>
+                </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-5 fade-up fade-up-delay-2">
@@ -630,13 +633,10 @@ export function SignUpPage() {
               <div className="w-16 h-16 bg-gradient-to-r from-green-700 to-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock size={28} className="text-white" />
               </div>
-              <h3 id="otp-heading" className="font-playfair text-2xl text-gray-900 mb-2">Verify Your Account</h3>
+              <h3 id="otp-heading" className="font-playfair text-2xl text-gray-900 mb-2">Check your email</h3>
               <p className="font-dm-sans text-gray-600 text-sm">
                 We sent a 6-digit code to{' '}
-                <span className="font-medium">{otpState.phoneMasked}</span>
-                {otpState.emailMasked && (
-                  <> and <span className="font-medium">{otpState.emailMasked}</span></>
-                )}
+                <span className="font-medium">{otpState.emailMasked || formData.email}</span>
               </p>
             </div>
 
@@ -669,7 +669,7 @@ export function SignUpPage() {
               <button
                 type="button"
                 className="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-medium"
-                onClick={() => handleResendOtp(formData.otpDelivery)}
+                onClick={() => handleResendOtp()}
                 disabled={otpState.resending}
               >
                 <RefreshCw size={16} className={otpState.resending ? 'animate-spin' : ''} />

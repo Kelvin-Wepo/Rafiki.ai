@@ -142,8 +142,7 @@ class EmailService:
         """
         if not self._initialized:
             if not self.initialize():
-                # Simulate success in development/testing
-                if self.settings.DEBUG or self.settings.OTP_SIMULATE:
+                if self.settings.OTP_SIMULATE:
                     logger.info(f"[SIMULATION] Email would be sent to {self._mask_email(to_email)}")
                     return {"success": True, "simulated": True}
                 return {"success": False, "error": "Email service not initialized"}
