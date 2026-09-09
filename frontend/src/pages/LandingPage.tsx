@@ -4,6 +4,7 @@
  */
 
 import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Mic,
   Keyboard,
@@ -20,6 +21,8 @@ import {
   Accessibility,
   Lock,
   Heart,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { RafikiLogo } from '../components/RafikiLogo';
 import { LinkedInIcon, XIcon, TikTokIcon } from '../components/SocialIcons';
@@ -86,16 +89,32 @@ const FOOTER_COLUMNS: Array<{
   },
 ];
 
+const THEME_STORAGE_KEY = 'rafiki_landing_theme';
+
+type LandingTheme = 'light' | 'dark';
+
+function getInitialTheme(): LandingTheme {
+  if (typeof window === 'undefined') return 'light';
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'light' || stored === 'dark') return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export function LandingPage() {
+  const [theme, setTheme] = useState<LandingTheme>(getInitialTheme);
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => (current === 'light' ? 'dark' : 'light'));
+  }, []);
+
   return (
     <div
       className="rl-page min-h-screen flex flex-col font-dm-sans"
-      style={{
-        backgroundColor: '#F8F3E7',
-        backgroundImage:
-          'repeating-linear-gradient(45deg, rgba(27,67,50,0.010) 0 2px, transparent 2px 16px),' +
-          'repeating-linear-gradient(-45deg, rgba(200,134,10,0.008) 0 2px, transparent 2px 16px)',
-      }}
+      data-theme={theme}
     >
       <header className="rl-header">
         <div className="rl-header-inner">
@@ -126,6 +145,24 @@ export function LandingPage() {
             <button type="button" className="rl-control" aria-label="Accessibility">
               <Accessibility size={19} aria-hidden="true" />
               <span className="rl-control-label">Accessibility</span>
+            </button>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <button
+              type="button"
+              className="rl-control rl-theme-toggle"
+              onClick={toggleTheme}
+              aria-pressed={theme === 'dark'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            >
+              {theme === 'dark' ? (
+                <Sun size={19} aria-hidden="true" />
+              ) : (
+                <Moon size={19} aria-hidden="true" />
+              )}
+              <span className="rl-control-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
             </button>
 
             <span className="rl-divider" aria-hidden="true" />
