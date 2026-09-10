@@ -3,11 +3,12 @@
  * Wraps the main app with AuthProvider and handles auth routing.
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OTPVerification } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
 import { SignUpPage, LoginPage, LandingPage, ForgotPasswordPage } from './pages';
+import { safeAuthNext } from './lib/guidedServices';
 
 /**
  * Loading Screen Component
@@ -33,6 +34,7 @@ function LoadingScreen() {
  */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
   if (import.meta.env.VITE_DEV_SCREENSHOT) return <>{children}</>;
 
   if (isLoading) {
@@ -40,7 +42,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    const next = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate to={`/login?next=${next}`} replace />;
   }
 
   return <>{children}</>;
@@ -51,13 +54,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
  */
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return <LoadingScreen />;
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/chat" replace />;
+    const next = new URLSearchParams(location.search).get('next');
+    return <Navigate to={safeAuthNext(next)} replace />;
   }
 
   return <>{children}</>;

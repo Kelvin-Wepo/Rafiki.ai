@@ -4,6 +4,7 @@
  */
 
 import { Link } from 'react-router-dom';
+import { loginPathForService } from '../lib/guidedServices';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Mic,
@@ -30,19 +31,20 @@ import '../styles/landing.css';
 
 type ServiceItem = {
   name: string;
+  slug: string;
   icon?: LucideIcon;
   image?: string;
 };
 
 const SERVICES: ServiceItem[] = [
-  { name: 'Apply for Passport', icon: BookUser },
-  { name: 'Renew Driving Licence', image: '/images/agencies/ntsa.png' },
-  { name: 'Replace Lost ID', icon: IdCard },
-  { name: 'Register a Business', image: '/images/agencies/brs.png' },
-  { name: 'Police Clearance', image: '/images/agencies/dci.jpeg' },
-  { name: 'KRA iTax', image: '/images/agencies/kra.jpeg' },
-  { name: 'Land Services', icon: Home },
-  { name: 'More Services', icon: LayoutGrid },
+  { name: 'Apply for Passport', slug: 'passport-apply', icon: BookUser },
+  { name: 'Renew Driving Licence', slug: 'ntsa-renew', image: '/images/agencies/ntsa.png' },
+  { name: 'Replace Lost ID', slug: 'id-replace', icon: IdCard },
+  { name: 'Register a Business', slug: 'brs-register', image: '/images/agencies/brs.png' },
+  { name: 'Police Clearance', slug: 'dci-good-conduct', image: '/images/agencies/dci.jpeg' },
+  { name: 'KRA iTax', slug: 'kra-itax', image: '/images/agencies/kra.jpeg' },
+  { name: 'Land Services', slug: 'land-rates', icon: Home },
+  { name: 'More Services', slug: 'agencies', icon: LayoutGrid },
 ];
 
 const TRUST_ITEMS = [
@@ -186,7 +188,7 @@ export function LandingPage() {
             <div className="rl-hero-copy">
               <p className="rl-hero-pill">
                 <ShieldCheck size={18} aria-hidden="true" />
-                Rafiki is a secure assistant that helps you access government services on eCitizen.
+                Rafiki is a secure assistant that helps you access government services without eCitizen login.
               </p>
 
               <h1 id="hero-heading" className="rl-hero-title">
@@ -262,9 +264,9 @@ export function LandingPage() {
             </div>
 
             <ul className="rl-services-grid">
-              {SERVICES.map(({ name, icon: Icon, image }) => (
-                <li key={name}>
-                  <Link to="/login" className="rl-service-card">
+              {SERVICES.map(({ name, slug, icon: Icon, image }) => (
+                <li key={slug}>
+                  <Link to={loginPathForService(slug)} className="rl-service-card">
                     {image ? (
                       <span className="rl-service-logo-wrap" aria-hidden="true">
                         <img src={image} alt="" className="rl-service-logo" />

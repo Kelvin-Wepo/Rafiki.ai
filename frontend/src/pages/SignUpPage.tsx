@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -16,11 +16,11 @@ import {
   X,
   RefreshCw,
   ShieldCheck,
-  Landmark,
   Sparkles,
 } from 'lucide-react';
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
 import { useAuth } from '../contexts/AuthContext';
+import { safeAuthNext } from '../lib/guidedServices';
 import signupBg from '../assets/signup.png';
 import rafikiAvatar from '../assets/rafiki_avatar.png';
 import '../styles/auth.css';
@@ -152,10 +152,10 @@ function AuthCheckbox({
 
 export function SignUpPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { completeSession, completeAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ecitizenNotice, setEcitizenNotice] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
     email: '',
@@ -283,7 +283,7 @@ export function SignUpPage() {
         localStorage.setItem('rafiki_session_id', data.session_id);
         localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
         completeAuth(data.user ?? null);
-        navigate('/chat');
+        navigate(safeAuthNext(searchParams.get('next')));
       }
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'An error occurred. Please try again.');
@@ -342,7 +342,7 @@ export function SignUpPage() {
       completeSession(data.user || { full_name: formData.fullName }, data.access_token, data.session_id);
       localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
       completeAuth(data.user ?? null);
-      navigate('/chat');
+      navigate(safeAuthNext(searchParams.get('next')));
     } catch (err) {
       setOtpState(prev => ({
         ...prev,
@@ -391,10 +391,9 @@ export function SignUpPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleEcitizenSignUp = () => {
-    setEcitizenNotice(true);
-    setTimeout(() => setEcitizenNotice(false), 3000);
-  };
+  const loginHref = searchParams.get('next')
+    ? `/login?next=${encodeURIComponent(searchParams.get('next') || '')}`
+    : '/login';
 
   return (
     <div className="signup-page">
@@ -440,7 +439,7 @@ export function SignUpPage() {
               </p>
               <p className="font-dm-sans text-sm text-gray-600 mt-2">
                 Already have an account?{' '}
-                <Link to="/login" className="auth-link">
+                <Link to={loginHref} className="auth-link">
                   Sign in
                 </Link>
               </p>
@@ -572,35 +571,18 @@ export function SignUpPage() {
                 </AuthButton>
               </div>
 
-              <div className="auth-divider fade-up fade-up-delay-10">
-                <div className="auth-divider-line" />
-                <span className="auth-divider-text">OR</span>
-                <div className="auth-divider-line" />
-              </div>
-
-              <div className="fade-up fade-up-delay-10">
-                <button type="button" className="ecitizen-button" onClick={handleEcitizenSignUp}>
-                  <Landmark size={18} aria-hidden="true" />
-                  <span>Continue with eCitizen</span>
-                </button>
-                {ecitizenNotice && (
-                  <p className="ecitizen-notice" role="status">
-                    eCitizen sign-up is coming soon.
-                  </p>
-                )}
-              </div>
-
               <div className="login-security-note fade-up fade-up-delay-10">
                 <ShieldCheck size={18} aria-hidden="true" />
                 <p>
-                  Your details are encrypted and only used to verify your identity with Kenyan government services.
+                  You create a Rafiki account — we never ask for eCitizen username or password.
+                  Your details stay encrypted and are only used to complete the government service you chose.
                 </p>
               </div>
 
               <div className="text-center pt-2 fade-up fade-up-delay-10">
                 <p className="font-dm-sans text-sm text-gray-600">
                   Already have an account?{' '}
-                  <Link to="/login" className="auth-link">
+                  <Link to={loginHref} className="auth-link">
                     Sign in
                   </Link>
                 </p>

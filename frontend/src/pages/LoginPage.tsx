@@ -3,11 +3,12 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { User, Lock, AlertCircle, ShieldCheck, Landmark } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { User, Lock, AlertCircle, ShieldCheck } from 'lucide-react';
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
 import { RafikiLogo } from '../components/RafikiLogo';
 import { useAuth } from '../contexts/AuthContext';
+import { safeAuthNext } from '../lib/guidedServices';
 import '../styles/auth.css';
 
 interface FormData {
@@ -29,10 +30,10 @@ const validateEmailOrPhone = (value: string): boolean => {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { passwordLogin, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
   const [lastUserName, setLastUserName] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
@@ -56,8 +57,8 @@ export function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/chat');
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated) navigate(safeAuthNext(searchParams.get('next')));
+  }, [isAuthenticated, navigate, searchParams]);
 
   const updateField = useCallback((field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -118,9 +119,9 @@ export function LoginPage() {
     }
   };
 
-  const handleEcitizenSignIn = () => {
-    setNotice('eCitizen sign-in is coming soon — please use your email or phone number for now.');
-  };
+  const signupHref = searchParams.get('next')
+    ? `/signup?next=${encodeURIComponent(searchParams.get('next') || '')}`
+    : '/signup';
 
   return (
     <div className="auth-page">
@@ -137,7 +138,7 @@ export function LoginPage() {
                 {lastUserName ? `Welcome back, ${lastUserName}!` : 'Welcome back!'}
               </h1>
               <p className="font-dm-sans text-sm text-gray-500">
-                Let's securely connect to your eCitizen account so I can help you.
+                Let's sign in to your Rafiki account so I can take you through the service.
               </p>
             </div>
 
@@ -193,28 +194,10 @@ export function LoginPage() {
                 </AuthButton>
               </div>
 
-              <div className="auth-divider fade-up fade-up-delay-5">
-                <div className="auth-divider-line" />
-                <span className="auth-divider-text">OR</span>
-                <div className="auth-divider-line" />
-              </div>
-
-              <div className="fade-up fade-up-delay-5">
-                <button type="button" className="ecitizen-button" onClick={handleEcitizenSignIn}>
-                  <Landmark size={18} aria-hidden="true" />
-                  <span>Continue with eCitizen</span>
-                </button>
-                {notice && (
-                  <p role="status" className="font-dm-sans text-xs text-gray-500 mt-2 text-center">
-                    {notice}
-                  </p>
-                )}
-              </div>
-
-              <div className="login-security-note fade-up fade-up-delay-6">
+              <div className="login-security-note fade-up fade-up-delay-5">
                 <ShieldCheck size={18} aria-hidden="true" />
                 <p>
-                  Your credentials are only used to access your eCitizen account with your permission.{' '}
+                  You sign in with Rafiki — we never ask for eCitizen username or password.{' '}
                   <Link to="/privacy" className="auth-link">
                     Learn more
                   </Link>
@@ -224,7 +207,7 @@ export function LoginPage() {
               <div className="text-center pt-2 fade-up fade-up-delay-6">
                 <p className="font-dm-sans text-sm text-gray-600">
                   New to Rafiki?{' '}
-                  <Link to="/signup" className="auth-link">
+                  <Link to={signupHref} className="auth-link">
                     Create an account
                   </Link>
                 </p>

@@ -38,7 +38,9 @@ apiClient.interceptors.response.use(
       // Clear token and redirect to login
       localStorage.removeItem('rafiki_access_token');
       localStorage.removeItem('rafiki_user');
-      window.location.href = '/login';
+      const here = `${window.location.pathname}${window.location.search}`;
+      const next = here.startsWith('/chat') ? `?next=${encodeURIComponent(here)}` : '';
+      window.location.href = `/login${next}`;
     }
     return Promise.reject(error);
   }
@@ -514,8 +516,19 @@ export interface AgenciesChatResponse {
   step: string;
   agency: string | null;
   service: string | null;
+  language?: string;
   awaiting_payment: boolean;
   payment_amount: number | null;
+  payment_description?: string | null;
+  payment_mpesa?: string | null;
+  audio_base64?: string | null;
+  audio_mime?: string;
+}
+
+export interface StartServiceRequest {
+  service: string;
+  language?: string;
+  session_id?: string;
 }
 
 export interface PaymentInitRequest {
@@ -541,6 +554,15 @@ export const agenciesApi = {
    */
   startChat: async (): Promise<AgenciesChatResponse> => {
     const response = await apiClient.post('/api/agencies/chat/start');
+    return response.data;
+  },
+
+  /**
+   * Start a session already on a specific agency service
+   * POST /api/agencies/chat/start-service
+   */
+  startService: async (request: StartServiceRequest): Promise<AgenciesChatResponse> => {
+    const response = await apiClient.post('/api/agencies/chat/start-service', request);
     return response.data;
   },
 
