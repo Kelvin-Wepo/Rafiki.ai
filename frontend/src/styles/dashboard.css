@@ -449,6 +449,24 @@
   transition: background-color 0.16s ease;
 }
 
+.rd-service-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 44px;
+  padding: 4px 6px;
+  background: #fff;
+  border: 1px solid var(--rd-border);
+  border-radius: 11px;
+}
+
+.rd-service-logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 .rd-service:hover .rd-service-icon {
   background: #e0eae2;
 }
@@ -525,7 +543,10 @@
   font-size: 0.875rem;
   line-height: 1.55;
   color: var(--rd-muted);
-  text-align: center;
+  text-align: left;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .rd-assistant-state {

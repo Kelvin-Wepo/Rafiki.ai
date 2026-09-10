@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useConversation, ConversationProvider } from '@elevenlabs/react';
 import {
   LayoutDashboard,
@@ -25,13 +25,10 @@ import {
   Menu,
   Mic,
   Send,
-  Car,
-  Briefcase,
   ShieldCheck,
   BookUser,
-  HeartPulse,
-  MapPin,
-  Receipt,
+  IdCard,
+  Home,
   Lock,
   Accessibility,
   Languages,
@@ -48,6 +45,7 @@ import useChatSessions from '../../hooks/useChatSessions';
 import { RafikiTalkingAvatar } from '../avatar';
 import { useAudioAnalyzer } from '../../hooks/useAudioAnalyzer';
 import type { AvatarState } from '../../types/avatar.types';
+import { isGuidedServiceSlug } from '../../lib/guidedServices';
 import '../../styles/dashboard.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -82,74 +80,75 @@ const NAV_ITEMS: Array<{ id: NavId; label: string; icon: React.ElementType }> = 
 ];
 
 /* ------------------------------------------------------------------ *
- * Services — one card per agency the workflow engine actually handles,
- * so every card starts a conversation that can complete.
+ * Popular services — same slugs and agency marks as the landing page,
+ * so a card starts the requested workflow end to end.
  * ------------------------------------------------------------------ */
 
 interface ServiceCard {
   id: string;
   name: string;
   desc: string;
-  icon: React.ElementType;
-  message: string;
+  slug: string;
+  icon?: React.ElementType;
+  image?: string;
 }
 
 const SERVICES: ServiceCard[] = [
   {
-    id: 'kra',
-    name: 'KRA Services',
-    desc: 'PIN, returns, compliance',
-    icon: Receipt,
-    message: 'I need help with KRA services',
-  },
-  {
-    id: 'ntsa',
-    name: 'NTSA Services',
-    desc: 'Licence, renewals, tests',
-    icon: Car,
-    message: 'I need help with NTSA services',
-  },
-  {
-    id: 'brs',
-    name: 'BRS Services',
-    desc: 'Register a business',
-    icon: Briefcase,
-    message: 'I need help with BRS business registration',
-  },
-  {
-    id: 'dci',
-    name: 'DCI Services',
-    desc: 'Good conduct certificate',
-    icon: ShieldCheck,
-    message: 'I need a certificate of good conduct from DCI',
-  },
-  {
-    id: 'immigration',
-    name: 'Immigration',
-    desc: 'Passport, permits, passes',
+    id: 'passport-apply',
+    name: 'Apply for Passport',
+    desc: 'Immigration application',
     icon: BookUser,
-    message: 'I need help with Immigration services',
+    slug: 'passport-apply',
   },
   {
-    id: 'health',
-    name: 'Ministry of Health',
-    desc: 'NHIF, appointments',
-    icon: HeartPulse,
-    message: 'I need help with Ministry of Health services',
+    id: 'ntsa-renew',
+    name: 'Renew Driving Licence',
+    desc: 'NTSA licence renewal',
+    image: '/images/agencies/ntsa.png',
+    slug: 'ntsa-renew',
   },
   {
-    id: 'huduma',
-    name: 'Huduma Centres',
-    desc: 'Find your nearest centre',
-    icon: MapPin,
-    message: 'Find me the nearest Huduma Centre',
+    id: 'id-replace',
+    name: 'Replace Lost ID',
+    desc: 'NRB ID replacement',
+    icon: IdCard,
+    slug: 'id-replace',
+  },
+  {
+    id: 'brs-register',
+    name: 'Register a Business',
+    desc: 'BRS business name',
+    image: '/images/agencies/brs.png',
+    slug: 'brs-register',
+  },
+  {
+    id: 'dci-good-conduct',
+    name: 'Police Clearance',
+    desc: 'DCI good conduct',
+    image: '/images/agencies/dci.jpeg',
+    slug: 'dci-good-conduct',
+  },
+  {
+    id: 'kra-itax',
+    name: 'KRA iTax',
+    desc: 'File income tax returns',
+    image: '/images/agencies/kra.jpeg',
+    slug: 'kra-itax',
+  },
+  {
+    id: 'land-rates',
+    name: 'Land Services',
+    desc: 'County land rates',
+    icon: Home,
+    slug: 'land-rates',
   },
   {
     id: 'more',
     name: 'More Services',
     desc: 'All government agencies',
     icon: LayoutGrid,
-    message: 'Show me all the agencies you support',
+    slug: 'agencies',
   },
 ];
 
@@ -179,21 +178,21 @@ const TRUST_ITEMS = [
 /** Sections without a screen of their own yet, with the prompt each hands to Rafiki. */
 const PLACEHOLDERS: Record<
   'appointments' | 'payments' | 'reports' | 'feedback',
-  { title: string; text: string; icon: React.ElementType; message: string; cta: string }
+  { title: string; text: string; icon: React.ElementType; slug?: string; message?: string; cta: string }
 > = {
   appointments: {
     title: 'Appointments',
     text: 'Booked appointments will be listed here. For now, Rafiki can book one for you and send the confirmation by SMS.',
     icon: CalendarCheck,
-    message: 'I want to book an appointment',
+    slug: 'ntsa-appointment',
     cta: 'Book an appointment',
   },
   payments: {
     title: 'Payments',
     text: 'Your M-PESA receipts will be listed here. Rafiki can start a payment for any service that has a government fee.',
     icon: CreditCard,
-    message: 'What government service fees can I pay through you?',
-    cta: 'Ask about fees',
+    slug: 'agencies',
+    cta: 'Pay a government fee',
   },
   reports: {
     title: 'Reports',
@@ -265,6 +264,9 @@ export function Dashboard() {
 
 function DashboardInner() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pendingService = searchParams.get('service');
+  const pendingLang = searchParams.get('lang') === 'sw' ? 'sw' : 'en';
   const { user, logout } = useAuth();
   const { sessions, transcripts, activeSessionId, createNewSession, loadSession } =
     useChatSessions();
@@ -276,9 +278,9 @@ function DashboardInner() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(
     null
   );
-  const [language, setLanguage] = useState<'en' | 'sw' | null>(null);
+  const [language, setLanguage] = useState<'en' | 'sw' | null>(pendingService ? pendingLang : null);
   const [showLanguageSelector, setShowLanguageSelector] = useState(
-    !import.meta.env.VITE_DEV_SCREENSHOT
+    !import.meta.env.VITE_DEV_SCREENSHOT && !pendingService
   );
   const [isLanguageLoading, setIsLanguageLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -390,6 +392,54 @@ function DashboardInner() {
     [playAudio]
   );
 
+  const startGuidedService = useCallback(
+    async (slug: string, lang: 'en' | 'sw' = 'en') => {
+      if (!isGuidedServiceSlug(slug)) {
+        console.error('Unknown service slug', slug);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/agencies/chat/start-service`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service: slug, language: lang }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('Failed to start service:', data);
+          setShowLanguageSelector(true);
+          return;
+        }
+
+        setSessionId(data.session_id);
+        setLastReply(data.response || null);
+        setLanguage(lang);
+        setShowLanguageSelector(false);
+        setView('dashboard');
+        setDrawerOpen(false);
+
+        if (data.audio_base64) {
+          playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
+        }
+      } catch (err) {
+        console.error('Failed to start service:', err);
+        setShowLanguageSelector(true);
+      }
+    },
+    [playAudio]
+  );
+
+  const startedServiceRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingService || startedServiceRef.current === pendingService) return;
+    if (!isGuidedServiceSlug(pendingService)) return;
+    startedServiceRef.current = pendingService;
+    startGuidedService(pendingService, pendingLang).then(() => {
+      setSearchParams({}, { replace: true });
+    });
+  }, [pendingService, pendingLang, startGuidedService, setSearchParams]);
+
   const sendMessage = useCallback(
     async (message: string) => {
       if (!message.trim()) return;
@@ -423,6 +473,13 @@ function DashboardInner() {
       sendMessage(message);
     },
     [sendMessage]
+  );
+
+  const openService = useCallback(
+    (slug: string) => {
+      startGuidedService(slug, language || 'en');
+    },
+    [startGuidedService, language]
   );
 
   const handleMicToggle = useCallback(async () => {
@@ -671,7 +728,7 @@ function DashboardInner() {
                 </div>
 
                 <h2 className="rd-section-title">Popular Services</h2>
-                <ServiceGrid onSelect={askRafiki} />
+                <ServiceGrid onSelect={openService} />
               </>
             )}
 
@@ -682,12 +739,12 @@ function DashboardInner() {
                     My Services
                   </h1>
                   <p className="rd-panel-sub">
-                    Every agency Rafiki can take you through end to end. Pick one to
-                    start.
+                    Pick a service and Rafiki starts it immediately — no eCitizen login,
+                    no extra menus.
                   </p>
                 </div>
                 <div style={{ marginTop: 18 }}>
-                  <ServiceGrid onSelect={askRafiki} />
+                  <ServiceGrid onSelect={openService} />
                 </div>
               </section>
             )}
@@ -735,7 +792,11 @@ function DashboardInner() {
               view === 'payments' ||
               view === 'reports' ||
               view === 'feedback') && (
-              <PlaceholderPanel spec={PLACEHOLDERS[view]} onAsk={askRafiki} />
+              <PlaceholderPanel
+                spec={PLACEHOLDERS[view]}
+                onAsk={askRafiki}
+                onOpenService={openService}
+              />
             )}
           </div>
 
@@ -781,11 +842,7 @@ function DashboardInner() {
                   </div>
 
                   <p className="rd-assistant-copy">
-                    {lastReply
-                      ? lastReply.length > 150
-                        ? `${lastReply.slice(0, 150)}…`
-                        : lastReply
-                      : "I'm here to help you access government services easily."}
+                    {lastReply || "I'm here to help you access government services easily."}
                   </p>
 
                   <button type="button" className="rd-btn-primary" onClick={handleMicToggle}>
@@ -857,20 +914,28 @@ function DashboardInner() {
  * Sub-components
  * ------------------------------------------------------------------ */
 
-function ServiceGrid({ onSelect }: { onSelect: (message: string) => void }) {
+function ServiceGrid({ onSelect }: { onSelect: (slug: string) => void }) {
   return (
     <ul className="rd-services">
-      {SERVICES.map(({ id, name, desc, icon: Icon, message }) => (
+      {SERVICES.map(({ id, name, desc, icon: Icon, image, slug }) => (
         <li key={id}>
           <button
             type="button"
             className="rd-service"
-            onClick={() => onSelect(message)}
+            onClick={() => onSelect(slug)}
             aria-label={`${name}: ${desc}`}
           >
-            <span className="rd-service-icon" aria-hidden="true">
-              <Icon size={22} strokeWidth={1.75} />
-            </span>
+            {image ? (
+              <span className="rd-service-logo-wrap" aria-hidden="true">
+                <img src={image} alt="" className="rd-service-logo" />
+              </span>
+            ) : (
+              Icon && (
+                <span className="rd-service-icon" aria-hidden="true">
+                  <Icon size={22} strokeWidth={1.75} />
+                </span>
+              )
+            )}
             <span>
               <span className="rd-service-name">{name}</span>
               <span className="rd-service-desc">{desc}</span>
@@ -885,9 +950,11 @@ function ServiceGrid({ onSelect }: { onSelect: (message: string) => void }) {
 function PlaceholderPanel({
   spec,
   onAsk,
+  onOpenService,
 }: {
   spec: (typeof PLACEHOLDERS)[keyof typeof PLACEHOLDERS];
   onAsk: (message: string) => void;
+  onOpenService: (slug: string) => void;
 }) {
   const Icon = spec.icon;
   return (
@@ -901,7 +968,10 @@ function PlaceholderPanel({
         <button
           type="button"
           className="rd-btn-secondary"
-          onClick={() => onAsk(spec.message)}
+          onClick={() => {
+            if (spec.slug) onOpenService(spec.slug);
+            else if (spec.message) onAsk(spec.message);
+          }}
         >
           <Mic size={17} strokeWidth={1.75} aria-hidden="true" />
           {spec.cta}
