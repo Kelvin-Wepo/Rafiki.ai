@@ -1021,7 +1021,7 @@
 
 .rl-services-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   list-style: none;
   margin: 0;
@@ -1061,6 +1061,25 @@
 .rl-service-card svg {
   color: var(--rafiki-accent);
   flex-shrink: 0;
+}
+
+.rl-service-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 56px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--rafiki-border);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.rl-service-logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .rl-service-name {
@@ -1107,7 +1126,8 @@
 
 /* ---------- Responsive ----------
    Column count steps down so cards keep a usable width and a
-   44px+ touch target at every breakpoint. */
+   44px+ touch target at every breakpoint. Desktop is 4 columns
+   (two rows of agency/service cards). */
 @media (max-width: 1199px) {
   .rl-services-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));

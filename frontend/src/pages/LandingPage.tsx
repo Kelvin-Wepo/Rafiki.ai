@@ -10,9 +10,7 @@ import {
   Keyboard,
   ShieldCheck,
   BookUser,
-  Car,
   IdCard,
-  Briefcase,
   Home,
   LayoutGrid,
   Headset,
@@ -24,17 +22,25 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { RafikiLogo } from '../components/RafikiLogo';
 import { LinkedInIcon, XIcon, TikTokIcon } from '../components/SocialIcons';
 import '../styles/auth.css';
 import '../styles/landing.css';
 
-const SERVICES = [
+type ServiceItem = {
+  name: string;
+  icon?: LucideIcon;
+  image?: string;
+};
+
+const SERVICES: ServiceItem[] = [
   { name: 'Apply for Passport', icon: BookUser },
-  { name: 'Renew Driving Licence', icon: Car },
+  { name: 'Renew Driving Licence', image: '/images/agencies/ntsa.png' },
   { name: 'Replace Lost ID', icon: IdCard },
-  { name: 'Register a Business', icon: Briefcase },
-  { name: 'Police Clearance', icon: ShieldCheck },
+  { name: 'Register a Business', image: '/images/agencies/brs.png' },
+  { name: 'Police Clearance', image: '/images/agencies/dci.jpeg' },
+  { name: 'KRA iTax', image: '/images/agencies/kra.jpeg' },
   { name: 'Land Services', icon: Home },
   { name: 'More Services', icon: LayoutGrid },
 ];
@@ -256,10 +262,16 @@ export function LandingPage() {
             </div>
 
             <ul className="rl-services-grid">
-              {SERVICES.map(({ name, icon: Icon }) => (
+              {SERVICES.map(({ name, icon: Icon, image }) => (
                 <li key={name}>
                   <Link to="/login" className="rl-service-card">
-                    <Icon size={32} strokeWidth={1.75} aria-hidden="true" />
+                    {image ? (
+                      <span className="rl-service-logo-wrap" aria-hidden="true">
+                        <img src={image} alt="" className="rl-service-logo" />
+                      </span>
+                    ) : (
+                      Icon && <Icon size={32} strokeWidth={1.75} aria-hidden="true" />
+                    )}
                     <span className="rl-service-name">{name}</span>
                   </Link>
                 </li>
@@ -269,7 +281,7 @@ export function LandingPage() {
             <p className="rl-services-more">
               <Headset size={22} strokeWidth={1.75} aria-hidden="true" />
               <span className="rl-services-more-text">
-                Rafiki can also help you with NHIF (SHA), KRA, HELB, eAIMS, and more.
+                Rafiki can also help you with NHIF (SHA), HELB, eAIMS, and more.
               </span>
               <span className="rl-services-more-cue">Just ask.</span>
             </p>
