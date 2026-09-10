@@ -45,7 +45,14 @@ import useChatSessions from '../../hooks/useChatSessions';
 import { RafikiTalkingAvatar } from '../avatar';
 import { useAudioAnalyzer } from '../../hooks/useAudioAnalyzer';
 import type { AvatarState } from '../../types/avatar.types';
-import { isGuidedServiceSlug } from '../../lib/guidedServices';
+import {
+  chatPathForService,
+  clearPendingService,
+  isGuidedServiceSlug,
+  readPendingService,
+  rememberPendingService,
+  titleForService,
+} from '../../lib/guidedServices';
 import '../../styles/dashboard.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -264,8 +271,8 @@ export function Dashboard() {
 
 function DashboardInner() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const pendingService = searchParams.get('service');
+  const [searchParams] = useSearchParams();
+  const pendingService = searchParams.get('service') || readPendingService();
   const pendingLang = searchParams.get('lang') === 'sw' ? 'sw' : 'en';
   const { user, logout } = useAuth();
   const { sessions, transcripts, activeSessionId, createNewSession, loadSession } =
@@ -278,10 +285,8 @@ function DashboardInner() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(
     null
   );
-  const [language, setLanguage] = useState<'en' | 'sw' | null>(pendingService ? pendingLang : null);
-  const [showLanguageSelector, setShowLanguageSelector] = useState(
-    !import.meta.env.VITE_DEV_SCREENSHOT && !pendingService
-  );
+  const [language, setLanguage] = useState<'en' | 'sw' | null>(pendingLang);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [isLanguageLoading, setIsLanguageLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -352,10 +357,62 @@ function DashboardInner() {
     [analyzeAudioElement, stopAvatarAnalyzing]
   );
 
+  const startGuidedService = useCallback(
+    async (slug: string, lang: 'en' | 'sw' = 'en') => {
+      if (!isGuidedServiceSlug(slug)) {
+        console.error('Unknown service slug', slug);
+        return;
+      }
+
+      rememberPendingService(slug);
+      setShowLanguageSelector(false);
+      setView('dashboard');
+      setDrawerOpen(false);
+      setLastReply(`Starting ${titleForService(slug)}…`);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/agencies/chat/start-service`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service: slug, language: lang }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('Failed to start service:', data);
+          setLastReply(
+            data.detail || data.message || `Could not start ${titleForService(slug)}. Please try again.`
+          );
+          return;
+        }
+
+        setSessionId(data.session_id);
+        setLastReply(data.response || null);
+        setLanguage(lang);
+        clearPendingService();
+
+        if (data.audio_base64) {
+          playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
+        }
+      } catch (err) {
+        console.error('Failed to start service:', err);
+        setLastReply(`Could not start ${titleForService(slug)}. Check that the assistant is running and try again.`);
+      }
+    },
+    [playAudio]
+  );
+
   const handleLanguageSelect = useCallback(
     async (selectedLang: 'en' | 'sw') => {
       setIsLanguageLoading(true);
       try {
+        const queued = readPendingService() || pendingService;
+        if (queued && isGuidedServiceSlug(queued)) {
+          setLanguage(selectedLang);
+          setShowLanguageSelector(false);
+          await startGuidedService(queued, selectedLang);
+          return;
+        }
+
         const startRes = await fetch(`${API_BASE}/api/agencies/chat/start`, {
           method: 'POST',
         });
@@ -389,45 +446,7 @@ function DashboardInner() {
         setIsLanguageLoading(false);
       }
     },
-    [playAudio]
-  );
-
-  const startGuidedService = useCallback(
-    async (slug: string, lang: 'en' | 'sw' = 'en') => {
-      if (!isGuidedServiceSlug(slug)) {
-        console.error('Unknown service slug', slug);
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API_BASE}/api/agencies/chat/start-service`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ service: slug, language: lang }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          console.error('Failed to start service:', data);
-          setShowLanguageSelector(true);
-          return;
-        }
-
-        setSessionId(data.session_id);
-        setLastReply(data.response || null);
-        setLanguage(lang);
-        setShowLanguageSelector(false);
-        setView('dashboard');
-        setDrawerOpen(false);
-
-        if (data.audio_base64) {
-          playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
-        }
-      } catch (err) {
-        console.error('Failed to start service:', err);
-        setShowLanguageSelector(true);
-      }
-    },
-    [playAudio]
+    [playAudio, pendingService, startGuidedService]
   );
 
   const startedServiceRef = useRef<string | null>(null);
@@ -435,10 +454,8 @@ function DashboardInner() {
     if (!pendingService || startedServiceRef.current === pendingService) return;
     if (!isGuidedServiceSlug(pendingService)) return;
     startedServiceRef.current = pendingService;
-    startGuidedService(pendingService, pendingLang).then(() => {
-      setSearchParams({}, { replace: true });
-    });
-  }, [pendingService, pendingLang, startGuidedService, setSearchParams]);
+    startGuidedService(pendingService, pendingLang);
+  }, [pendingService, pendingLang, startGuidedService]);
 
   const sendMessage = useCallback(
     async (message: string) => {
@@ -477,9 +494,18 @@ function DashboardInner() {
 
   const openService = useCallback(
     (slug: string) => {
-      startGuidedService(slug, language || 'en');
+      rememberPendingService(slug);
+      setShowLanguageSelector(false);
+      setLastReply(`Starting ${titleForService(slug)}…`);
+      if (searchParams.get('service') === slug) {
+        startedServiceRef.current = slug;
+        startGuidedService(slug, language || 'en');
+        return;
+      }
+      startedServiceRef.current = null;
+      navigate(chatPathForService(slug, language || undefined));
     },
-    [startGuidedService, language]
+    [language, navigate, searchParams, startGuidedService]
   );
 
   const handleMicToggle = useCallback(async () => {

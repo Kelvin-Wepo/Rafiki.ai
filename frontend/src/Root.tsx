@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OTPVerification } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
 import { SignUpPage, LoginPage, LandingPage, ForgotPasswordPage } from './pages';
-import { safeAuthNext } from './lib/guidedServices';
+import { destinationAfterAuth, isGuidedServiceSlug, rememberPendingService } from './lib/guidedServices';
 
 /**
  * Loading Screen Component
@@ -42,8 +42,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    const next = encodeURIComponent(`${location.pathname}${location.search}`);
-    return <Navigate to={`/login?next=${next}`} replace />;
+    const incoming = new URLSearchParams(location.search);
+    const service = incoming.get('service');
+    if (service && isGuidedServiceSlug(service)) {
+      rememberPendingService(service);
+    }
+    const params = new URLSearchParams();
+    if (service) params.set('service', service);
+    params.set('next', `${location.pathname}${location.search}`);
+    return <Navigate to={`/login?${params.toString()}`} replace />;
   }
 
   return <>{children}</>;
@@ -61,8 +68,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated) {
-    const next = new URLSearchParams(location.search).get('next');
-    return <Navigate to={safeAuthNext(next)} replace />;
+    return <Navigate to={destinationAfterAuth(new URLSearchParams(location.search))} replace />;
   }
 
   return <>{children}</>;

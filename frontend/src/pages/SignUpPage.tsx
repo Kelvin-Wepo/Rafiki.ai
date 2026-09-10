@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
 import { useAuth } from '../contexts/AuthContext';
-import { safeAuthNext } from '../lib/guidedServices';
+import { destinationAfterAuth } from '../lib/guidedServices';
 import signupBg from '../assets/signup.png';
 import rafikiAvatar from '../assets/rafiki_avatar.png';
 import '../styles/auth.css';
@@ -283,7 +283,7 @@ export function SignUpPage() {
         localStorage.setItem('rafiki_session_id', data.session_id);
         localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
         completeAuth(data.user ?? null);
-        navigate(safeAuthNext(searchParams.get('next')));
+        navigate(destinationAfterAuth(searchParams), { replace: true });
       }
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'An error occurred. Please try again.');
@@ -342,7 +342,7 @@ export function SignUpPage() {
       completeSession(data.user || { full_name: formData.fullName }, data.access_token, data.session_id);
       localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
       completeAuth(data.user ?? null);
-      navigate(safeAuthNext(searchParams.get('next')));
+      navigate(destinationAfterAuth(searchParams), { replace: true });
     } catch (err) {
       setOtpState(prev => ({
         ...prev,
@@ -391,9 +391,15 @@ export function SignUpPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const loginHref = searchParams.get('next')
-    ? `/login?next=${encodeURIComponent(searchParams.get('next') || '')}`
-    : '/login';
+  const loginHref = (() => {
+    const params = new URLSearchParams();
+    const service = searchParams.get('service');
+    const next = searchParams.get('next');
+    if (service) params.set('service', service);
+    if (next) params.set('next', next);
+    const q = params.toString();
+    return q ? `/login?${q}` : '/login';
+  })();
 
   return (
     <div className="signup-page">

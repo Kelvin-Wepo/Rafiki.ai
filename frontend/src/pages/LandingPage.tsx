@@ -4,7 +4,7 @@
  */
 
 import { Link } from 'react-router-dom';
-import { loginPathForService } from '../lib/guidedServices';
+import { chatPathForService, rememberPendingService } from '../lib/guidedServices';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Mic,
@@ -266,7 +266,11 @@ export function LandingPage() {
             <ul className="rl-services-grid">
               {SERVICES.map(({ name, slug, icon: Icon, image }) => (
                 <li key={slug}>
-                  <Link to={loginPathForService(slug)} className="rl-service-card">
+                  <Link
+                    to={chatPathForService(slug)}
+                    className="rl-service-card"
+                    onClick={() => rememberPendingService(slug)}
+                  >
                     {image ? (
                       <span className="rl-service-logo-wrap" aria-hidden="true">
                         <img src={image} alt="" className="rl-service-logo" />

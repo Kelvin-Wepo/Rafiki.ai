@@ -8,7 +8,7 @@ import { User, Lock, AlertCircle, ShieldCheck } from 'lucide-react';
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
 import { RafikiLogo } from '../components/RafikiLogo';
 import { useAuth } from '../contexts/AuthContext';
-import { safeAuthNext } from '../lib/guidedServices';
+import { destinationAfterAuth } from '../lib/guidedServices';
 import '../styles/auth.css';
 
 interface FormData {
@@ -57,7 +57,7 @@ export function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) navigate(safeAuthNext(searchParams.get('next')));
+    if (isAuthenticated) navigate(destinationAfterAuth(searchParams), { replace: true });
   }, [isAuthenticated, navigate, searchParams]);
 
   const updateField = useCallback((field: keyof FormData, value: string) => {
@@ -110,6 +110,7 @@ export function LoginPage() {
       if (response.user?.full_name) {
         localStorage.setItem('rafiki_last_user', response.user.full_name.split(' ')[0]);
       }
+      navigate(destinationAfterAuth(searchParams), { replace: true });
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Invalid email/phone or password');
       setShake(true);
@@ -119,9 +120,15 @@ export function LoginPage() {
     }
   };
 
-  const signupHref = searchParams.get('next')
-    ? `/signup?next=${encodeURIComponent(searchParams.get('next') || '')}`
-    : '/signup';
+  const signupHref = (() => {
+    const params = new URLSearchParams();
+    const service = searchParams.get('service');
+    const next = searchParams.get('next');
+    if (service) params.set('service', service);
+    if (next) params.set('next', next);
+    const q = params.toString();
+    return q ? `/signup?${q}` : '/signup';
+  })();
 
   return (
     <div className="auth-page">
