@@ -216,7 +216,7 @@ def handle_message(session_id: str, user_input: str) -> str:
     # ── AGENCY MENU ──────────────────────────────────────────────────────────
     if state.step == "AGENCY_MENU":
         AGENCIES = ["NTSA", "NCPWD", "KRA", "DCI", "BRS", "Immigration",
-                    "Boma Yangu", "Ministry of Health", "County Services"]
+                    "Boma Yangu", "Ministry of Health", "County Services", "NRB"]
         pick = _numbered_pick(text, AGENCIES)
         if pick is None:
             return _agency_menu()
@@ -270,7 +270,8 @@ def _agency_menu() -> str:
         "6  Immigration – Passports & Permits\n"
         "7  Boma Yangu – Affordable Housing\n"
         "8  Ministry of Health\n"
-        "9  County Services\n\n"
+        "9  County Services\n"
+        "10 NRB – National Registration Bureau (IDs)\n\n"
         "Reply with a number or agency name."
     )
 
@@ -351,6 +352,12 @@ def _agency_service_menu(agency: str) -> str:
             "5  County Bursary Application\n\n"
             "Which one would you like?"
         ),
+        "NRB": (
+            "Welcome to NRB – National Registration Bureau\n\nThe available services are:\n\n"
+            "1  Replace a Lost ID\n"
+            "2  Check Application Status\n\n"
+            "Which one would you like?"
+        ),
     }
     return menus.get(agency, "Service menu not found.")
 
@@ -370,6 +377,7 @@ def _agency_router(state: SessionState, text: str) -> str:
     if a == "Boma Yangu":  return _boma_yangu(state, text)
     if a == "Ministry of Health": return _moh(state, text)
     if a == "County Services":    return _county(state, text)
+    if a == "NRB":         return _nrb(state, text)
     if a == "EMERGENCY":   return _emergency_handler(state, text)
     return "I'm sorry, I didn't understand that. Type **menu** to start over."
 
@@ -1403,6 +1411,112 @@ def _immigration(state: SessionState, text: str) -> str:
 
 
 # ===========================================================================
+# NRB – National Registration Bureau (National ID)
+# ===========================================================================
+
+def _nrb(state: SessionState, text: str) -> str:
+    step = state.step
+
+    if step == "NRB_MENU":
+        SERVICES = ["Replace a Lost ID", "Check Application Status"]
+        pick = _numbered_pick(text, SERVICES)
+        if pick is None:
+            return _agency_service_menu("NRB")
+        state.service = pick
+        state.data = {}
+
+        if pick == "Check Application Status":
+            state.step = "NRB_STATUS_REF"
+            return "Please enter your **application reference number** or **National ID Number**."
+
+        state.step = "NRB_REPLACE_NAME"
+        return (
+            "I will help you replace a lost National ID.\n\n"
+            "You will need a **police abstract**. The replacement fee is **Ksh. 1,000**.\n\n"
+            "Please provide your **full name** as it appears on your previous ID."
+        )
+
+    if step == "NRB_STATUS_REF":
+        state.step = "ANYTHING_ELSE"
+        return (
+            f"Status for {text}:\n\n"
+            "Under processing – documents received.\n"
+            "Expected collection: 14–21 working days at your Huduma Centre.\n\n"
+        ) + _anything_else()
+
+    if step == "NRB_REPLACE_NAME":
+        if len(text.split()) < 2:
+            return "Please enter your full name (at least two names)."
+        state.data["name"] = text
+        state.step = "NRB_REPLACE_ID"
+        return "What was your **previous National ID Number**?"
+
+    if step == "NRB_REPLACE_ID":
+        if not valid_id(text):
+            return "Please enter a valid 7–8 digit National ID."
+        state.data["id_number"] = text
+        state.step = "NRB_REPLACE_ABSTRACT"
+        return "Please enter your **police abstract / OB number**."
+
+    if step == "NRB_REPLACE_ABSTRACT":
+        state.data["abstract"] = text
+        state.step = "NRB_REPLACE_COUNTY"
+        return "In which **county** should the replacement ID be collected?"
+
+    if step == "NRB_REPLACE_COUNTY":
+        state.data["county"] = text
+        state.step = "NRB_REPLACE_PHONE"
+        return "What is your **Phone Number**? (e.g. 0712345678)"
+
+    if step == "NRB_REPLACE_PHONE":
+        if not valid_phone(text):
+            return "Please enter a valid Kenyan phone number (e.g. 0712345678)."
+        state.data["phone"] = text
+        state.step = "NRB_REPLACE_MPESA"
+        return "Please provide your **M-PESA number** to pay the Ksh. 1,000 replacement fee."
+
+    if step == "NRB_REPLACE_MPESA":
+        if not valid_mpesa(text):
+            return "Please enter a valid M-PESA number."
+        state.data["mpesa"] = text
+        state.step = "NRB_REPLACE_CONFIRM"
+        d = state.data
+        return (
+            "Please confirm your details:\n\n"
+            f"   • Name: {d['name']}\n"
+            f"   • Previous ID: {d['id_number']}\n"
+            f"   • Police abstract: {d['abstract']}\n"
+            f"   • County: {d['county']}\n"
+            f"   • Phone: {d['phone']}\n"
+            f"   • M-PESA: {d['mpesa']}\n"
+            f"   • Fee: Ksh. 1,000\n\n"
+            "Is that correct? (Yes / No)"
+        )
+
+    if step == "NRB_REPLACE_CONFIRM":
+        yn = _yn(text)
+        if yn is None:
+            return "Please reply **Yes** or **No**."
+        if not yn:
+            state.step = "NRB_REPLACE_NAME"
+            state.data = {}
+            return "No problem. Let's start over.\n\nPlease provide your **full name** as it appears on your previous ID."
+        state.awaiting_payment = True
+        state.payment_amount = 1000
+        state.payment_description = "NRB Lost ID Replacement"
+        state.payment_mpesa = state.data.get("mpesa", "")
+        state.step = "ANYTHING_ELSE"
+        return (
+            "Payment initiated. You will receive an **STK push** — enter your M-PESA PIN.\n\n"
+            "Once payment is confirmed, take your police abstract and payment receipt "
+            "to the Huduma Centre in your county for biometrics.\n\n"
+            "Processing time: 14–21 working days. You will be notified by SMS.\n\n"
+        ) + _anything_else()
+
+    return _unknown(state)
+
+
+# ===========================================================================
 # Boma Yangu – Affordable Housing
 # ===========================================================================
 
@@ -1894,3 +2008,104 @@ def handle_message(session_id: str, user_input: str) -> str:  # type: ignore[no-
         return _anything_else()
 
     return _ORIGINAL_HANDLE(session_id, user_input)
+
+
+# ---------------------------------------------------------------------------
+# Guided service deep-links (frontend cards skip language / agency menus)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class GuidedService:
+    slug: str
+    title: str
+    agency: Optional[str] = None
+    pick: Optional[str] = None
+
+
+GUIDED_SERVICES: Dict[str, GuidedService] = {
+    "passport-apply": GuidedService("passport-apply", "Apply for a Passport", "Immigration", "Apply for a Passport"),
+    "passport-renew": GuidedService("passport-renew", "Renew a Passport", "Immigration", "Renew a Passport"),
+    "ntsa-apply": GuidedService("ntsa-apply", "Apply for a Driving Licence", "NTSA", "Apply for a Driving Licence"),
+    "ntsa-renew": GuidedService("ntsa-renew", "Renew a Driving Licence", "NTSA", "Renew a Driving Licence"),
+    "ntsa-appointment": GuidedService("ntsa-appointment", "Book an NTSA Appointment", "NTSA", "Book an Appointment"),
+    "id-replace": GuidedService("id-replace", "Replace a Lost ID", "NRB", "Replace a Lost ID"),
+    "brs-register": GuidedService("brs-register", "Register a Business Name", "BRS", "Register a Business Name"),
+    "dci-good-conduct": GuidedService("dci-good-conduct", "Police Clearance", "DCI", "Apply for a Good Conduct Certificate"),
+    "kra-pin": GuidedService("kra-pin", "Register for a KRA PIN", "KRA", "Register for a KRA PIN"),
+    "kra-itax": GuidedService("kra-itax", "KRA iTax / File Returns", "KRA", "File Income Tax Returns"),
+    "kra-nil": GuidedService("kra-nil", "File Nil Returns", "KRA", "File Nil Returns"),
+    "land-rates": GuidedService("land-rates", "Land Rates Payment", "County Services", "Land Rates Payment"),
+    "nhif": GuidedService("nhif", "NHIF Registration", "Ministry of Health", "NHIF Registration"),
+    "ncpwd": GuidedService("ncpwd", "NCPWD Services", "NCPWD", None),
+    "ntsa": GuidedService("ntsa", "NTSA Services", "NTSA", None),
+    "kra": GuidedService("kra", "KRA Services", "KRA", None),
+    "brs": GuidedService("brs", "BRS Services", "BRS", None),
+    "dci": GuidedService("dci", "DCI Services", "DCI", None),
+    "immigration": GuidedService("immigration", "Immigration Services", "Immigration", None),
+    "health": GuidedService("health", "Ministry of Health", "Ministry of Health", None),
+    "boma-yangu": GuidedService("boma-yangu", "Boma Yangu", "Boma Yangu", None),
+    "county": GuidedService("county", "County Services", "County Services", None),
+    "nrb": GuidedService("nrb", "National Registration Bureau", "NRB", None),
+    "agencies": GuidedService("agencies", "All Agencies", None, None),
+    "huduma": GuidedService("huduma", "Huduma Centre Lookup", None, None),
+    "emergency": GuidedService("emergency", "Emergency Reporting", None, None),
+}
+
+
+def list_guided_services() -> list:
+    return [
+        {"slug": spec.slug, "title": spec.title, "agency": spec.agency, "service": spec.pick}
+        for spec in GUIDED_SERVICES.values()
+    ]
+
+
+def _agency_menu_step(agency: str) -> str:
+    return f"{agency.upper().replace(' ', '_')}_MENU"
+
+
+def start_service(
+    slug: str,
+    language: str = "en",
+    session_id: Optional[str] = None,
+) -> tuple:
+    """Open a specific agency service, skipping language and eCitizen login."""
+    key = (slug or "").strip().lower()
+    spec = GUIDED_SERVICES.get(key)
+    if spec is None:
+        raise ValueError(f"Unknown service: {slug}")
+
+    language = "sw" if language in ("sw", "kiswahili", "swahili") else "en"
+    session_id = session_id or str(uuid.uuid4())
+    _sessions[session_id] = SessionState(
+        session_id=session_id,
+        language=language,
+        has_disability=False,
+        step="MAIN_MENU",
+    )
+    state = _sessions[session_id]
+
+    if key == "agencies":
+        state.step = "AGENCY_MENU"
+        return session_id, _agency_menu()
+
+    if key == "huduma":
+        state.step = "HUDUMA"
+        return session_id, (
+            "Huduma Centre Lookup\n\n"
+            "Please enter the county or town you are in and I will find the "
+            "nearest Huduma Centre for you."
+        )
+
+    if key == "emergency":
+        state.step = "EMERGENCY"
+        return session_id, _emergency_handler(state, "")
+
+    if not spec.agency:
+        state.step = "MAIN_MENU"
+        return session_id, _main_menu(state)
+
+    state.agency = spec.agency
+    state.step = _agency_menu_step(spec.agency)
+    if spec.pick:
+        return session_id, handle_message(session_id, spec.pick)
+    return session_id, _agency_service_menu(spec.agency)

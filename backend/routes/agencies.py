@@ -17,7 +17,14 @@ import hmac
 import hashlib
 import os
 
-from services.agency_workflows import handle_message, get_or_create_session, clear_session
+from services.agency_workflows import (
+    handle_message,
+    get_or_create_session,
+    clear_session,
+    start_service,
+    list_guided_services,
+    GUIDED_SERVICES,
+)
 from services.paystack_service import (
     initiate_stk_push,
     verify_payment,
@@ -104,6 +111,12 @@ class ChatResponse(BaseModel):
     payment_mpesa: Optional[str] = None     # M-PESA number for STK push
     audio_base64: Optional[str] = None      # TTS audio as base64
     audio_mime: str = "audio/mpeg"          # Audio MIME type
+
+
+class StartServiceRequest(BaseModel):
+    service: str
+    language: str = "en"
+    session_id: Optional[str] = None
 
 
 class PaymentInitRequest(BaseModel):
@@ -333,6 +346,52 @@ async def start_chat():
     """
     session_id = str(uuid.uuid4())
     response_text = handle_message(session_id, "__new_session__")
+    state = get_or_create_session(session_id)
+
+    from rafiki_settings import get_settings
+    state.voice_id = state.voice_id or get_settings().ELEVENLABS_VOICE_ID
+    audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
+
+    return ChatResponse(
+        session_id=session_id,
+        response=response_text,
+        step=state.step,
+        agency=state.agency,
+        service=state.service,
+        language=state.language,
+        awaiting_payment=state.awaiting_payment,
+        payment_amount=state.payment_amount,
+        payment_description=state.payment_description,
+        payment_mpesa=state.payment_mpesa,
+        audio_base64=audio_base64,
+        audio_mime="audio/mpeg",
+    )
+
+
+@router.get("/services")
+async def list_services():
+    """Catalog of frontend deep-link slugs mapped to agency workflows."""
+    return {"services": list_guided_services()}
+
+
+@router.post("/chat/start-service", response_model=ChatResponse)
+async def start_guided_service(req: StartServiceRequest):
+    """
+    Start (or restart) a session already on the requested agency service.
+    Skips language selection, disability screening, and eCitizen login.
+    """
+    slug = (req.service or "").strip().lower()
+    if slug not in GUIDED_SERVICES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown service '{req.service}'. See GET /api/agencies/services.",
+        )
+
+    try:
+        session_id, response_text = start_service(slug, req.language, req.session_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
     state = get_or_create_session(session_id)
 
     from rafiki_settings import get_settings
