@@ -57,20 +57,11 @@ router = APIRouter()
 async def generate_tts_audio(text: str, language: str = "en", session_id: Optional[str] = None) -> Optional[str]:
     """Generate TTS audio for response text. Returns base64 string or None."""
     try:
-        # Resolve the voice once per session so we don't drift across concurrent welcome requests.
-        voice_id = None
+        voice_id = await elevenlabs_service.resolve_tts_voice_id()
         if session_id:
             from services.agency_workflows import get_or_create_session
             state = get_or_create_session(session_id)
-            voice_id = state.voice_id
-
-        if not voice_id:
-            from rafiki_settings import get_settings
-            voice_id = get_settings().ELEVENLABS_VOICE_ID
-            if session_id:
-                from services.agency_workflows import get_or_create_session
-                state = get_or_create_session(session_id)
-                state.voice_id = voice_id
+            state.voice_id = voice_id
         
         result = await elevenlabs_service.text_to_speech(
             text=text,
@@ -348,8 +339,7 @@ async def start_chat():
     response_text = handle_message(session_id, "__new_session__")
     state = get_or_create_session(session_id)
 
-    from rafiki_settings import get_settings
-    state.voice_id = state.voice_id or get_settings().ELEVENLABS_VOICE_ID
+    state.voice_id = await elevenlabs_service.resolve_tts_voice_id(state.voice_id)
     audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
 
     return ChatResponse(
@@ -393,9 +383,7 @@ async def start_guided_service(req: StartServiceRequest):
         raise HTTPException(status_code=404, detail=str(e))
 
     state = get_or_create_session(session_id)
-
-    from rafiki_settings import get_settings
-    state.voice_id = state.voice_id or get_settings().ELEVENLABS_VOICE_ID
+    state.voice_id = await elevenlabs_service.resolve_tts_voice_id(state.voice_id)
     audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
 
     return ChatResponse(

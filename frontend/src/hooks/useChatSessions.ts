@@ -70,9 +70,31 @@ export function useChatSessions() {
     return session;
   }, [loadSessions]);
 
+  const sendTurn = useCallback(async (content: string, language: string = 'en') => {
+    let id = activeSessionId;
+    if (!id) {
+      id = await createNewSession();
+    }
+    if (!id) throw new Error('Could not start a chat session');
+    const updated = await chatService.sendTurn(id, content, language);
+    await loadSessions();
+    return updated;
+  }, [activeSessionId, createNewSession, loadSessions]);
+
+  const persistMessage = useCallback(async (sender: string, content: string) => {
+    let id = activeSessionId;
+    if (!id) {
+      id = await createNewSession();
+    }
+    if (!id || !content.trim()) return null;
+    await chatService.postMessage(id, sender, content.trim());
+    const updated = await chatService.getSession(id);
+    await loadSessions();
+    return updated;
+  }, [activeSessionId, createNewSession, loadSessions]);
+
   const sendMessage = useCallback(async (sessionId: string, sender: string, content: string, audioUrl?: string) => {
     const res = await chatService.postMessage(sessionId, sender, content, audioUrl);
-    // refresh session
     const updated = await chatService.getSession(sessionId);
     await loadSessions();
     return { res, updated };
@@ -92,6 +114,8 @@ export function useChatSessions() {
     createNewSession,
     loadSession,
     sendMessage,
+    sendTurn,
+    persistMessage,
     downloadTranscript,
     refresh: async () => { await Promise.all([loadSessions(), loadTranscripts(), loadUnread()]); },
   };

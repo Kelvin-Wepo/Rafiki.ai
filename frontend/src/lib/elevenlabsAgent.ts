@@ -1,13 +1,35 @@
-/** Canonical ElevenLabs Conversational AI agent (voice + prompt live in ElevenLabs). */
-export const RAFIKI_ELEVENLABS_AGENT_ID = 'agent_8201m28ec9h6fs3vwcvtg1dvnrzq';
+/** Runtime ElevenLabs agent — loaded from GET /elevenlabs/config, not a hardcoded ID. */
+
+export type ElevenLabsRuntimeConfig = {
+  success: boolean;
+  configured?: boolean;
+  agent_id?: string;
+  name?: string;
+  voice_id?: string;
+  tts_model?: string;
+  branch_id?: string;
+  first_message?: string;
+  language?: string;
+  error?: string;
+};
+
+export async function fetchElevenLabsConfig(apiBase: string): Promise<ElevenLabsRuntimeConfig> {
+  const response = await fetch(`${apiBase}/elevenlabs/config`);
+  if (!response.ok) {
+    return { success: false, error: `Could not load voice config (${response.status})` };
+  }
+  return response.json();
+}
 
 export function agentMessageText(message: unknown): { source: 'ai' | 'user' | 'unknown'; text: string } | null {
   if (!message) return null;
-  if (typeof message === 'string') {
-    const text = message.trim();
-    return text ? { source: 'unknown', text } : null;
+  if (typeof message !== 'object') {
+    if (typeof message === 'string') {
+      const text = message.trim();
+      return text ? { source: 'unknown', text } : null;
+    }
+    return null;
   }
-  if (typeof message !== 'object') return null;
 
   const record = message as Record<string, unknown>;
   const text = String(

@@ -302,7 +302,27 @@ export interface Voice {
   labels?: Record<string, string>;
 }
 
+export interface ElevenLabsConfig {
+  success: boolean;
+  configured?: boolean;
+  agent_id?: string;
+  name?: string;
+  voice_id?: string;
+  branch_id?: string;
+  first_message?: string;
+  language?: string;
+  error?: string;
+}
+
 export const ttsApi = {
+  /**
+   * Live agent/voice/branch from the current server API key.
+   * GET /elevenlabs/config
+   */
+  getConfig: async (): Promise<ElevenLabsConfig> => {
+    const response = await apiClient.get('/elevenlabs/config');
+    return response.data;
+  },
   /**
    * Get signed URL for ElevenLabs agent WebSocket
    * GET /elevenlabs/signed-url

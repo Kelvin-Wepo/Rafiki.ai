@@ -131,4 +131,5 @@ sadtalker/
 .env
 docker-compose.override.yml
 backend/data/chroma_db/
+backend/data/chat_sessions.json
 backend/cache/

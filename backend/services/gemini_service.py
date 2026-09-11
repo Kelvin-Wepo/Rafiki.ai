@@ -703,6 +703,10 @@ CRITICAL GUIDANCE:
         except Exception as e:
             logger.error(f"Gemini generation error: {e}")
             raise
+
+    async def generate_plain_text(self, prompt: str) -> str:
+        """Free-form text generation for chat replies."""
+        return (await self._generate_response(prompt) or "").strip()
     
     def _parse_response(self, response: str, original_message: str) -> Dict[str, Any]:
         """Parse Gemini response into structured format."""

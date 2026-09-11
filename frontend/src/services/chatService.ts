@@ -45,6 +45,13 @@ export async function postMessage(sessionId: string, sender: string, content: st
   });
 }
 
+export async function sendTurn(sessionId: string, message: string, language?: string) {
+  return apiFetch(`/api/chat/sessions/${sessionId}/turn`, {
+    method: 'POST',
+    body: JSON.stringify({ message, language: language || 'en' }),
+  });
+}
+
 export async function listTranscripts(skip = 0, limit = 20) {
   return apiFetch(`/api/chat/transcripts?skip=${skip}&limit=${limit}`);
 }
@@ -71,6 +78,7 @@ export default {
   listSessions,
   getSession,
   postMessage,
+  sendTurn,
   listTranscripts,
   downloadTranscript,
   unreadCount,

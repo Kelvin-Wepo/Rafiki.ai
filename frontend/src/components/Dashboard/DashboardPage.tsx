@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useConversation, ConversationProvider } from '@elevenlabs/react';
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
   CreditCard,
   BarChart3,
   MessageSquareText,
+  MessagesSquare,
   Settings as SettingsIcon,
   LogOut,
   Menu,
@@ -53,11 +54,11 @@ import {
   rememberPendingService,
   titleForService,
 } from '../../lib/guidedServices';
-import { agentMessageText, RAFIKI_ELEVENLABS_AGENT_ID } from '../../lib/elevenlabsAgent';
+import { agentMessageText, fetchElevenLabsConfig, type ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
+import { ChatSection, type ChatBubble } from './ChatSection';
 import '../../styles/dashboard.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const ELEVENLABS_AGENT_ID = RAFIKI_ELEVENLABS_AGENT_ID;
 
 /* ------------------------------------------------------------------ *
  * Navigation
@@ -65,6 +66,7 @@ const ELEVENLABS_AGENT_ID = RAFIKI_ELEVENLABS_AGENT_ID;
 
 type NavId =
   | 'dashboard'
+  | 'chat'
   | 'services'
   | 'appointments'
   | 'documents'
@@ -78,6 +80,7 @@ type ViewId = NavId | 'history';
 
 const NAV_ITEMS: Array<{ id: NavId; label: string; icon: React.ElementType }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'chat', label: 'Chat', icon: MessagesSquare },
   { id: 'services', label: 'My Services', icon: LayoutGrid },
   { id: 'appointments', label: 'Appointments', icon: CalendarCheck },
   { id: 'documents', label: 'My Documents', icon: FileText },
@@ -228,8 +231,23 @@ interface SessionSummary {
   conversation_id?: string;
   title?: string;
   preview?: string;
+  last_message_preview?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+function bubblesFromSession(session: unknown): ChatBubble[] {
+  if (!session || typeof session !== 'object') return [];
+  const record = session as { messages?: Array<Record<string, unknown>> };
+  return (record.messages || []).map((message, index) => {
+    const senderRaw = String(message.sender || message.role || 'assistant').toLowerCase();
+    return {
+      id: String(message.id || `msg-${index}`),
+      sender: senderRaw === 'user' ? 'user' : 'assistant',
+      content: String(message.content || ''),
+      created_at: String(message.created_at || message.timestamp || ''),
+    };
+  });
 }
 
 function firstNameOf(fullName?: string): string {
@@ -272,12 +290,20 @@ export function Dashboard() {
 
 function DashboardInner() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const pendingService = searchParams.get('service') || readPendingService();
   const pendingLang = searchParams.get('lang') === 'sw' ? 'sw' : 'en';
   const { user, logout } = useAuth();
-  const { sessions, transcripts, activeSessionId, createNewSession, loadSession } =
-    useChatSessions();
+  const {
+    sessions,
+    transcripts,
+    activeSessionId,
+    createNewSession,
+    loadSession,
+    sendTurn,
+    persistMessage,
+  } = useChatSessions();
 
   const [view, setView] = useState<ViewId>('dashboard');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -292,6 +318,11 @@ function DashboardInner() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [lastReply, setLastReply] = useState<string | null>(null);
+  const [voiceConfig, setVoiceConfig] = useState<ElevenLabsRuntimeConfig | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatBubble[]>([]);
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const lastPersistedRef = useRef('');
+  const persistVoiceTurnRef = useRef<(sender: 'user' | 'assistant', text: string) => void>(() => {});
 
   const inputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -303,19 +334,20 @@ function DashboardInner() {
     stopAnalyzing: stopAvatarAnalyzing,
   } = useAudioAnalyzer();
 
-  // ElevenLabs Conversational AI — voice, first message and prompt come from
-  // agent_8201m28ec9h6fs3vwcvtg1dvnrzq in the ElevenLabs dashboard.
+  // ElevenLabs Conversational AI — agent id, voice, and prompt come from the
+  // current server API key via GET /elevenlabs/config (not a hardcoded ID).
   const conversation = useConversation({
     onConnect: () => {
-      console.log('Voice agent connected', ELEVENLABS_AGENT_ID);
+      console.log('Voice agent connected');
       setIsListening(true);
     },
     onDisconnect: () => setIsListening(false),
     onMessage: (message: unknown) => {
       const parsed = agentMessageText(message);
-      if (parsed?.source === 'ai' && parsed.text) {
-        setLastReply(parsed.text);
-      }
+      if (!parsed?.text) return;
+      const sender = parsed.source === 'user' ? 'user' : 'assistant';
+      if (sender === 'assistant') setLastReply(parsed.text);
+      persistVoiceTurnRef.current(sender, parsed.text);
     },
     onError: (error: unknown) => {
       console.error('Voice agent error:', error);
@@ -324,6 +356,55 @@ function DashboardInner() {
   });
 
   const isVoiceConnected = conversation.status === 'connected';
+  const liveAgentId = voiceConfig?.agent_id || '';
+
+  useEffect(() => {
+    persistVoiceTurnRef.current = (sender, text) => {
+      const key = `${sender}:${text}`;
+      if (lastPersistedRef.current === key) return;
+      lastPersistedRef.current = key;
+      setChatMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.sender === sender && last.content === text) return prev;
+        return [
+          ...prev,
+          {
+            id: `live-${Date.now()}`,
+            sender,
+            content: text,
+            created_at: new Date().toISOString(),
+          },
+        ];
+      });
+      void persistMessage(sender, text)
+        .then((updated) => {
+          if (updated) setChatMessages(bubblesFromSession(updated));
+        })
+        .catch((err) => console.error('Failed to save chat turn', err));
+    };
+  }, [persistMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchElevenLabsConfig(API_BASE)
+      .then((config) => {
+        if (!cancelled) setVoiceConfig(config);
+        if (config.success && config.agent_id) {
+          console.log('Using live ElevenLabs agent', config.agent_id, config.name, config.voice_id);
+        } else if (!cancelled) {
+          console.warn('ElevenLabs config unavailable:', config.error);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load ElevenLabs config', err);
+        if (!cancelled) {
+          setVoiceConfig({ success: false, error: 'Could not load voice config' });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const avatarState: AvatarState = conversation.isSpeaking
     ? 'speaking'
@@ -482,38 +563,64 @@ function DashboardInner() {
 
   const sendMessage = useCallback(
     async (message: string) => {
-      if (!message.trim()) return;
+      const text = message.trim();
+      if (!text) return;
       setChatInput('');
+      setView('chat');
 
       try {
         if (conversation.status === 'connected') {
-          await conversation.sendUserMessage(message);
+          lastPersistedRef.current = `user:${text}`;
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: `user-${Date.now()}`,
+              sender: 'user',
+              content: text,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+          await persistMessage('user', text);
+          await conversation.sendUserMessage(text);
           return;
         }
 
-        const res = await fetch(`${API_BASE}/api/agencies/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId, message }),
-        });
-        const data = await res.json();
-
-        setLastReply(data.response || data.message || null);
-
-        if (data.audio_base64) {
-          playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
-        }
+        setIsSendingChat(true);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: `user-${Date.now()}`,
+            sender: 'user',
+            content: text,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+        const updated = await sendTurn(text, language || 'en');
+        setChatMessages(bubblesFromSession(updated));
+        const reply = bubblesFromSession(updated).filter((item) => item.sender === 'assistant').pop();
+        if (reply?.content) setLastReply(reply.content);
       } catch (err) {
         console.error('Failed to send message:', err);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            sender: 'assistant',
+            content: 'Sorry, I could not send that. Please try again.',
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        setIsSendingChat(false);
       }
     },
-    [sessionId, playAudio, conversation]
+    [conversation, language, persistMessage, sendTurn]
   );
 
-  /** Sends a prompt and returns the user to the dashboard so they see the reply. */
+  /** Sends a prompt and opens the chat thread so the user sees the reply. */
   const askRafiki = useCallback(
     (message: string) => {
-      setView('dashboard');
+      setView('chat');
       setDrawerOpen(false);
       sendMessage(message);
     },
@@ -554,25 +661,30 @@ function DashboardInner() {
       return;
     }
 
-    // Preferred path: the backend mints a token, so the agent can stay private
-    // and the API key never reaches the browser. Public agents fall back to agentId.
+    // Preferred path: backend mints a token from the current API key / live agent.
     let conversationToken: string | null = null;
+    let agentId = liveAgentId;
     try {
-      const res = await fetch(
-        `${API_BASE}/elevenlabs/conversation-token?agent_id=${encodeURIComponent(ELEVENLABS_AGENT_ID)}`
-      );
+      const res = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.token) conversationToken = data.token;
         else console.warn('Conversation token unavailable:', data.error);
+        if (data.agent_id) agentId = data.agent_id;
       }
     } catch (err) {
       console.warn('Could not reach the conversation-token endpoint:', err);
     }
 
-    if (!conversationToken && !ELEVENLABS_AGENT_ID) {
+    if (!agentId) {
+      const config = await fetchElevenLabsConfig(API_BASE);
+      setVoiceConfig(config);
+      agentId = config.agent_id || '';
+    }
+
+    if (!conversationToken && !agentId) {
       alert(
-        'Voice mode is not configured. Set ELEVENLABS_API_KEY on the server, or VITE_ELEVENLABS_AGENT_ID for a public agent.'
+        'Voice mode is not configured. Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID on the server.'
       );
       return;
     }
@@ -581,14 +693,14 @@ function DashboardInner() {
       await conversation.startSession(
         conversationToken
           ? { conversationToken, connectionType: 'webrtc' }
-          : { agentId: ELEVENLABS_AGENT_ID, connectionType: 'webrtc' }
+          : { agentId, connectionType: 'webrtc' }
       );
       setIsListening(true);
     } catch (tokenErr) {
       console.warn('Token session failed, trying public agent ID:', tokenErr);
       try {
         await conversation.startSession({
-          agentId: ELEVENLABS_AGENT_ID,
+          agentId,
           connectionType: 'webrtc',
         });
         setIsListening(true);
@@ -598,7 +710,7 @@ function DashboardInner() {
         setIsListening(false);
       }
     }
-  }, [conversation, isVoiceConnected]);
+  }, [conversation, isVoiceConnected, liveAgentId]);
 
   const handleSend = useCallback(() => {
     if (chatInput.trim()) sendMessage(chatInput);
@@ -626,20 +738,53 @@ function DashboardInner() {
     setDrawerOpen(false);
   }, []);
 
+  const handleNewChat = useCallback(async () => {
+    const id = await createNewSession();
+    if (id) {
+      const session = await loadSession(id);
+      setSelectedConversation(session);
+      setChatMessages(bubblesFromSession(session));
+    } else {
+      setChatMessages([]);
+    }
+    setView('chat');
+    setDrawerOpen(false);
+  }, [createNewSession, loadSession]);
+
+  const handleSelectChatSession = useCallback(
+    async (id: string) => {
+      const session = await loadSession(id);
+      setSelectedConversation(session);
+      setChatMessages(bubblesFromSession(session));
+      setView('chat');
+    },
+    [loadSession]
+  );
+
   useEffect(() => {
+    let cancelled = false;
     const restore = async () => {
-      if (activeSessionId && !sessionId) {
+      if (!activeSessionId) return;
+      try {
         const restored = await loadSession(activeSessionId);
-        if (restored?.id || restored?.conversation_id) {
-          setSessionId(restored.id || restored.conversation_id || activeSessionId);
-          setSelectedConversation(restored);
-        } else {
-          setSessionId(activeSessionId);
-        }
+        if (cancelled || !restored) return;
+        setSelectedConversation(restored);
+        setChatMessages(bubblesFromSession(restored));
+      } catch (err) {
+        console.error('Failed to restore chat history', err);
       }
     };
     restore();
-  }, [activeSessionId, loadSession, sessionId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, loadSession]);
+
+  useEffect(() => {
+    if (location.pathname === '/chat' && !searchParams.get('service')) {
+      setView('chat');
+    }
+  }, [location.pathname, searchParams]);
 
   // Close the mobile drawer with Escape.
   useEffect(() => {
@@ -797,6 +942,23 @@ function DashboardInner() {
               </>
             )}
 
+            {view === 'chat' && (
+              <ChatSection
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                messages={chatMessages}
+                isSending={isSendingChat}
+                voiceConnected={isVoiceConnected}
+                voiceConfig={voiceConfig}
+                composerValue={chatInput}
+                onComposerChange={setChatInput}
+                onSend={() => sendMessage(chatInput)}
+                onToggleVoice={handleMicToggle}
+                onNewChat={handleNewChat}
+                onSelectSession={handleSelectChatSession}
+              />
+            )}
+
             {view === 'services' && (
               <section className="rd-panel" aria-labelledby="services-heading">
                 <div className="rd-panel-head">
@@ -825,17 +987,11 @@ function DashboardInner() {
                 <ConversationHistory
                   onSelectConversation={(conversation) => {
                     setSelectedConversation(conversation);
-                    setView('dashboard');
+                    setChatMessages(bubblesFromSession(conversation));
+                    setView('chat');
                   }}
                   selectedId={selectedConversation?.id}
-                  onNewConversation={async () => {
-                    const id = await createNewSession();
-                    if (id) {
-                      const conv = await loadSession(id);
-                      setSelectedConversation(conv || null);
-                      setView('dashboard');
-                    }
-                  }}
+                  onNewConversation={handleNewChat}
                 />
               </section>
             )}
@@ -843,7 +999,7 @@ function DashboardInner() {
             {view === 'settings' && (
               <SettingsPanel
                 language={language}
-                voiceConfigured={Boolean(ELEVENLABS_AGENT_ID)}
+                voiceConfigured={Boolean(liveAgentId) || voiceConfig?.success !== false}
                 voiceConnected={isVoiceConnected}
                 phone={user?.phone_masked}
                 email={user?.email_masked}
@@ -910,9 +1066,9 @@ function DashboardInner() {
                     {lastReply || "I'm here to help you access government services easily."}
                   </p>
 
-                  <button type="button" className="rd-btn-primary" onClick={handleMicToggle}>
-                    <Mic size={17} strokeWidth={1.75} aria-hidden="true" />
-                    {isVoiceConnected ? 'End Voice Chat' : 'Start Chat'}
+                  <button type="button" className="rd-btn-primary" onClick={() => setView('chat')}>
+                    <MessagesSquare size={17} strokeWidth={1.75} aria-hidden="true" />
+                    Open chat
                   </button>
                 </div>
               </section>
@@ -926,11 +1082,17 @@ function DashboardInner() {
                   <ul className="rd-activity">
                     {recentActivity.map((item) => (
                       <li key={item.id} className="rd-activity-item">
-                        <span className="rd-activity-icon" aria-hidden="true">
-                          <CircleCheck size={15} strokeWidth={2} />
-                        </span>
-                        <span className="rd-activity-label">{item.label}</span>
-                        {item.date && <span className="rd-activity-date">{item.date}</span>}
+                        <button
+                          type="button"
+                          className="rd-activity-open"
+                          onClick={() => handleSelectChatSession(item.id)}
+                        >
+                          <span className="rd-activity-icon" aria-hidden="true">
+                            <CircleCheck size={15} strokeWidth={2} />
+                          </span>
+                          <span className="rd-activity-label">{item.label}</span>
+                          {item.date && <span className="rd-activity-date">{item.date}</span>}
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -944,7 +1106,7 @@ function DashboardInner() {
                   <button
                     type="button"
                     className="rd-link-btn"
-                    onClick={() => setView('history')}
+                    onClick={() => setView('chat')}
                   >
                     View All
                   </button>

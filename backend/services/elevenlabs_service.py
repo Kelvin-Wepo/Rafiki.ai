@@ -139,30 +139,61 @@ class ElevenLabsService:
     
     def __init__(self):
         """Initialize ElevenLabs service with Kenyan voice support."""
-        self.settings = get_settings()
-        self.api_key = self.settings.ELEVENLABS_API_KEY
-        self.agent_id = self.settings.ELEVENLABS_AGENT_ID
-        self.branch_id = getattr(self.settings, 'ELEVENLABS_BRANCH_ID', None)
         self._client = None
+        self._client_key = None
+        self._client_agent = None
+        self._live_agent: Optional[Dict[str, Any]] = None
+        self._live_agent_at = 0.0
+        self._override_voice_id: Optional[str] = None
         self.default_model_id = "eleven_flash_v2_5"
-        
-        # Pin the configured voice. Never pick a language-based default here —
-        # that was the NTSA gender-switch bug.
-        self.default_voice_id = self.settings.ELEVENLABS_VOICE_ID or self.FREE_VOICES["adam"]["voice_id"]
         self.current_voice_name = "configured"
-    
+
+    @property
+    def settings(self):
+        return get_settings()
+
+    @property
+    def api_key(self) -> str:
+        return self.settings.ELEVENLABS_API_KEY or ""
+
+    @property
+    def agent_id(self) -> str:
+        return (self.settings.ELEVENLABS_AGENT_ID or "").strip()
+
+    @property
+    def branch_id(self) -> Optional[str]:
+        value = (self.settings.ELEVENLABS_BRANCH_ID or "").strip()
+        return value or None
+
+    @property
+    def default_voice_id(self) -> str:
+        if self._override_voice_id:
+            return self._override_voice_id
+        return (self.settings.ELEVENLABS_VOICE_ID or "").strip() or self.FREE_VOICES["adam"]["voice_id"]
+
+    @default_voice_id.setter
+    def default_voice_id(self, value: str):
+        self._override_voice_id = value
+
     @property
     def client(self) -> httpx.AsyncClient:
-        """Get or create async HTTP client."""
-        if self._client is None:
+        """Get or create async HTTP client bound to the current API key."""
+        key = self.api_key
+        agent = self.agent_id
+        if self._client is None or self._client_key != key or self._client_agent != agent:
+            self._live_agent = None
+            self._live_agent_at = 0.0
+            self._override_voice_id = None
             self._client = httpx.AsyncClient(
                 base_url=self.BASE_URL,
                 headers={
-                    "xi-api-key": self.api_key,
-                    "Content-Type": "application/json"
+                    "xi-api-key": key,
+                    "Content-Type": "application/json",
                 },
-                timeout=30.0
+                timeout=30.0,
             )
+            self._client_key = key
+            self._client_agent = agent
         return self._client
     
     async def close(self):
@@ -276,7 +307,8 @@ class ElevenLabsService:
             Dict with signed_url and expiration info
         """
         try:
-            target_agent = agent_id or self.agent_id
+            live = await self.get_live_agent_config(agent_id)
+            target_agent = live.get("agent_id") if live.get("success") else (agent_id or self.agent_id)
             
             if not target_agent:
                 return {
@@ -289,12 +321,23 @@ class ElevenLabsService:
                     "success": False,
                     "error": "ElevenLabs API key not configured"
                 }
+
+            params: Dict[str, Any] = {"agent_id": target_agent}
+            branch = live.get("branch_id") if live.get("success") else None
+            if branch:
+                params["branch_id"] = branch
             
             # Request signed URL from ElevenLabs
             response = await self.client.get(
-                f"/convai/conversation/get_signed_url",
-                params={"agent_id": target_agent}
+                "/convai/conversation/get_signed_url",
+                params=params,
             )
+            if response.status_code != 200 and "branch_id" in params:
+                params.pop("branch_id", None)
+                response = await self.client.get(
+                    "/convai/conversation/get_signed_url",
+                    params=params,
+                )
             
             if response.status_code == 200:
                 data = response.json()
@@ -321,6 +364,127 @@ class ElevenLabsService:
                 "error": str(e)
             }
 
+    async def list_convai_agents(self) -> List[Dict[str, Any]]:
+        """List conversational agents on the current API key."""
+        if not self.api_key:
+            return []
+        try:
+            response = await self.client.get("/convai/agents")
+            if response.status_code != 200:
+                logger.warning(f"Could not list convai agents: {response.status_code}")
+                return []
+            data = response.json()
+            agents = data.get("agents") or data.get("items") or []
+            if isinstance(agents, dict):
+                agents = agents.get("agents") or []
+            return agents if isinstance(agents, list) else []
+        except Exception as exc:
+            logger.warning(f"Could not list convai agents: {exc}")
+            return []
+
+    async def resolve_agent_id(self, agent_id: Optional[str] = None) -> str:
+        """Prefer an explicit ID; otherwise the newest Rafiki agent on this API key."""
+        requested = (agent_id or "").strip()
+        if requested:
+            return requested
+
+        agents = await self.list_convai_agents()
+        if agents:
+            def _updated(item: Dict[str, Any]) -> int:
+                return int(item.get("created_at_unix_secs") or 0)
+
+            newest = sorted(agents, key=_updated, reverse=True)
+            rafiki = [
+                item for item in newest
+                if "rafiki" in str(item.get("name") or "").lower()
+            ]
+            pick = (rafiki or newest)[0]
+            resolved = str(pick.get("agent_id") or pick.get("id") or "").strip()
+            if resolved and resolved != self.agent_id:
+                logger.info(
+                    f"Using live ElevenLabs agent {resolved} ({pick.get('name')}) "
+                    f"instead of configured {self.agent_id or 'none'}"
+                )
+            return resolved or self.agent_id
+        return self.agent_id
+
+    async def get_live_agent_config(self, agent_id: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
+        """Fetch the published agent from ElevenLabs so voice/prompt stay in sync."""
+        now = time.time()
+        target = (agent_id or "").strip()
+        if not target:
+            if (
+                not force
+                and self._live_agent
+                and now - self._live_agent_at < 15
+            ):
+                return {"success": True, **self._live_agent}
+            target = await self.resolve_agent_id(agent_id)
+
+        if (
+            not force
+            and self._live_agent
+            and self._live_agent.get("agent_id") == target
+            and now - self._live_agent_at < 15
+        ):
+            return {"success": True, **self._live_agent}
+
+        if not target:
+            return {"success": False, "error": "No agent ID configured"}
+        if not self.api_key:
+            return {"success": False, "error": "ElevenLabs API key not configured"}
+
+        response = await self.client.get(f"/convai/agents/{target}")
+        if response.status_code != 200:
+            fallback = await self.resolve_agent_id("")
+            if fallback and fallback != target:
+                logger.warning(
+                    f"Agent {target} returned {response.status_code}; switching to {fallback}"
+                )
+                target = fallback
+                response = await self.client.get(f"/convai/agents/{target}")
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"Failed to load agent {target}: {response.status_code} {response.text[:200]}",
+                "agent_id": target,
+            }
+
+        data = response.json()
+        cfg = data.get("conversation_config") or {}
+        tts_cfg = cfg.get("tts") or {}
+        agent_cfg = cfg.get("agent") or {}
+        prompt_obj = agent_cfg.get("prompt") or {}
+        if isinstance(prompt_obj, dict):
+            prompt_text = prompt_obj.get("prompt") or ""
+        else:
+            prompt_text = str(prompt_obj or "")
+        voice_id = tts_cfg.get("voice_id") or self.default_voice_id
+        live = {
+            "agent_id": data.get("agent_id") or target,
+            "name": data.get("name") or "Rafiki",
+            "voice_id": voice_id,
+            "tts_model": tts_cfg.get("model_id"),
+            "branch_id": data.get("branch_id") or data.get("main_branch_id"),
+            "first_message": agent_cfg.get("first_message"),
+            "language": agent_cfg.get("language"),
+            "prompt": prompt_text,
+        }
+        self._live_agent = live
+        self._live_agent_at = now
+        if voice_id:
+            self.default_voice_id = voice_id
+        logger.info(
+            f"Loaded ElevenLabs agent {live['agent_id']} voice={live['voice_id']} branch={live['branch_id']}"
+        )
+        return {"success": True, **live}
+
+    async def resolve_tts_voice_id(self, fallback: Optional[str] = None) -> str:
+        live = await self.get_live_agent_config()
+        if live.get("success") and live.get("voice_id"):
+            return live["voice_id"]
+        return fallback or self.default_voice_id
+
     async def get_conversation_token(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Mint a WebRTC conversation token for the configured agent.
@@ -336,7 +500,8 @@ class ElevenLabsService:
             Dict with the token, or an error the caller can fall back from
         """
         try:
-            target_agent = agent_id or self.agent_id
+            live = await self.get_live_agent_config(agent_id)
+            target_agent = live.get("agent_id") if live.get("success") else (agent_id or self.agent_id)
 
             if not target_agent:
                 return {"success": False, "error": "No agent ID configured"}
@@ -344,10 +509,21 @@ class ElevenLabsService:
             if not self.api_key:
                 return {"success": False, "error": "ElevenLabs API key not configured"}
 
+            params: Dict[str, Any] = {"agent_id": target_agent}
+            branch = live.get("branch_id") if live.get("success") else None
+            if branch:
+                params["branch_id"] = branch
+
             response = await self.client.get(
                 "/convai/conversation/token",
-                params={"agent_id": target_agent}
+                params=params,
             )
+            if response.status_code != 200 and "branch_id" in params:
+                params.pop("branch_id", None)
+                response = await self.client.get(
+                    "/convai/conversation/token",
+                    params=params,
+                )
 
             if response.status_code == 200:
                 data = response.json()
@@ -355,7 +531,9 @@ class ElevenLabsService:
                 return {
                     "success": True,
                     "token": data.get("token"),
-                    "agent_id": target_agent
+                    "agent_id": target_agent,
+                    "voice_id": live.get("voice_id") if live.get("success") else self.default_voice_id,
+                    "branch_id": branch,
                 }
 
             error_msg = f"Failed to get conversation token: {response.status_code} {response.text[:200]}"

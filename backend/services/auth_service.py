@@ -7,8 +7,10 @@ Implements National Security compliance with audit logging.
 import secrets
 import hashlib
 import io
+import json
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from jose import jwt, JWTError
 
@@ -108,7 +110,53 @@ class AuthService:
         # Generated transcripts storage (in-memory mapping)
         # key: transcript_id, value: {conversation_id, user_id, file_path, filename, content_type, is_read, generated_at}
         self._generated_transcripts: Dict[str, Dict[str, Any]] = {}
+        self._conversations_path = Path(__file__).resolve().parent.parent / "data" / "chat_sessions.json"
+        self._load_conversations()
     
+    def _load_conversations(self) -> None:
+        """Restore chat history from disk so threads survive restarts."""
+        path = self._conversations_path
+        if not path.exists():
+            return
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(f"Could not load chat sessions: {exc}")
+            return
+
+        conversations = payload.get("conversations") or []
+        for item in conversations:
+            try:
+                if hasattr(Conversation, "model_validate"):
+                    conv = Conversation.model_validate(item)
+                else:
+                    conv = Conversation.parse_obj(item)
+            except Exception as exc:
+                logger.warning(f"Skipping corrupt conversation record: {exc}")
+                continue
+            self._conversations[conv.id] = conv
+            self._user_conversations.setdefault(conv.user_id, [])
+            if conv.id not in self._user_conversations[conv.user_id]:
+                self._user_conversations[conv.user_id].append(conv.id)
+        logger.info(f"Loaded {len(self._conversations)} persisted chat sessions")
+
+    def _save_conversations(self) -> None:
+        path = self._conversations_path
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            records = []
+            for conv in self._conversations.values():
+                if hasattr(conv, "model_dump"):
+                    records.append(conv.model_dump(mode="json"))
+                else:
+                    records.append(json.loads(conv.json()))
+            path.write_text(
+                json.dumps({"conversations": records}, indent=2, default=str),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            logger.warning(f"Could not persist chat sessions: {exc}")
+
     def _get_jwt_secret(self) -> str:
         """Get JWT secret key."""
         return self.settings.SECRET_KEY or self.settings.SESSION_SECRET_KEY
@@ -985,6 +1033,7 @@ class AuthService:
         self._user_conversations[user_id].append(conv_id)
         
         logger.info(f"Created conversation {conv_id} for user {user_id}")
+        self._save_conversations()
         return {
             "success": True,
             "conversation_id": conv_id,
@@ -1022,6 +1071,7 @@ class AuthService:
         if conversation.title == "New Conversation" and role == "user":
             conversation.title = content[:50] + ("..." if len(content) > 50 else "")
         
+        self._save_conversations()
         return {"success": True, "message_id": message["id"]}    
 
     
@@ -1054,16 +1104,17 @@ class AuthService:
             if conv and (include_archived or not conv.is_archived):
                 preview = ""
                 if conv.messages:
-                    first_msg = conv.messages[0]
-                    preview = first_msg["content"][:100] + ("..." if len(first_msg["content"]) > 100 else "")
+                    last_msg = conv.messages[-1]
+                    preview = last_msg["content"][:100] + ("..." if len(last_msg["content"]) > 100 else "")
                 
                 summaries.append({
                     "id": conv.id,
                     "title": conv.title,
                     "preview": preview,
+                    "last_message_preview": preview,
                     "message_count": len(conv.messages),
                     "created_at": conv.created_at.isoformat(),
-                    "updated_at": conv.updated_at.isoformat()
+                    "updated_at": conv.updated_at.isoformat(),
                 })
         
         # Sort by updated_at descending
@@ -1080,6 +1131,7 @@ class AuthService:
         conv_obj = self._conversations.get(conversation_id)
         if conv_obj:
             conv_obj.is_archived = True
+            self._save_conversations()
             return {"success": True}
         return {"success": False, "error": "Conversation could not be archived"}
     

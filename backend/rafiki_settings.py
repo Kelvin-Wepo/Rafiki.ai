@@ -7,11 +7,12 @@ import os
 from pathlib import Path
 from typing import Optional
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
-# Get the path to the .env file (in parent directory)
-ENV_FILE = Path(__file__).parent.parent / ".env"
+# Repo-root .env and backend/.env (local keys live in the latter).
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+BACKEND_ENV_FILE = Path(__file__).resolve().parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -38,9 +39,9 @@ class Settings(BaseSettings):
     
     # ElevenLabs Conversational AI
     ELEVENLABS_API_KEY: str = ""
-    ELEVENLABS_AGENT_ID: str = "agent_8201m28ec9h6fs3vwcvtg1dvnrzq"
+    ELEVENLABS_AGENT_ID: str = ""
     ELEVENLABS_BRANCH_ID: str = ""
-    ELEVENLABS_VOICE_ID: str = "jqcCZkN6Knx8BJ5TBdYR"
+    ELEVENLABS_VOICE_ID: str = ""
 
     # WhatsApp Business Cloud API
     WHATSAPP_ACCESS_TOKEN: str = ""
@@ -141,11 +142,12 @@ class Settings(BaseSettings):
         """Get the base directory of the project"""
         return Path(__file__).parent.parent
     
-    class Config:
-        env_file = str(Path(__file__).parent.parent / ".env")
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra fields from .env
+    model_config = SettingsConfigDict(
+        env_file=(str(ENV_FILE), str(BACKEND_ENV_FILE)),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=True,
+    )
     
     @property
     def cors_origins_list(self) -> list[str]:
@@ -153,10 +155,32 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
 
+_settings_mtime: float = -1.0
+
+
+def _env_mtime() -> float:
+    stamp = 0.0
+    for path in (ENV_FILE, BACKEND_ENV_FILE):
+        try:
+            stamp = max(stamp, path.stat().st_mtime)
+        except OSError:
+            continue
+    return stamp
+
+
 @lru_cache()
-def get_settings() -> Settings:
-    """Get cached settings instance."""
+def _load_settings() -> Settings:
     return Settings()
+
+
+def get_settings() -> Settings:
+    """Reload .env when it changes so a new ElevenLabs key/agent/voice is picked up."""
+    global _settings_mtime
+    current = _env_mtime()
+    if current != _settings_mtime:
+        _load_settings.cache_clear()
+        _settings_mtime = current
+    return _load_settings()
 
 
 # Supported agencies (top-level)

@@ -54,6 +54,38 @@ class VoicesResponse(BaseModel):
 
 
 @router.get(
+    "/config",
+    summary="Live ElevenLabs agent config",
+    description="Return the current API-key agent, voice, and branch from ElevenLabs (not a hardcoded ID)",
+)
+async def get_runtime_config():
+    """Dashboard voice mode loads this at runtime so dashboard edits apply immediately."""
+    result = await elevenlabs_service.get_live_agent_config(force=True)
+    if not result.get("success"):
+        from rafiki_settings import get_settings
+        settings = get_settings()
+        return {
+            "success": False,
+            "error": result.get("error", "ElevenLabs is not configured"),
+            "configured": bool(settings.ELEVENLABS_API_KEY),
+            "agent_id": settings.ELEVENLABS_AGENT_ID or None,
+            "voice_id": settings.ELEVENLABS_VOICE_ID or None,
+            "branch_id": settings.ELEVENLABS_BRANCH_ID or None,
+        }
+    return {
+        "success": True,
+        "configured": True,
+        "agent_id": result.get("agent_id"),
+        "name": result.get("name"),
+        "voice_id": result.get("voice_id"),
+        "tts_model": result.get("tts_model"),
+        "branch_id": result.get("branch_id"),
+        "first_message": result.get("first_message"),
+        "language": result.get("language"),
+    }
+
+
+@router.get(
     "/signed-url",
     response_model=SignedUrlResponse,
     summary="Get signed URL for ElevenLabs agent",
@@ -214,13 +246,18 @@ async def get_agent_info(
     description="Check if ElevenLabs service is configured and accessible"
 )
 async def health_check():
-    """Check ElevenLabs service health."""
+    """Check ElevenLabs service health against the live agent, not stale defaults."""
     from rafiki_settings import get_settings
     settings = get_settings()
-    
+    live = await elevenlabs_service.get_live_agent_config()
+
     return {
-        "status": "ok",
+        "status": "ok" if live.get("success") else "degraded",
         "configured": bool(settings.ELEVENLABS_API_KEY),
-        "agent_id": settings.ELEVENLABS_AGENT_ID,
-        "voice_id": settings.ELEVENLABS_VOICE_ID
+        "env_agent_id": settings.ELEVENLABS_AGENT_ID or None,
+        "agent_id": live.get("agent_id") or settings.ELEVENLABS_AGENT_ID,
+        "voice_id": live.get("voice_id") or settings.ELEVENLABS_VOICE_ID,
+        "branch_id": live.get("branch_id") or settings.ELEVENLABS_BRANCH_ID or None,
+        "name": live.get("name"),
+        "error": None if live.get("success") else live.get("error"),
     }
