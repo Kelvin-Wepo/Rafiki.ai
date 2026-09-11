@@ -308,7 +308,6 @@ function DashboardInner() {
   const [view, setView] = useState<ViewId>('dashboard');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(
     null
   );
@@ -489,7 +488,6 @@ function DashboardInner() {
           return;
         }
 
-        setSessionId(data.session_id);
         setLastReply(data.response || null);
         setLanguage(lang);
         clearPendingService();
@@ -521,7 +519,6 @@ function DashboardInner() {
           method: 'POST',
         });
         const startData = await startRes.json();
-        setSessionId(startData.session_id);
 
         if (startData.audio_base64) {
           playAudio(startData.audio_base64, startData.audio_mime || 'audio/mpeg');
