@@ -71,6 +71,7 @@ async def get_runtime_config():
             "agent_id": settings.ELEVENLABS_AGENT_ID or None,
             "voice_id": settings.ELEVENLABS_VOICE_ID or None,
             "branch_id": settings.ELEVENLABS_BRANCH_ID or None,
+            "api_key_hint": elevenlabs_service.api_key_hint,
         }
     return {
         "success": True,
@@ -82,6 +83,7 @@ async def get_runtime_config():
         "branch_id": result.get("branch_id"),
         "first_message": result.get("first_message"),
         "language": result.get("language"),
+        "api_key_hint": elevenlabs_service.api_key_hint,
     }
 
 
@@ -259,5 +261,6 @@ async def health_check():
         "voice_id": live.get("voice_id") or settings.ELEVENLABS_VOICE_ID,
         "branch_id": live.get("branch_id") or settings.ELEVENLABS_BRANCH_ID or None,
         "name": live.get("name"),
+        "api_key_hint": elevenlabs_service.api_key_hint,
         "error": None if live.get("success") else live.get("error"),
     }

@@ -170,7 +170,43 @@ def _env_mtime() -> float:
 
 @lru_cache()
 def _load_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    overlay = _elevenlabs_from_dotenv_files()
+    if overlay:
+        if hasattr(settings, "model_copy"):
+            settings = settings.model_copy(update=overlay)
+        else:
+            for key, value in overlay.items():
+                object.__setattr__(settings, key, value)
+    return settings
+
+
+def _elevenlabs_from_dotenv_files() -> dict:
+    """Prefer committed-local .env values over a stale exported shell key."""
+    try:
+        from dotenv import dotenv_values
+    except ImportError:
+        return {}
+
+    merged: dict[str, str] = {}
+    for path in (ENV_FILE, BACKEND_ENV_FILE):
+        if not path.exists():
+            continue
+        values = dotenv_values(path)
+        for key in (
+            "ELEVENLABS_API_KEY",
+            "ELEVENLABS_AGENT_ID",
+            "ELEVENLABS_BRANCH_ID",
+            "ELEVENLABS_VOICE_ID",
+        ):
+            raw = values.get(key)
+            value = str(raw).strip() if raw else ""
+            if not value or value.startswith("your-") or "your-" in value:
+                continue
+            if key == "ELEVENLABS_API_KEY" and not value.startswith("sk_"):
+                continue
+            merged[key] = value
+    return merged
 
 
 def get_settings() -> Settings:

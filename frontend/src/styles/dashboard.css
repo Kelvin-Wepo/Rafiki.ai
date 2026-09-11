@@ -529,13 +529,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 128px;
-  height: 128px;
+  position: relative;
+  width: 148px;
+  height: 148px;
   margin: 0 auto 12px;
   border-radius: 50%;
   background: var(--rd-tint);
   border: 1px solid #dbe5dc;
   overflow: hidden;
+}
+
+.rd-assistant-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .rd-assistant-copy {
@@ -1353,10 +1363,20 @@
 
 .rd-chat-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 16px 18px 12px;
   border-bottom: 1px solid var(--rd-border);
+}
+
+.rd-chat-avatar {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--rd-tint);
+  border: 1px solid #dbe5dc;
 }
 
 .rd-chat-head h1 {

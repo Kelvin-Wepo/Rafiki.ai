@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Mic, Plus, Send } from 'lucide-react';
 import type { ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
 
@@ -31,6 +31,7 @@ interface ChatSectionProps {
   onToggleVoice: () => void;
   onNewChat: () => void;
   onSelectSession: (id: string) => void;
+  avatar?: ReactNode;
 }
 
 function formatTime(value?: string): string {
@@ -53,6 +54,7 @@ export function ChatSection({
   onToggleVoice,
   onNewChat,
   onSelectSession,
+  avatar,
 }: ChatSectionProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -115,6 +117,7 @@ export function ChatSection({
 
       <div className="rd-chat-thread">
         <header className="rd-chat-head">
+          {avatar && <div className="rd-chat-avatar">{avatar}</div>}
           <button
             type="button"
             className="rd-chat-sessions-toggle"

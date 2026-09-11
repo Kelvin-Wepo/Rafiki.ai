@@ -157,6 +157,15 @@ class ElevenLabsService:
         return self.settings.ELEVENLABS_API_KEY or ""
 
     @property
+    def api_key_hint(self) -> str:
+        key = self.api_key
+        if not key:
+            return ""
+        if len(key) < 10:
+            return "configured"
+        return f"{key[:5]}…{key[-4:]}"
+
+    @property
     def agent_id(self) -> str:
         return (self.settings.ELEVENLABS_AGENT_ID or "").strip()
 
@@ -383,30 +392,25 @@ class ElevenLabsService:
             return []
 
     async def resolve_agent_id(self, agent_id: Optional[str] = None) -> str:
-        """Prefer an explicit ID; otherwise the newest Rafiki agent on this API key."""
-        requested = (agent_id or "").strip()
+        """Use the requested or configured agent; only list the account if none is set."""
+        requested = (agent_id or self.agent_id or "").strip()
         if requested:
             return requested
 
         agents = await self.list_convai_agents()
-        if agents:
-            def _updated(item: Dict[str, Any]) -> int:
-                return int(item.get("created_at_unix_secs") or 0)
+        if not agents:
+            return ""
 
-            newest = sorted(agents, key=_updated, reverse=True)
-            rafiki = [
-                item for item in newest
-                if "rafiki" in str(item.get("name") or "").lower()
-            ]
-            pick = (rafiki or newest)[0]
-            resolved = str(pick.get("agent_id") or pick.get("id") or "").strip()
-            if resolved and resolved != self.agent_id:
-                logger.info(
-                    f"Using live ElevenLabs agent {resolved} ({pick.get('name')}) "
-                    f"instead of configured {self.agent_id or 'none'}"
-                )
-            return resolved or self.agent_id
-        return self.agent_id
+        def _created(item: Dict[str, Any]) -> int:
+            return int(item.get("created_at_unix_secs") or 0)
+
+        newest = sorted(agents, key=_created, reverse=True)
+        rafiki = [
+            item for item in newest
+            if "rafiki" in str(item.get("name") or "").lower()
+        ]
+        pick = (rafiki or newest)[0]
+        return str(pick.get("agent_id") or pick.get("id") or "").strip()
 
     async def get_live_agent_config(self, agent_id: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
         """Fetch the published agent from ElevenLabs so voice/prompt stay in sync."""

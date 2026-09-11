@@ -46,6 +46,7 @@ import useChatSessions from '../../hooks/useChatSessions';
 import { RafikiTalkingAvatar } from '../avatar';
 import { useAudioAnalyzer } from '../../hooks/useAudioAnalyzer';
 import type { AvatarState } from '../../types/avatar.types';
+import rafikiAvatar from '../../assets/rafiki_avatar.png';
 import {
   chatPathForService,
   clearPendingService,
@@ -658,9 +659,19 @@ function DashboardInner() {
       return;
     }
 
-    // Preferred path: backend mints a token from the current API key / live agent.
+    // Always refresh live agent/key from the server before connecting.
     let conversationToken: string | null = null;
     let agentId = liveAgentId;
+    try {
+      const config = await fetchElevenLabsConfig(API_BASE);
+      setVoiceConfig(config);
+      if (config.agent_id) agentId = config.agent_id;
+      if (config.api_key_hint) {
+        console.log('Voice using ElevenLabs', config.api_key_hint, config.agent_id, config.voice_id);
+      }
+    } catch (err) {
+      console.warn('Could not refresh ElevenLabs config:', err);
+    }
     try {
       const res = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
       if (res.ok) {
@@ -815,7 +826,7 @@ function DashboardInner() {
     [sessions]
   );
 
-  const showRail = view === 'dashboard';
+  const showRail = view === 'dashboard' || view === 'chat';
 
   return (
     <>
@@ -953,6 +964,16 @@ function DashboardInner() {
                 onToggleVoice={handleMicToggle}
                 onNewChat={handleNewChat}
                 onSelectSession={handleSelectChatSession}
+                avatar={
+                  <RafikiTalkingAvatar
+                    state={avatarState}
+                    audioData={avatarState === 'speaking' ? avatarAudioData : undefined}
+                    size="100%"
+                    accessible
+                    showParticles={false}
+                    showWaveform={false}
+                  />
+                }
               />
             )}
 
@@ -1033,6 +1054,11 @@ function DashboardInner() {
                 </div>
                 <div className="rd-card-body">
                   <div className="rd-assistant-figure">
+                    <img
+                      src={rafikiAvatar}
+                      alt="Rafiki"
+                      className="rd-assistant-photo"
+                    />
                     <RafikiTalkingAvatar
                       state={avatarState}
                       audioData={avatarState === 'speaking' ? avatarAudioData : undefined}

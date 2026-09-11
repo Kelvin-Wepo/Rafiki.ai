@@ -26,7 +26,7 @@ services:
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_VOICE_ID
-        value: 21m00Tcm4TlvDq8ikWAM
+        value: WZlYpi1yf6zJhNWXih74
       - key: ELEVENLABS_AGENT_ID
         sync: false
       - key: ELEVENLABS_BRANCH_ID

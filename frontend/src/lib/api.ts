@@ -311,6 +311,7 @@ export interface ElevenLabsConfig {
   branch_id?: string;
   first_message?: string;
   language?: string;
+  api_key_hint?: string;
   error?: string;
 }
 
