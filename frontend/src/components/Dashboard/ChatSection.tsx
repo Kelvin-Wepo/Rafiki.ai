@@ -31,6 +31,12 @@ interface ChatSectionProps {
   onSelectSession: (id: string) => void;
   onOpenVoice: () => void;
   avatar: ReactNode;
+  serviceLabel?: string | null;
+  receiptRef?: string | null;
+  paymentPending?: boolean;
+  downloadingReceipt?: boolean;
+  onDownloadReceipt?: () => void;
+  onOpenDocuments?: () => void;
 }
 
 function formatTime(value?: string): string {
@@ -53,6 +59,12 @@ export function ChatSection({
   onSelectSession,
   onOpenVoice,
   avatar,
+  serviceLabel,
+  receiptRef,
+  paymentPending,
+  downloadingReceipt,
+  onDownloadReceipt,
+  onOpenDocuments,
 }: ChatSectionProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -125,8 +137,12 @@ export function ChatSection({
             History
           </button>
           <div className="rd-chat-head-copy">
-            <h1>Chat with {agentName}</h1>
-            <p>Type a message. Switch to Voice if you would rather talk.</p>
+            <h1>{serviceLabel ? serviceLabel : `Chat with ${agentName}`}</h1>
+            <p>
+              {serviceLabel
+                ? 'Answer each question. Rafiki completes the service here — no eCitizen login.'
+                : 'Type a message. Switch to Voice if you would rather talk.'}
+            </p>
           </div>
           <div className="rd-mode-switch" role="tablist" aria-label="Choose Chat or Voice">
             <button type="button" role="tab" aria-selected={true} className="is-active">
@@ -166,6 +182,31 @@ export function ChatSection({
           )}
           <div ref={endRef} />
         </div>
+
+        {(receiptRef || paymentPending) && (
+          <div className="rd-chat-receipt" role="status">
+            {paymentPending && !receiptRef && (
+              <p>Waiting for M-PESA. Enter your PIN on the prompt, then you can download the receipt.</p>
+            )}
+            {receiptRef && (
+              <>
+                <p>Receipt {receiptRef} is ready. Keep it as proof of payment.</p>
+                <div className="rd-chat-receipt-actions">
+                  {onDownloadReceipt && (
+                    <button type="button" className="rd-btn-primary" onClick={onDownloadReceipt} disabled={downloadingReceipt}>
+                      {downloadingReceipt ? 'Downloading…' : 'Download receipt'}
+                    </button>
+                  )}
+                  {onOpenDocuments && (
+                    <button type="button" className="rd-btn-secondary" onClick={onOpenDocuments}>
+                      My Documents
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <form
           className="rd-chat-composer"

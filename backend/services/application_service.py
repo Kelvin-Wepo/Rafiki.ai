@@ -60,6 +60,7 @@ def save_application(
     applicant_data: Dict[str, Any],
     payment_ref: Optional[str] = None,
     amount: Optional[int] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Save a new application record.
@@ -82,12 +83,13 @@ def save_application(
     application = {
         "application_ref": app_ref,
         "session_id": session_id,
+        "user_id": user_id,
         "agency": agency,
         "service": service,
         "status": "pending_payment" if payment_ref else "draft",
         "applicant": {
-            "name": applicant_data.get("name", ""),
-            "id_number": applicant_data.get("id", ""),
+            "name": applicant_data.get("name") or applicant_data.get("owner_name") or "",
+            "id_number": applicant_data.get("id_number") or applicant_data.get("id") or "",
             "phone": applicant_data.get("phone", "") or applicant_data.get("mpesa", ""),
             "email": applicant_data.get("email", ""),
             "county": applicant_data.get("county", ""),

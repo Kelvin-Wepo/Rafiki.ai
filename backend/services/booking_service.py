@@ -500,6 +500,7 @@ def create_agency_booking(
     payment_ref: Optional[str] = None,
     amount: Optional[int] = None,
     appointment_slot: Optional[Dict[str, Any]] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new booking/appointment record for agency workflows.
@@ -518,12 +519,13 @@ def create_agency_booking(
     booking = {
         "booking_ref": booking_ref,
         "session_id": session_id,
+        "user_id": user_id,
         "agency": agency,
         "service": service,
         "status": "pending_payment" if payment_ref else "draft",
         "applicant": {
             "name": applicant_data.get("name", ""),
-            "id_number": applicant_data.get("id", ""),
+            "id_number": applicant_data.get("id_number") or applicant_data.get("id", ""),
             "phone": applicant_data.get("phone", "") or applicant_data.get("mpesa", ""),
             "email": applicant_data.get("email", ""),
             "county": applicant_data.get("county", ""),

@@ -76,6 +76,31 @@ def test_lost_id_completes_without_ecitizen():
     clear_session(sid)
 
 
+def test_passport_apply_payment_is_on_platform():
+    sid, _ = start_service("passport-apply")
+    handle_message(sid, "Jane Wanjiku")
+    handle_message(sid, "12345678")
+    handle_message(sid, "0712345678")
+    handle_message(sid, "01/01/1990")
+    handle_message(sid, "0712345678")
+    reply = handle_message(sid, "yes")
+    state = get_or_create_session(sid)
+    assert state.awaiting_payment is True
+    assert state.payment_amount == 4550
+    assert "eCitizen" not in reply
+    assert "password" not in reply.lower()
+    assert "My Documents" in reply
+    clear_session(sid)
+
+
+def test_match_guided_service_resolves_common_requests():
+    from services.agency_workflows import match_guided_service
+    assert match_guided_service("I want to renew my driving licence") == "ntsa-renew"
+    assert match_guided_service("replace a lost ID") == "id-replace"
+    assert match_guided_service("apply for a passport") == "passport-apply"
+    assert match_guided_service("hello") is None
+
+
 def test_landing_slugs_all_resolve():
     landing = [
         "passport-apply",

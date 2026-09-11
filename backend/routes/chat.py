@@ -162,7 +162,31 @@ async def chat_turn(session_id: str, payload: ChatTurnRequest, user=Depends(get_
     history = conv.get("messages") or []
     await auth.add_message(session_id, "user", text)
     language = "sw" if (payload.language or "").lower().startswith("sw") else "en"
-    reply = await generate_text_reply(text, history, language)
+
+    from routes.agencies import process_workflow_turn
+    from services.agency_workflows import agency_session_for_chat, match_guided_service, start_service, bind_chat_to_agency
+
+    reply = ""
+    agency_sid = agency_session_for_chat(session_id)
+    slug = None if agency_sid else match_guided_service(text)
+    try:
+        if agency_sid:
+            result = await process_workflow_turn(
+                agency_sid, text, user_id=user_id, chat_session_id=session_id
+            )
+            reply = result.get("response") or ""
+        elif slug:
+            agency_sid, reply = start_service(slug, language)
+            bind_chat_to_agency(session_id, agency_sid)
+        else:
+            reply = await generate_text_reply(text, history, language)
+    except Exception as exc:
+        logger.error(f"Chat turn workflow failed: {exc}", exc_info=True)
+        reply = await generate_text_reply(text, history, language)
+
+    if not reply:
+        reply = "Sorry, I could not complete that step. Please try again."
+
     await auth.add_message(session_id, "assistant", reply)
     updated = await auth.get_conversation(session_id, user_id)
     return session_detail(updated or conv)

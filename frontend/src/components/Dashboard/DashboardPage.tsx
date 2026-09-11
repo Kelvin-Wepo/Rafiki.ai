@@ -56,6 +56,15 @@ import {
   titleForService,
 } from '../../lib/guidedServices';
 import { agentMessageText, ensureRafikiAgentId, fetchElevenLabsConfig, type ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
+import {
+  checkAgencyPayment,
+  continueAgencyChat,
+  readAgencySessionId,
+  startAgencyService,
+  writeAgencySessionId,
+  type AgencyChatResponse,
+} from '../../lib/agencyWorkflow';
+import { downloadReceipt } from '../../services/authService';
 import { ChatSection, type ChatBubble } from './ChatSection';
 import { VoiceSection } from './VoiceSection';
 import '../../styles/dashboard.css';
@@ -324,6 +333,11 @@ function DashboardInner() {
   const [voiceConfig, setVoiceConfig] = useState<ElevenLabsRuntimeConfig | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatBubble[]>([]);
   const [isSendingChat, setIsSendingChat] = useState(false);
+  const [agencySessionId, setAgencySessionId] = useState<string | null>(() => readAgencySessionId());
+  const [workflowLabel, setWorkflowLabel] = useState<string | null>(null);
+  const [receiptRef, setReceiptRef] = useState<string | null>(null);
+  const [paymentPending, setPaymentPending] = useState(false);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
   const lastPersistedRef = useRef('');
   const persistVoiceTurnRef = useRef<(sender: 'user' | 'assistant', text: string) => void>(() => {});
 
@@ -453,6 +467,22 @@ function DashboardInner() {
     [analyzeAudioElement, stopAvatarAnalyzing]
   );
 
+  const rememberAgencySession = useCallback((id: string | null) => {
+    setAgencySessionId(id);
+    writeAgencySessionId(id);
+  }, []);
+
+  const applyWorkflowMeta = useCallback((data: AgencyChatResponse) => {
+    if (data.session_id) rememberAgencySession(data.session_id);
+    if (data.service) setWorkflowLabel(data.service);
+    if (data.response) setLastReply(data.response);
+    if (data.application_ref) setReceiptRef(data.application_ref);
+    setPaymentPending(Boolean(data.awaiting_payment));
+    if (data.audio_base64) {
+      playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
+    }
+  }, [playAudio, rememberAgencySession]);
+
   const startGuidedService = useCallback(
     async (slug: string, lang: 'en' | 'sw' = 'en') => {
       if (!isGuidedServiceSlug(slug)) {
@@ -462,51 +492,42 @@ function DashboardInner() {
 
       rememberPendingService(slug);
       setShowLanguageSelector(false);
-      setView('dashboard');
       setDrawerOpen(false);
+      setView('chat');
+      setWorkflowLabel(titleForService(slug));
       setLastReply(`Starting ${titleForService(slug)}…`);
 
       if (conversation.status === 'connected') {
-        const title = titleForService(slug);
-        try {
-          await conversation.sendContextualUpdate(
-            `The user selected "${title}". Guide them through this Kenyan government service end to end. Do not ask for eCitizen username or password.`
-          );
-          await conversation.sendUserMessage(`I need help with ${title}.`);
-        } catch (err) {
-          console.error('Failed to brief the voice agent:', err);
-        }
-        return;
+        void conversation.endSession();
       }
 
       try {
-        const res = await fetch(`${API_BASE}/api/agencies/chat/start-service`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ service: slug, language: lang }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          console.error('Failed to start service:', data);
-          setLastReply(
-            data.detail || data.message || `Could not start ${titleForService(slug)}. Please try again.`
-          );
-          return;
-        }
-
-        setLastReply(data.response || null);
-        setLanguage(lang);
+        let chatId = activeSessionId;
+        if (!chatId) chatId = await createNewSession();
+        const data = await startAgencyService(slug, lang, chatId);
+        applyWorkflowMeta(data);
         clearPendingService();
 
-        if (data.audio_base64) {
-          playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
+        if (data.response) {
+          const updated = await persistMessage('assistant', data.response);
+          if (updated) setChatMessages(bubblesFromSession(updated));
+          else {
+            setChatMessages([
+              {
+                id: `assistant-${Date.now()}`,
+                sender: 'assistant',
+                content: data.response,
+                created_at: new Date().toISOString(),
+              },
+            ]);
+          }
         }
       } catch (err) {
         console.error('Failed to start service:', err);
         setLastReply(`Could not start ${titleForService(slug)}. Check that the assistant is running and try again.`);
       }
     },
-    [playAudio, conversation]
+    [activeSessionId, applyWorkflowMeta, conversation, createNewSession, persistMessage]
   );
 
   const handleLanguageSelect = useCallback(
@@ -547,13 +568,15 @@ function DashboardInner() {
         setLastReply(langData.response || null);
         setLanguage(selectedLang);
         setShowLanguageSelector(false);
+        if (langData.session_id) rememberAgencySession(langData.session_id);
+        else if (startData.session_id) rememberAgencySession(startData.session_id);
       } catch (err) {
         console.error('Failed to start session:', err);
       } finally {
         setIsLanguageLoading(false);
       }
     },
-    [playAudio, pendingService, startGuidedService]
+    [playAudio, pendingService, rememberAgencySession, startGuidedService]
   );
 
   const startedServiceRef = useRef<string | null>(null);
@@ -582,6 +605,18 @@ function DashboardInner() {
             created_at: new Date().toISOString(),
           },
         ]);
+
+        if (agencySessionId) {
+          const data = await continueAgencyChat(agencySessionId, text, activeSessionId);
+          applyWorkflowMeta(data);
+          await persistMessage('user', text);
+          if (data.response) {
+            const updated = await persistMessage('assistant', data.response);
+            if (updated) setChatMessages(bubblesFromSession(updated));
+          }
+          return;
+        }
+
         const updated = await sendTurn(text, language || 'en');
         setChatMessages(bubblesFromSession(updated));
         const reply = bubblesFromSession(updated).filter((item) => item.sender === 'assistant').pop();
@@ -601,7 +636,7 @@ function DashboardInner() {
         setIsSendingChat(false);
       }
     },
-    [language, sendTurn]
+    [activeSessionId, agencySessionId, applyWorkflowMeta, language, persistMessage, sendTurn]
   );
 
   /** Sends a prompt and opens the chat thread so the user sees the reply. */
@@ -753,6 +788,10 @@ function DashboardInner() {
   }, []);
 
   const handleNewChat = useCallback(async () => {
+    rememberAgencySession(null);
+    setWorkflowLabel(null);
+    setReceiptRef(null);
+    setPaymentPending(false);
     const id = await createNewSession();
     if (id) {
       const session = await loadSession(id);
@@ -763,7 +802,7 @@ function DashboardInner() {
     }
     setView('chat');
     setDrawerOpen(false);
-  }, [createNewSession, loadSession]);
+  }, [createNewSession, loadSession, rememberAgencySession]);
 
   const handleSelectChatSession = useCallback(
     async (id: string) => {
@@ -771,8 +810,12 @@ function DashboardInner() {
       setSelectedConversation(session);
       setChatMessages(bubblesFromSession(session));
       setView('chat');
+      rememberAgencySession(null);
+      setWorkflowLabel(null);
+      setReceiptRef(null);
+      setPaymentPending(false);
     },
-    [loadSession]
+    [loadSession, rememberAgencySession]
   );
 
   useEffect(() => {
@@ -799,6 +842,46 @@ function DashboardInner() {
       setView('chat');
     }
   }, [location.pathname, searchParams]);
+
+  useEffect(() => {
+    if (!agencySessionId || !paymentPending) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const status = await checkAgencyPayment(agencySessionId);
+        if (cancelled) return;
+        if (status.application_ref) setReceiptRef(status.application_ref);
+        if (status.paid) setPaymentPending(false);
+      } catch (err) {
+        console.warn('Payment status check failed:', err);
+      }
+    };
+    void tick();
+    const timer = window.setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [agencySessionId, paymentPending]);
+
+  const handleDownloadReceipt = useCallback(async () => {
+    if (!receiptRef) return;
+    setDownloadingReceipt(true);
+    try {
+      const blob = await downloadReceipt(receiptRef);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rafiki_receipt_${receiptRef}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download receipt:', err);
+      alert('Could not download the receipt yet. Open My Documents after payment is confirmed.');
+    } finally {
+      setDownloadingReceipt(false);
+    }
+  }, [receiptRef]);
 
   // Close the mobile drawer with Escape.
   useEffect(() => {
@@ -987,6 +1070,12 @@ function DashboardInner() {
                 onSelectSession={handleSelectChatSession}
                 onOpenVoice={openVoice}
                 avatar={talkingAvatar}
+                serviceLabel={workflowLabel}
+                receiptRef={receiptRef}
+                paymentPending={paymentPending}
+                downloadingReceipt={downloadingReceipt}
+                onDownloadReceipt={handleDownloadReceipt}
+                onOpenDocuments={() => setView('documents')}
               />
             )}
 

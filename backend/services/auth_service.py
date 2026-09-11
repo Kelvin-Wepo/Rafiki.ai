@@ -1349,11 +1349,11 @@ class AuthService:
 
         receipts = []
         for application in applications:
-            if self._matches_user_record(user, application.get('applicant', {})):
-                receipts.append(self._receipt_summary(application, 'application'))
+            if application.get("user_id") == user.id or self._matches_user_record(user, application.get("applicant", {})):
+                receipts.append(self._receipt_summary(application, "application"))
         for booking in bookings:
-            if self._matches_user_record(user, booking.get('applicant', {})):
-                receipts.append(self._receipt_summary(booking, 'booking'))
+            if booking.get("user_id") == user.id or self._matches_user_record(user, booking.get("applicant", {})):
+                receipts.append(self._receipt_summary(booking, "booking"))
 
         receipts.sort(key=lambda item: item.get('created_at', ''), reverse=True)
 
@@ -1408,8 +1408,8 @@ class AuthService:
         if not record:
             return {'success': False, 'error': 'Receipt not found'}
 
-        if not self._matches_user_record(user, record.get('applicant', {})):
-            return {'success': False, 'error': 'Receipt not found'}
+        if record.get("user_id") != user.id and not self._matches_user_record(user, record.get("applicant", {})):
+            return {"success": False, "error": "Receipt not found"}
 
         content = self._build_receipt_pdf(record, record_type)
         filename = f"rafiki_receipt_{receipt_ref}.pdf"

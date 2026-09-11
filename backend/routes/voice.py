@@ -643,8 +643,8 @@ Response to analyze: "{text}"
 Return JSON with:
 {{
     "automation": {{
-        "action": "navigate/autofill/click/none",
-        "target_url": "eCitizen URL if navigating",
+        "action": "none",
+        "target_url": null,
         "form_data": {{}},
         "element_to_click": null
     }},
@@ -656,11 +656,8 @@ Return JSON with:
     }}
 }}
 
-eCitizen URLs:
-- Passport: https://accounts.ecitizen.go.ke/en/services/passport
-- National ID: https://accounts.ecitizen.go.ke/en/services/id
-- Driving License: https://accounts.ecitizen.go.ke/en/services/dl
-- Good Conduct: https://accounts.ecitizen.go.ke/en/services/goodconduct"""
+Rafiki is standalone. Never navigate to eCitizen or any government login page.
+Always keep action as "none"."""
 
         import json
         response = gemini_service._model.generate_content(analysis_prompt)

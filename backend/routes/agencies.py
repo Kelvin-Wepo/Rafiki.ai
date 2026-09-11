@@ -8,7 +8,7 @@ Mount this in your backend/main.py with:
     app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header
 from pydantic import BaseModel
 from typing import Optional
 import uuid
@@ -24,6 +24,8 @@ from services.agency_workflows import (
     start_service,
     list_guided_services,
     GUIDED_SERVICES,
+    bind_chat_to_agency,
+    agency_session_for_chat,
 )
 from services.paystack_service import (
     initiate_stk_push,
@@ -87,6 +89,7 @@ async def generate_tts_audio(text: str, language: str = "en", session_id: Option
 class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     message: str
+    chat_session_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -102,12 +105,17 @@ class ChatResponse(BaseModel):
     payment_mpesa: Optional[str] = None     # M-PESA number for STK push
     audio_base64: Optional[str] = None      # TTS audio as base64
     audio_mime: str = "audio/mpeg"          # Audio MIME type
+    application_ref: Optional[str] = None
+    payment_ref: Optional[str] = None
+    receipt_available: bool = False
+    payment_demo: bool = False
 
 
 class StartServiceRequest(BaseModel):
     service: str
     language: str = "en"
     session_id: Optional[str] = None
+    chat_session_id: Optional[str] = None
 
 
 class PaymentInitRequest(BaseModel):
@@ -221,98 +229,24 @@ async def send_booking_sms(phone: str, service: str, details: dict, language: st
         logger.error(f"SMS send error: {e}")
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-@router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
-    """
-    Main conversational endpoint.
-    Send a message and receive Rafiki's next response.
-    
-    - If session_id is not provided, a new session is created (WELCOME flow).
-    - Send 'menu' at any point to return to the main menu.
-    - When awaiting_payment=True, automatically initiates STK push via Paystack.
-    """
-    session_id = req.session_id or str(uuid.uuid4())
-
+async def _user_id_from_header(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return None
     try:
-        # On first contact (no session yet), trigger welcome
-        if not req.session_id:
-            response_text = handle_message(session_id, "__new_session__")
-        else:
-            response_text = handle_message(session_id, req.message)
-    except Exception as e:
-        logger.error(f"Workflow error for session {session_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred. Please try again.")
+        from services.auth_service import get_auth_service
+        info = await get_auth_service().validate_token(parts[1])
+        return (info or {}).get("user_id")
+    except Exception:
+        return None
 
+
+def _chat_payload(session_id: str, response_text: str, audio_base64: Optional[str] = None, extra: Optional[dict] = None) -> ChatResponse:
     state = get_or_create_session(session_id)
-
-    # Auto-trigger Paystack STK push when payment is awaited
-    if state.awaiting_payment and state.payment_amount:
-        mpesa_number = state.payment_mpesa or state.data.get("mpesa", "")
-        service_name = state.payment_description or state.service or state.agency or "Government Service"
-        
-        if mpesa_number:
-            try:
-                reference = generate_reference(session_id, service_name)
-                state.payment_ref = reference
-                
-                # Save application/booking record BEFORE payment
-                is_booking = "Test" in service_name or "Appointment" in service_name or "Booking" in service_name
-                
-                if is_booking:
-                    # Create booking record
-                    booking = create_agency_booking(
-                        session_id=session_id,
-                        agency=state.agency or "NTSA",
-                        service=service_name,
-                        applicant_data=state.data,
-                        payment_ref=reference,
-                        amount=state.payment_amount,
-                    )
-                    logger.info(f"Booking created: {booking.get('booking_ref')}")
-                else:
-                    # Create application record
-                    application = save_application(
-                        session_id=session_id,
-                        agency=state.agency or "NTSA",
-                        service=service_name,
-                        applicant_data=state.data,
-                        payment_ref=reference,
-                        amount=state.payment_amount,
-                    )
-                    logger.info(f"Application saved: {application.get('application_ref')}")
-                
-                # Initiate the STK push via Paystack
-                payment_result = await initiate_stk_push(
-                    phone=mpesa_number,
-                    amount_ksh=state.payment_amount,
-                    email=f"user_{session_id[:8]}@rafiki.ai",
-                    reference=reference,
-                    description=f"Rafiki.ai - {service_name}",
-                )
-                
-                if payment_result.get("success"):
-                    logger.info(f"STK push sent: session={session_id}, ref={reference}, amount={state.payment_amount}")
-                    # Send SMS notification for payment initiation (in session language)
-                    await send_payment_initiated_sms(
-                        phone=mpesa_number,
-                        service=service_name,
-                        amount=state.payment_amount,
-                        reference=reference,
-                        language=state.language
-                    )
-                else:
-                    logger.warning(f"STK push failed: {payment_result.get('message')}")
-                    
-            except Exception as e:
-                logger.error(f"Payment initiation error: {e}", exc_info=True)
-
-    # Generate TTS audio for the response
-    audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
-
+    extra = extra or {}
+    receipt = extra.get("application_ref") or state.application_ref or extra.get("payment_ref") or state.payment_ref
     return ChatResponse(
         session_id=session_id,
         response=response_text,
@@ -326,7 +260,141 @@ async def chat(req: ChatRequest):
         payment_mpesa=state.payment_mpesa,
         audio_base64=audio_base64,
         audio_mime="audio/mpeg",
+        application_ref=extra.get("application_ref") or state.application_ref,
+        payment_ref=extra.get("payment_ref") or state.payment_ref,
+        receipt_available=bool(receipt),
+        payment_demo=bool(extra.get("payment_demo")),
     )
+
+
+async def maybe_initiate_workflow_payment(session_id: str, user_id: Optional[str] = None) -> dict:
+    """Save the application and send STK when the workflow asks for payment."""
+    state = get_or_create_session(session_id)
+    if not (state.awaiting_payment and state.payment_amount):
+        return {
+            "application_ref": state.application_ref,
+            "payment_ref": state.payment_ref,
+            "payment_demo": False,
+        }
+
+    mpesa_number = state.payment_mpesa or state.data.get("mpesa", "")
+    service_name = state.payment_description or state.service or state.agency or "Government Service"
+    extra = {
+        "application_ref": state.application_ref,
+        "payment_ref": state.payment_ref,
+        "payment_demo": False,
+    }
+    if not mpesa_number:
+        return extra
+
+    try:
+        reference = generate_reference(session_id, service_name)
+        state.payment_ref = reference
+        extra["payment_ref"] = reference
+        is_booking = "Test" in service_name or "Appointment" in service_name or "Booking" in service_name
+
+        if is_booking:
+            booking = create_agency_booking(
+                session_id=session_id,
+                agency=state.agency or "NTSA",
+                service=service_name,
+                applicant_data=state.data,
+                payment_ref=reference,
+                amount=state.payment_amount,
+                user_id=user_id,
+            )
+            extra["application_ref"] = booking.get("booking_ref")
+            logger.info(f"Booking created: {booking.get('booking_ref')}")
+        else:
+            application = save_application(
+                session_id=session_id,
+                agency=state.agency or "NTSA",
+                service=service_name,
+                applicant_data=state.data,
+                payment_ref=reference,
+                amount=state.payment_amount,
+                user_id=user_id,
+            )
+            extra["application_ref"] = application.get("application_ref")
+            logger.info(f"Application saved: {application.get('application_ref')}")
+
+        state.application_ref = extra.get("application_ref")
+        payment_result = await initiate_stk_push(
+            phone=mpesa_number,
+            amount_ksh=state.payment_amount,
+            email=f"user_{session_id[:8]}@rafiki.ai",
+            reference=reference,
+            description=f"Rafiki.ai - {service_name}",
+        )
+        extra["payment_demo"] = bool(payment_result.get("demo"))
+        if payment_result.get("demo"):
+            mark_application_paid(reference, "RAFIKI-STANDALONE")
+            mark_agency_booking_paid(reference, "RAFIKI-STANDALONE")
+
+        if payment_result.get("success"):
+            logger.info(f"STK push sent: session={session_id}, ref={reference}, amount={state.payment_amount}")
+            await send_payment_initiated_sms(
+                phone=mpesa_number,
+                service=service_name,
+                amount=state.payment_amount,
+                reference=reference,
+                language=state.language
+            )
+        else:
+            logger.warning(f"STK push failed: {payment_result.get('message')}")
+    except Exception as e:
+        logger.error(f"Payment initiation error: {e}", exc_info=True)
+
+    return extra
+
+
+async def process_workflow_turn(
+    session_id: Optional[str],
+    message: str,
+    user_id: Optional[str] = None,
+    chat_session_id: Optional[str] = None,
+    new_session: bool = False,
+) -> dict:
+    is_new = new_session or not session_id
+    session_id = session_id or str(uuid.uuid4())
+    response_text = handle_message(session_id, "__new_session__" if is_new else message)
+    extra = await maybe_initiate_workflow_payment(session_id, user_id)
+    if chat_session_id:
+        bind_chat_to_agency(chat_session_id, session_id)
+    return {"session_id": session_id, "response": response_text, **extra}
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
+    """
+    Main conversational endpoint.
+    Send a message and receive Rafiki's next response.
+    
+    - If session_id is not provided, a new session is created (WELCOME flow).
+    - Send 'menu' at any point to return to the main menu.
+    - When awaiting_payment=True, automatically initiates STK push via Paystack.
+    """
+    user_id = await _user_id_from_header(authorization)
+    try:
+        result = await process_workflow_turn(
+            req.session_id,
+            req.message,
+            user_id=user_id,
+            chat_session_id=req.chat_session_id,
+            new_session=not req.session_id,
+        )
+    except Exception as e:
+        logger.error(f"Workflow error for session {req.session_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred. Please try again.")
+
+    session_id = result["session_id"]
+    state = get_or_create_session(session_id)
+    audio_base64 = await generate_tts_audio(result["response"], state.language, session_id)
+    return _chat_payload(session_id, result["response"], audio_base64, result)
 
 
 @router.post("/chat/start", response_model=ChatResponse)
@@ -341,21 +409,7 @@ async def start_chat():
 
     state.voice_id = await elevenlabs_service.resolve_tts_voice_id(state.voice_id)
     audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
-
-    return ChatResponse(
-        session_id=session_id,
-        response=response_text,
-        step=state.step,
-        agency=state.agency,
-        service=state.service,
-        language=state.language,
-        awaiting_payment=state.awaiting_payment,
-        payment_amount=state.payment_amount,
-        payment_description=state.payment_description,
-        payment_mpesa=state.payment_mpesa,
-        audio_base64=audio_base64,
-        audio_mime="audio/mpeg",
-    )
+    return _chat_payload(session_id, response_text, audio_base64)
 
 
 @router.get("/services")
@@ -365,7 +419,7 @@ async def list_services():
 
 
 @router.post("/chat/start-service", response_model=ChatResponse)
-async def start_guided_service(req: StartServiceRequest):
+async def start_guided_service(req: StartServiceRequest, authorization: Optional[str] = Header(None)):
     """
     Start (or restart) a session already on the requested agency service.
     Skips language selection, disability screening, and eCitizen login.
@@ -382,24 +436,14 @@ async def start_guided_service(req: StartServiceRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    if req.chat_session_id:
+        bind_chat_to_agency(req.chat_session_id, session_id)
+
     state = get_or_create_session(session_id)
     state.voice_id = await elevenlabs_service.resolve_tts_voice_id(state.voice_id)
     audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
-
-    return ChatResponse(
-        session_id=session_id,
-        response=response_text,
-        step=state.step,
-        agency=state.agency,
-        service=state.service,
-        language=state.language,
-        awaiting_payment=state.awaiting_payment,
-        payment_amount=state.payment_amount,
-        payment_description=state.payment_description,
-        payment_mpesa=state.payment_mpesa,
-        audio_base64=audio_base64,
-        audio_mime="audio/mpeg",
-    )
+    extra = await maybe_initiate_workflow_payment(session_id, await _user_id_from_header(authorization))
+    return _chat_payload(session_id, response_text, audio_base64, extra)
 
 
 @router.delete("/chat/{session_id}")
@@ -521,7 +565,13 @@ async def payment_status(session_id: str):
             )
             # Mark SMS as sent to avoid duplicates
             state.data["sms_sent"] = True
-    
+
+    result["application_ref"] = state.application_ref
+    result["payment_ref"] = state.payment_ref
+    if result.get("paid") and not state.data.get("marked_paid"):
+        mark_application_paid(state.payment_ref, result.get("transaction_id") or "RAFIKI-STANDALONE")
+        mark_agency_booking_paid(state.payment_ref, result.get("transaction_id") or "RAFIKI-STANDALONE")
+        state.data["marked_paid"] = True
     return result
 
 

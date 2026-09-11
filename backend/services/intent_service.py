@@ -498,16 +498,13 @@ class IntentDetector:
             return {
                 "name": "KRA Nil Returns Filing",
                 "steps": [
-                    "Confirm user has KRA PIN",
-                    "Explain nil returns eligibility",
-                    "Navigate to iTax portal",
-                    "Guide through login",
-                    "Guide through nil returns form",
-                    "Confirm submission",
-                    "Offer SMS confirmation"
+                    "Confirm the user has a KRA PIN",
+                    "Collect the filing year in Rafiki chat",
+                    "Submit nil returns on Rafiki",
+                    "Offer a downloadable receipt and SMS confirmation"
                 ],
-                "urls": ["https://accounts.ecitizen.go.ke/en/services/itax"],
-                "requires_authentication": True,
+                "urls": [],
+                "requires_authentication": False,
                 "sms_confirmation": True
             }
         
@@ -522,7 +519,7 @@ class IntentDetector:
                     "Confirm new PIN delivery",
                     "Offer SMS confirmation"
                 ],
-                "urls": ["https://accounts.ecitizen.go.ke/en/services/pin-recovery"],
+                "urls": [],
                 "requires_authentication": False,
                 "sms_confirmation": True
             }
@@ -538,7 +535,7 @@ class IntentDetector:
                     "Confirm PIN assignment",
                     "Offer SMS PIN confirmation"
                 ],
-                "urls": ["https://accounts.ecitizen.go.ke/en/services/pin-registration"],
+                "urls": [],
                 "requires_authentication": False,
                 "sms_confirmation": True
             }
@@ -547,13 +544,12 @@ class IntentDetector:
             return {
                 "name": "iTax Portal Assistance",
                 "steps": [
-                    "Determine specific issue",
-                    "Provide login guidance",
-                    "Offer step-by-step help",
-                    "Confirm issue resolved"
+                    "Determine the specific issue",
+                    "Complete the KRA workflow inside Rafiki",
+                    "Confirm the issue is resolved"
                 ],
-                "urls": ["https://itax.kra.go.ke"],
-                "requires_authentication": True,
+                "urls": [],
+                "requires_authentication": False,
                 "sms_confirmation": False
             }
         
