@@ -315,6 +315,22 @@ export const ttsApi = {
   },
 
   /**
+   * Mint a WebRTC conversation token for the Rafiki agent
+   * GET /elevenlabs/conversation-token
+   */
+  getConversationToken: async (agentId?: string): Promise<{
+    success: boolean;
+    token?: string;
+    agent_id?: string;
+    error?: string;
+  }> => {
+    const response = await apiClient.get('/elevenlabs/conversation-token', {
+      params: agentId ? { agent_id: agentId } : undefined,
+    });
+    return response.data;
+  },
+
+  /**
    * Text-to-speech conversion
    * POST /elevenlabs/tts
    */

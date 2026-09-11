@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     
     # ElevenLabs Conversational AI
     ELEVENLABS_API_KEY: str = ""
-    ELEVENLABS_AGENT_ID: str = ""
+    ELEVENLABS_AGENT_ID: str = "agent_8201m28ec9h6fs3vwcvtg1dvnrzq"
     ELEVENLABS_BRANCH_ID: str = ""
     ELEVENLABS_VOICE_ID: str = "jqcCZkN6Knx8BJ5TBdYR"
 

@@ -862,17 +862,25 @@ class ElevenLabsService:
             
             if response.status_code == 200:
                 data = response.json()
+                cfg = data.get("conversation_config") or {}
+                tts_cfg = cfg.get("tts") or {}
+                agent_cfg = cfg.get("agent") or {}
+                agent_voice_id = tts_cfg.get("voice_id") or self.default_voice_id
+                if agent_voice_id:
+                    self.default_voice_id = agent_voice_id
                 return {
                     "success": True,
                     "agent": {
-                        "agent_id": data.get("agent_id"),
+                        "agent_id": data.get("agent_id") or target_agent,
                         "name": data.get("name"),
-                        "conversation_config": data.get("conversation_config", {}),
+                        "first_message": agent_cfg.get("first_message"),
+                        "language": agent_cfg.get("language"),
+                        "conversation_config": cfg,
                         "voice": {
                             "current": self.current_voice_name,
-                            "voice_id": self.default_voice_id,
-                            "available_kenyan_voices": list(self.KENYAN_VOICES.keys())
-                        }
+                            "voice_id": agent_voice_id,
+                            "available_kenyan_voices": list(self.KENYAN_VOICES.keys()),
+                        },
                     }
                 }
             else:

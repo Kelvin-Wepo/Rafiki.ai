@@ -53,10 +53,11 @@ import {
   rememberPendingService,
   titleForService,
 } from '../../lib/guidedServices';
+import { agentMessageText, RAFIKI_ELEVENLABS_AGENT_ID } from '../../lib/elevenlabsAgent';
 import '../../styles/dashboard.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const ELEVENLABS_AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID || '';
+const ELEVENLABS_AGENT_ID = RAFIKI_ELEVENLABS_AGENT_ID;
 
 /* ------------------------------------------------------------------ *
  * Navigation
@@ -302,11 +303,20 @@ function DashboardInner() {
     stopAnalyzing: stopAvatarAnalyzing,
   } = useAudioAnalyzer();
 
-  // ElevenLabs agent — handles STT, reasoning and TTS for voice mode.
+  // ElevenLabs Conversational AI — voice, first message and prompt come from
+  // agent_8201m28ec9h6fs3vwcvtg1dvnrzq in the ElevenLabs dashboard.
   const conversation = useConversation({
-    onConnect: () => console.log('Voice agent connected'),
+    onConnect: () => {
+      console.log('Voice agent connected', ELEVENLABS_AGENT_ID);
+      setIsListening(true);
+    },
     onDisconnect: () => setIsListening(false),
-    onMessage: (message: unknown) => console.log('Voice agent message:', message),
+    onMessage: (message: unknown) => {
+      const parsed = agentMessageText(message);
+      if (parsed?.source === 'ai' && parsed.text) {
+        setLastReply(parsed.text);
+      }
+    },
     onError: (error: unknown) => {
       console.error('Voice agent error:', error);
       setIsListening(false);
@@ -370,6 +380,19 @@ function DashboardInner() {
       setDrawerOpen(false);
       setLastReply(`Starting ${titleForService(slug)}…`);
 
+      if (conversation.status === 'connected') {
+        const title = titleForService(slug);
+        try {
+          await conversation.sendContextualUpdate(
+            `The user selected "${title}". Guide them through this Kenyan government service end to end. Do not ask for eCitizen username or password.`
+          );
+          await conversation.sendUserMessage(`I need help with ${title}.`);
+        } catch (err) {
+          console.error('Failed to brief the voice agent:', err);
+        }
+        return;
+      }
+
       try {
         const res = await fetch(`${API_BASE}/api/agencies/chat/start-service`, {
           method: 'POST',
@@ -398,7 +421,7 @@ function DashboardInner() {
         setLastReply(`Could not start ${titleForService(slug)}. Check that the assistant is running and try again.`);
       }
     },
-    [playAudio]
+    [playAudio, conversation]
   );
 
   const handleLanguageSelect = useCallback(
@@ -463,6 +486,11 @@ function DashboardInner() {
       setChatInput('');
 
       try {
+        if (conversation.status === 'connected') {
+          await conversation.sendUserMessage(message);
+          return;
+        }
+
         const res = await fetch(`${API_BASE}/api/agencies/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -479,7 +507,7 @@ function DashboardInner() {
         console.error('Failed to send message:', err);
       }
     },
-    [sessionId, playAudio]
+    [sessionId, playAudio, conversation]
   );
 
   /** Sends a prompt and returns the user to the dashboard so they see the reply. */
@@ -527,10 +555,12 @@ function DashboardInner() {
     }
 
     // Preferred path: the backend mints a token, so the agent can stay private
-    // and the API key never reaches the browser.
+    // and the API key never reaches the browser. Public agents fall back to agentId.
     let conversationToken: string | null = null;
     try {
-      const res = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
+      const res = await fetch(
+        `${API_BASE}/elevenlabs/conversation-token?agent_id=${encodeURIComponent(ELEVENLABS_AGENT_ID)}`
+      );
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.token) conversationToken = data.token;
@@ -554,10 +584,19 @@ function DashboardInner() {
           : { agentId: ELEVENLABS_AGENT_ID, connectionType: 'webrtc' }
       );
       setIsListening(true);
-    } catch (err) {
-      console.error('Failed to start voice conversation:', err);
-      alert('Could not start voice mode. Please try again.');
-      setIsListening(false);
+    } catch (tokenErr) {
+      console.warn('Token session failed, trying public agent ID:', tokenErr);
+      try {
+        await conversation.startSession({
+          agentId: ELEVENLABS_AGENT_ID,
+          connectionType: 'webrtc',
+        });
+        setIsListening(true);
+      } catch (err) {
+        console.error('Failed to start voice conversation:', err);
+        alert('Could not start voice mode. Please try again.');
+        setIsListening(false);
+      }
     }
   }, [conversation, isVoiceConnected]);
 
