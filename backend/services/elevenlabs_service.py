@@ -43,6 +43,10 @@ class ElevenLabsService:
     """
     
     BASE_URL = "https://api.elevenlabs.io/v1"
+    # Live Rafiki agent on the current account. Do not use the Jua or Wanjiku agents.
+    RAFIKI_AGENT_ID = "agent_8201m28ec9h6fs3vwcvtg1dvnrzq"
+    JUA_AGENT_ID = "agent_5601kydx2f3vetnv3e9yf9tmam58"
+    WANJIKU_AGENT_ID = "agent_0601kbntk14cet68q60vzy6y55v7"
     
     # FREE voices available in ElevenLabs (no subscription required)
     # Note: Library voices (Noah, Aria, etc.) require paid subscription
@@ -391,31 +395,88 @@ class ElevenLabsService:
             logger.warning(f"Could not list convai agents: {exc}")
             return []
 
-    async def resolve_agent_id(self, agent_id: Optional[str] = None) -> str:
-        """Use the requested or configured agent; only list the account if none is set."""
-        requested = (agent_id or self.agent_id or "").strip()
-        if requested:
-            return requested
+    @classmethod
+    def _looks_like_jua(cls, name: str = "", first_message: str = "", agent_id: str = "") -> bool:
+        if agent_id in {cls.JUA_AGENT_ID, cls.WANJIKU_AGENT_ID}:
+            return True
+        blob = f"{name} {first_message}".lower()
+        return bool(re.search(r"\bjua\b", blob))
 
+    async def _agent_identity(self, agent_id: str) -> Dict[str, str]:
+        response = await self.client.get(f"/convai/agents/{agent_id}")
+        if response.status_code != 200:
+            return {"agent_id": agent_id, "name": "", "first_message": ""}
+        data = response.json()
+        agent_cfg = ((data.get("conversation_config") or {}).get("agent") or {})
+        return {
+            "agent_id": data.get("agent_id") or agent_id,
+            "name": str(data.get("name") or ""),
+            "first_message": str(agent_cfg.get("first_message") or ""),
+        }
+
+    async def _pick_rafiki_agent(self) -> str:
+        """Pick the Rafiki agent, never Jua or Wanjiku."""
         agents = await self.list_convai_agents()
-        if not agents:
-            return ""
+        ranked: List[tuple[int, str]] = []
+        for item in agents:
+            aid = str(item.get("agent_id") or item.get("id") or "").strip()
+            name = str(item.get("name") or "")
+            if not aid:
+                continue
+            if self._looks_like_jua(name, agent_id=aid) or "wanjiku" in name.lower():
+                logger.info(f"Skipping non-Rafiki agent {aid}")
+                continue
+            identity = await self._agent_identity(aid)
+            if self._looks_like_jua(identity["name"], identity["first_message"], aid):
+                logger.info(f"Skipping Jua persona agent {aid}")
+                continue
+            if "rafiki" not in identity["name"].lower() and "rafiki" not in name.lower():
+                continue
+            if aid == self.RAFIKI_AGENT_ID:
+                return aid
+            created = int(item.get("created_at_unix_secs") or 0)
+            ranked.append((created, aid))
+        if ranked:
+            ranked.sort(reverse=True)
+            return ranked[0][1]
+        return self.RAFIKI_AGENT_ID
 
-        def _created(item: Dict[str, Any]) -> int:
-            return int(item.get("created_at_unix_secs") or 0)
-
-        newest = sorted(agents, key=_created, reverse=True)
-        rafiki = [
-            item for item in newest
-            if "rafiki" in str(item.get("name") or "").lower()
-        ]
-        pick = (rafiki or newest)[0]
-        return str(pick.get("agent_id") or pick.get("id") or "").strip()
+    async def resolve_agent_id(self, agent_id: Optional[str] = None) -> str:
+        """Use Rafiki (not Jua). Honor an explicit ID only if it is not Jua."""
+        requested = (agent_id or "").strip() or (self.agent_id or "").strip()
+        if requested and not self._looks_like_jua(agent_id=requested):
+            identity = await self._agent_identity(requested)
+            if identity["name"] or identity["first_message"]:
+                if self._looks_like_jua(identity["name"], identity["first_message"], requested):
+                    logger.warning(
+                        f"Configured agent {requested} is the Jua persona; using Rafiki instead"
+                    )
+                else:
+                    return requested
+            elif requested == self.RAFIKI_AGENT_ID:
+                return requested
+        elif requested:
+            logger.warning(
+                f"Configured agent {requested} is the Jua persona; using Rafiki instead"
+            )
+        picked = await self._pick_rafiki_agent()
+        logger.info(f"Resolved ElevenLabs Rafiki agent {picked}")
+        return picked or self.RAFIKI_AGENT_ID
 
     async def get_live_agent_config(self, agent_id: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
         """Fetch the published agent from ElevenLabs so voice/prompt stay in sync."""
         now = time.time()
+        if self._live_agent and self._looks_like_jua(
+            str(self._live_agent.get("name") or ""),
+            str(self._live_agent.get("first_message") or ""),
+            str(self._live_agent.get("agent_id") or ""),
+        ):
+            self._live_agent = None
+            self._live_agent_at = 0.0
+
         target = (agent_id or "").strip()
+        if target and self._looks_like_jua(agent_id=target):
+            target = ""
         if not target:
             if (
                 not force
@@ -439,8 +500,21 @@ class ElevenLabsService:
             return {"success": False, "error": "ElevenLabs API key not configured"}
 
         response = await self.client.get(f"/convai/agents/{target}")
+        if response.status_code == 200:
+            peek = response.json()
+            peek_cfg = ((peek.get("conversation_config") or {}).get("agent") or {})
+            if self._looks_like_jua(
+                str(peek.get("name") or ""),
+                str(peek_cfg.get("first_message") or ""),
+                str(peek.get("agent_id") or target),
+            ):
+                fallback = await self._pick_rafiki_agent()
+                if fallback and fallback != target:
+                    logger.warning(f"Agent {target} is Jua; switching to Rafiki {fallback}")
+                    target = fallback
+                    response = await self.client.get(f"/convai/agents/{target}")
         if response.status_code != 200:
-            fallback = await self.resolve_agent_id("")
+            fallback = await self._pick_rafiki_agent()
             if fallback and fallback != target:
                 logger.warning(
                     f"Agent {target} returned {response.status_code}; switching to {fallback}"
@@ -505,7 +579,9 @@ class ElevenLabsService:
         """
         try:
             live = await self.get_live_agent_config(agent_id)
-            target_agent = live.get("agent_id") if live.get("success") else (agent_id or self.agent_id)
+            target_agent = live.get("agent_id") if live.get("success") else None
+            if not target_agent or self._looks_like_jua(agent_id=str(target_agent)):
+                target_agent = await self.resolve_agent_id(agent_id)
 
             if not target_agent:
                 return {"success": False, "error": "No agent ID configured"}

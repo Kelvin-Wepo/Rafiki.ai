@@ -55,8 +55,9 @@ import {
   rememberPendingService,
   titleForService,
 } from '../../lib/guidedServices';
-import { agentMessageText, fetchElevenLabsConfig, type ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
+import { agentMessageText, ensureRafikiAgentId, fetchElevenLabsConfig, type ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
 import { ChatSection, type ChatBubble } from './ChatSection';
+import { VoiceSection } from './VoiceSection';
 import '../../styles/dashboard.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -68,6 +69,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 type NavId =
   | 'dashboard'
   | 'chat'
+  | 'voice'
   | 'services'
   | 'appointments'
   | 'documents'
@@ -82,6 +84,7 @@ type ViewId = NavId | 'history';
 const NAV_ITEMS: Array<{ id: NavId; label: string; icon: React.ElementType }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'chat', label: 'Chat', icon: MessagesSquare },
+  { id: 'voice', label: 'Voice', icon: Mic },
   { id: 'services', label: 'My Services', icon: LayoutGrid },
   { id: 'appointments', label: 'Appointments', icon: CalendarCheck },
   { id: 'documents', label: 'My Documents', icon: FileText },
@@ -412,9 +415,11 @@ function DashboardInner() {
       ? 'listening'
       : isSpeaking
         ? 'speaking'
-        : isListening
-          ? 'listening'
-          : 'idle';
+        : isSendingChat
+          ? 'thinking'
+          : isListening
+            ? 'listening'
+            : 'idle';
 
   const playAudio = useCallback(
     (audioBase64: string, mimeType: string = 'audio/mpeg') => {
@@ -567,22 +572,6 @@ function DashboardInner() {
       setView('chat');
 
       try {
-        if (conversation.status === 'connected') {
-          lastPersistedRef.current = `user:${text}`;
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              id: `user-${Date.now()}`,
-              sender: 'user',
-              content: text,
-              created_at: new Date().toISOString(),
-            },
-          ]);
-          await persistMessage('user', text);
-          await conversation.sendUserMessage(text);
-          return;
-        }
-
         setIsSendingChat(true);
         setChatMessages((prev) => [
           ...prev,
@@ -612,7 +601,7 @@ function DashboardInner() {
         setIsSendingChat(false);
       }
     },
-    [conversation, language, persistMessage, sendTurn]
+    [language, sendTurn]
   );
 
   /** Sends a prompt and opens the chat thread so the user sees the reply. */
@@ -648,6 +637,8 @@ function DashboardInner() {
       return;
     }
 
+    setView('voice');
+
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
@@ -666,9 +657,6 @@ function DashboardInner() {
       const config = await fetchElevenLabsConfig(API_BASE);
       setVoiceConfig(config);
       if (config.agent_id) agentId = config.agent_id;
-      if (config.api_key_hint) {
-        console.log('Voice using ElevenLabs', config.api_key_hint, config.agent_id, config.voice_id);
-      }
     } catch (err) {
       console.warn('Could not refresh ElevenLabs config:', err);
     }
@@ -678,7 +666,7 @@ function DashboardInner() {
         const data = await res.json();
         if (data.success && data.token) conversationToken = data.token;
         else console.warn('Conversation token unavailable:', data.error);
-        if (data.agent_id) agentId = data.agent_id;
+        if (data.agent_id) agentId = ensureRafikiAgentId(data.agent_id);
       }
     } catch (err) {
       console.warn('Could not reach the conversation-token endpoint:', err);
@@ -689,6 +677,8 @@ function DashboardInner() {
       setVoiceConfig(config);
       agentId = config.agent_id || '';
     }
+
+    agentId = ensureRafikiAgentId(agentId);
 
     if (!conversationToken && !agentId) {
       alert(
@@ -742,7 +732,23 @@ function DashboardInner() {
   }, [logout, navigate]);
 
   const handleNavClick = useCallback((id: NavId) => {
+    if (id !== 'voice' && conversation.status === 'connected') {
+      void conversation.endSession();
+    }
     setView(id);
+    setDrawerOpen(false);
+  }, [conversation]);
+
+  const openChat = useCallback(() => {
+    if (conversation.status === 'connected') {
+      void conversation.endSession();
+    }
+    setView('chat');
+    setDrawerOpen(false);
+  }, [conversation]);
+
+  const openVoice = useCallback(() => {
+    setView('voice');
     setDrawerOpen(false);
   }, []);
 
@@ -826,7 +832,21 @@ function DashboardInner() {
     [sessions]
   );
 
-  const showRail = view === 'dashboard' || view === 'chat';
+  const showRail = view === 'dashboard';
+
+  const talkingAvatar = (
+    <div className="rd-assistant-figure rd-assistant-figure--live">
+      <img src={rafikiAvatar} alt="" className="rd-assistant-photo" aria-hidden="true" />
+      <RafikiTalkingAvatar
+        state={avatarState}
+        audioData={avatarState === 'speaking' ? avatarAudioData : undefined}
+        size="100%"
+        accessible
+        showParticles={false}
+        showWaveform={false}
+      />
+    </div>
+  );
 
   return (
     <>
@@ -915,15 +935,18 @@ function DashboardInner() {
                 </h1>
                 <p className="rd-subgreeting">How can I help you today?</p>
 
-                <div className="rd-ask">
-                  <button
-                    type="button"
-                    className={`rd-ask-btn rd-ask-mic${isVoiceConnected ? ' rd-ask-mic--on' : ''}`}
-                    onClick={handleMicToggle}
-                    aria-label={isVoiceConnected ? 'End voice chat' : 'Start voice chat'}
-                  >
-                    <Mic size={19} strokeWidth={1.75} aria-hidden="true" />
+                <div className="rd-mode-pick">
+                  <button type="button" className="rd-mode-pick-btn" onClick={openChat}>
+                    <MessagesSquare size={18} strokeWidth={1.75} aria-hidden="true" />
+                    Chat with Rafiki
                   </button>
+                  <button type="button" className="rd-mode-pick-btn" onClick={openVoice}>
+                    <Mic size={18} strokeWidth={1.75} aria-hidden="true" />
+                    Talk to Rafiki
+                  </button>
+                </div>
+
+                <div className="rd-ask">
                   <input
                     ref={inputRef}
                     type="text"
@@ -956,24 +979,27 @@ function DashboardInner() {
                 activeSessionId={activeSessionId}
                 messages={chatMessages}
                 isSending={isSendingChat}
-                voiceConnected={isVoiceConnected}
                 voiceConfig={voiceConfig}
                 composerValue={chatInput}
                 onComposerChange={setChatInput}
                 onSend={() => sendMessage(chatInput)}
-                onToggleVoice={handleMicToggle}
                 onNewChat={handleNewChat}
                 onSelectSession={handleSelectChatSession}
-                avatar={
-                  <RafikiTalkingAvatar
-                    state={avatarState}
-                    audioData={avatarState === 'speaking' ? avatarAudioData : undefined}
-                    size="100%"
-                    accessible
-                    showParticles={false}
-                    showWaveform={false}
-                  />
-                }
+                onOpenVoice={openVoice}
+                avatar={talkingAvatar}
+              />
+            )}
+
+            {view === 'voice' && (
+              <VoiceSection
+                avatar={talkingAvatar}
+                connected={isVoiceConnected}
+                speaking={Boolean(conversation.isSpeaking || isSpeaking)}
+                lastReply={lastReply}
+                agentName={voiceConfig?.name || 'Rafiki'}
+                onStart={handleMicToggle}
+                onStop={handleMicToggle}
+                onOpenChat={openChat}
               />
             )}
 
@@ -1022,7 +1048,10 @@ function DashboardInner() {
                 phone={user?.phone_masked}
                 email={user?.email_masked}
                 onChangeLanguage={() => setShowLanguageSelector(true)}
-                onToggleVoice={handleMicToggle}
+                onToggleVoice={() => {
+                  if (!isVoiceConnected) setView('voice');
+                  void handleMicToggle();
+                }}
                 onSignOut={handleLogout}
               />
             )}
@@ -1053,21 +1082,7 @@ function DashboardInner() {
                   <h2 className="rd-card-title">Rafiki Assistant</h2>
                 </div>
                 <div className="rd-card-body">
-                  <div className="rd-assistant-figure">
-                    <img
-                      src={rafikiAvatar}
-                      alt="Rafiki"
-                      className="rd-assistant-photo"
-                    />
-                    <RafikiTalkingAvatar
-                      state={avatarState}
-                      audioData={avatarState === 'speaking' ? avatarAudioData : undefined}
-                      size="100%"
-                      accessible
-                      showParticles={false}
-                      showWaveform={false}
-                    />
-                  </div>
+                  {talkingAvatar}
 
                   <div
                     className={`rd-assistant-state${
@@ -1089,10 +1104,16 @@ function DashboardInner() {
                     {lastReply || "I'm here to help you access government services easily."}
                   </p>
 
-                  <button type="button" className="rd-btn-primary" onClick={() => setView('chat')}>
-                    <MessagesSquare size={17} strokeWidth={1.75} aria-hidden="true" />
-                    Open chat
-                  </button>
+                  <div className="rd-rail-actions">
+                    <button type="button" className="rd-btn-primary" onClick={openChat}>
+                      <MessagesSquare size={17} strokeWidth={1.75} aria-hidden="true" />
+                      Open chat
+                    </button>
+                    <button type="button" className="rd-btn-secondary" onClick={openVoice}>
+                      <Mic size={17} strokeWidth={1.75} aria-hidden="true" />
+                      Talk to Rafiki
+                    </button>
+                  </div>
                 </div>
               </section>
 

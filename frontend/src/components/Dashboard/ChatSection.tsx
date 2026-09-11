@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Mic, Plus, Send } from 'lucide-react';
+import { MessageSquareText, Mic, Plus, Send } from 'lucide-react';
 import type { ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
 
 export type ChatBubble = {
@@ -23,15 +23,14 @@ interface ChatSectionProps {
   activeSessionId: string | null;
   messages: ChatBubble[];
   isSending: boolean;
-  voiceConnected: boolean;
   voiceConfig: ElevenLabsRuntimeConfig | null;
   composerValue: string;
   onComposerChange: (value: string) => void;
   onSend: () => void;
-  onToggleVoice: () => void;
   onNewChat: () => void;
   onSelectSession: (id: string) => void;
-  avatar?: ReactNode;
+  onOpenVoice: () => void;
+  avatar: ReactNode;
 }
 
 function formatTime(value?: string): string {
@@ -46,14 +45,13 @@ export function ChatSection({
   activeSessionId,
   messages,
   isSending,
-  voiceConnected,
   voiceConfig,
   composerValue,
   onComposerChange,
   onSend,
-  onToggleVoice,
   onNewChat,
   onSelectSession,
+  onOpenVoice,
   avatar,
 }: ChatSectionProps) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -78,11 +76,13 @@ export function ChatSection({
     [onSend]
   );
 
+  const agentName = voiceConfig?.name || 'Rafiki';
+
   return (
     <section className="rd-chat" aria-label="Chat with Rafiki">
       <aside className={`rd-chat-sessions${mobileListOpen ? ' rd-chat-sessions--open' : ''}`}>
         <div className="rd-chat-sessions-head">
-          <h2>Chats</h2>
+          <h2>History</h2>
           <button type="button" className="rd-chat-new" onClick={onNewChat}>
             <Plus size={16} strokeWidth={2} aria-hidden="true" />
             New
@@ -117,23 +117,26 @@ export function ChatSection({
 
       <div className="rd-chat-thread">
         <header className="rd-chat-head">
-          {avatar && <div className="rd-chat-avatar">{avatar}</div>}
           <button
             type="button"
             className="rd-chat-sessions-toggle"
             onClick={() => setMobileListOpen((open) => !open)}
           >
-            Chats
+            History
           </button>
-          <div>
-            <h1>Chat with Rafiki</h1>
-            <p>
-              {voiceConnected
-                ? 'Voice is on — you can still type.'
-                : voiceConfig?.name
-                  ? `Type a message. ${voiceConfig.name} will reply here and keep the history.`
-                  : 'Type a message. Rafiki will reply here and keep the history.'}
-            </p>
+          <div className="rd-chat-head-copy">
+            <h1>Chat with {agentName}</h1>
+            <p>Type a message. Switch to Voice if you would rather talk.</p>
+          </div>
+          <div className="rd-mode-switch" role="tablist" aria-label="Choose Chat or Voice">
+            <button type="button" role="tab" aria-selected={true} className="is-active">
+              <MessageSquareText size={16} strokeWidth={2} aria-hidden="true" />
+              Chat
+            </button>
+            <button type="button" role="tab" aria-selected={false} onClick={onOpenVoice}>
+              <Mic size={16} strokeWidth={2} aria-hidden="true" />
+              Voice
+            </button>
           </div>
         </header>
 
@@ -171,19 +174,11 @@ export function ChatSection({
             onSend();
           }}
         >
-          <button
-            type="button"
-            className={`rd-ask-btn rd-ask-mic${voiceConnected ? ' rd-ask-mic--on' : ''}`}
-            onClick={onToggleVoice}
-            aria-label={voiceConnected ? 'End voice chat' : 'Start voice chat'}
-          >
-            <Mic size={18} strokeWidth={1.75} aria-hidden="true" />
-          </button>
           <textarea
             ref={inputRef}
             className="rd-chat-input"
             rows={1}
-            placeholder="Type a message to Rafiki…"
+            placeholder={`Type a message to ${agentName}…`}
             value={composerValue}
             onChange={(event) => onComposerChange(event.target.value)}
             onKeyDown={handleKeyDown}
@@ -199,6 +194,11 @@ export function ChatSection({
           </button>
         </form>
       </div>
+
+      <aside className="rd-chat-stage" aria-label="Rafiki avatar">
+        <div className="rd-chat-stage-avatar">{avatar}</div>
+        <p>{agentName}</p>
+      </aside>
     </section>
   );
 }

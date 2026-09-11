@@ -68,7 +68,7 @@ async def get_runtime_config():
             "success": False,
             "error": result.get("error", "ElevenLabs is not configured"),
             "configured": bool(settings.ELEVENLABS_API_KEY),
-            "agent_id": settings.ELEVENLABS_AGENT_ID or None,
+            "agent_id": elevenlabs_service.RAFIKI_AGENT_ID,
             "voice_id": settings.ELEVENLABS_VOICE_ID or None,
             "branch_id": settings.ELEVENLABS_BRANCH_ID or None,
             "api_key_hint": elevenlabs_service.api_key_hint,

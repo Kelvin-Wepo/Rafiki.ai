@@ -1,5 +1,9 @@
 /** Runtime ElevenLabs agent — loaded from GET /elevenlabs/config, not a hardcoded ID. */
 
+export const RAFIKI_AGENT_ID = 'agent_8201m28ec9h6fs3vwcvtg1dvnrzq';
+export const JUA_AGENT_ID = 'agent_5601kydx2f3vetnv3e9yf9tmam58';
+export const WANJIKU_AGENT_ID = 'agent_0601kbntk14cet68q60vzy6y55v7';
+
 export type ElevenLabsRuntimeConfig = {
   success: boolean;
   configured?: boolean;
@@ -19,7 +23,24 @@ export async function fetchElevenLabsConfig(apiBase: string): Promise<ElevenLabs
   if (!response.ok) {
     return { success: false, error: `Could not load voice config (${response.status})` };
   }
-  return response.json();
+  const config = (await response.json()) as ElevenLabsRuntimeConfig;
+  return {
+    ...config,
+    agent_id: ensureRafikiAgentId(config.agent_id, config.name, config.first_message),
+  };
+}
+
+export function ensureRafikiAgentId(
+  agentId?: string,
+  name?: string,
+  firstMessage?: string
+): string {
+  const id = (agentId || '').trim();
+  const blob = `${name || ''} ${firstMessage || ''}`.toLowerCase();
+  if (!id || id === JUA_AGENT_ID || id === WANJIKU_AGENT_ID || /\bjua\b/.test(blob)) {
+    return RAFIKI_AGENT_ID;
+  }
+  return id;
 }
 
 export function agentMessageText(message: unknown): { source: 'ai' | 'user' | 'unknown'; text: string } | null {
