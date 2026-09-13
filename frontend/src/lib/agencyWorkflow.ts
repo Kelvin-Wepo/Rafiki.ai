@@ -13,8 +13,11 @@ export type AgencyChatResponse = {
   awaiting_payment?: boolean;
   payment_amount?: number | null;
   payment_description?: string | null;
+  stk_sent?: boolean;
+  stk_message?: string | null;
   audio_base64?: string | null;
   audio_mime?: string;
+  viseme_timeline?: Array<{ time: number; viseme: string; duration: number }>;
   application_ref?: string | null;
   payment_ref?: string | null;
   receipt_available?: boolean;
@@ -93,6 +96,7 @@ export async function checkAgencyPayment(sessionId: string): Promise<{
   payment_ref?: string | null;
   message?: string;
   demo?: boolean;
+  sms_sent?: boolean;
 }> {
   return agencyFetch(`/api/agencies/payment/status/${sessionId}`);
 }

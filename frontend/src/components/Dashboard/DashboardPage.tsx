@@ -43,10 +43,9 @@ import LanguageSelector from '../LanguageSelector';
 import { ConversationHistory } from './ConversationHistory';
 import TranscriptDownload from './TranscriptDownload';
 import useChatSessions from '../../hooks/useChatSessions';
-import { RafikiTalkingAvatar } from '../avatar';
-import { useAudioAnalyzer } from '../../hooks/useAudioAnalyzer';
-import type { AvatarState } from '../../types/avatar.types';
+import { TalkingAvatar } from '../avatar';
 import rafikiAvatar from '../../assets/rafiki_avatar.png';
+import type { VisemeCue } from '../avatar/visemeShapes';
 import {
   chatPathForService,
   clearPendingService,
@@ -340,16 +339,14 @@ function DashboardInner() {
   const [downloadingReceipt, setDownloadingReceipt] = useState(false);
   const lastPersistedRef = useRef('');
   const persistVoiceTurnRef = useRef<(sender: 'user' | 'assistant', text: string) => void>(() => {});
+  const paymentConfirmedNotifiedRef = useRef(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Drives the avatar's animation from the actual TTS audio.
-  const {
-    audioData: avatarAudioData,
-    analyzeAudioElement,
-    stopAnalyzing: stopAvatarAnalyzing,
-  } = useAudioAnalyzer();
+  const [lipSyncClip, setLipSyncClip] = useState<{
+    audioUrl: string;
+    visemeTimeline: VisemeCue[];
+    playId: number;
+  } | null>(null);
 
   // ElevenLabs Conversational AI — agent id, voice, and prompt come from the
   // current server API key via GET /elevenlabs/config (not a hardcoded ID).
@@ -368,7 +365,6 @@ function DashboardInner() {
     },
     onError: (error: unknown) => {
       console.error('Voice agent error:', error);
-      setIsListening(false);
     },
   });
 
@@ -423,48 +419,19 @@ function DashboardInner() {
     };
   }, []);
 
-  const avatarState: AvatarState = conversation.isSpeaking
-    ? 'speaking'
-    : isVoiceConnected
-      ? 'listening'
-      : isSpeaking
-        ? 'speaking'
-        : isSendingChat
-          ? 'thinking'
-          : isListening
-            ? 'listening'
-            : 'idle';
-
   const playAudio = useCallback(
-    (audioBase64: string, mimeType: string = 'audio/mpeg') => {
-      try {
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current = null;
-        }
-
-        const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
-        audioRef.current = audio;
-
-        audio.onplay = () => {
-          setIsSpeaking(true);
-          analyzeAudioElement(audio);
-        };
-        audio.onended = () => {
-          setIsSpeaking(false);
-          stopAvatarAnalyzing();
-        };
-        audio.onerror = () => {
-          setIsSpeaking(false);
-          stopAvatarAnalyzing();
-        };
-
-        audio.play().catch((err) => console.error('Audio playback error:', err));
-      } catch (err) {
-        console.error('Failed to play audio:', err);
-      }
+    (
+      audioBase64: string,
+      mimeType: string = 'audio/mpeg',
+      visemeTimeline: VisemeCue[] = []
+    ) => {
+      setLipSyncClip({
+        audioUrl: `data:${mimeType};base64,${audioBase64}`,
+        visemeTimeline,
+        playId: Date.now(),
+      });
     },
-    [analyzeAudioElement, stopAvatarAnalyzing]
+    []
   );
 
   const rememberAgencySession = useCallback((id: string | null) => {
@@ -478,8 +445,9 @@ function DashboardInner() {
     if (data.response) setLastReply(data.response);
     if (data.application_ref) setReceiptRef(data.application_ref);
     setPaymentPending(Boolean(data.awaiting_payment));
+    if (data.awaiting_payment) paymentConfirmedNotifiedRef.current = false;
     if (data.audio_base64) {
-      playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
+      playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg', data.viseme_timeline || []);
     }
   }, [playAudio, rememberAgencySession]);
 
@@ -548,7 +516,11 @@ function DashboardInner() {
         const startData = await startRes.json();
 
         if (startData.audio_base64) {
-          playAudio(startData.audio_base64, startData.audio_mime || 'audio/mpeg');
+          playAudio(
+            startData.audio_base64,
+            startData.audio_mime || 'audio/mpeg',
+            startData.viseme_timeline || []
+          );
         }
 
         const langRes = await fetch(`${API_BASE}/api/agencies/chat`, {
@@ -562,7 +534,11 @@ function DashboardInner() {
         const langData = await langRes.json();
 
         if (langData.audio_base64) {
-          playAudio(langData.audio_base64, langData.audio_mime || 'audio/mpeg');
+          playAudio(
+            langData.audio_base64,
+            langData.audio_mime || 'audio/mpeg',
+            langData.viseme_timeline || []
+          );
         }
 
         setLastReply(langData.response || null);
@@ -851,7 +827,21 @@ function DashboardInner() {
         const status = await checkAgencyPayment(agencySessionId);
         if (cancelled) return;
         if (status.application_ref) setReceiptRef(status.application_ref);
-        if (status.paid) setPaymentPending(false);
+        if (status.paid) {
+          setPaymentPending(false);
+          if (!paymentConfirmedNotifiedRef.current) {
+            paymentConfirmedNotifiedRef.current = true;
+            const confirmation =
+              'Payment confirmed. A confirmation SMS has been sent to your phone. You can download the receipt below.';
+            setLastReply(confirmation);
+            try {
+              const updated = await persistMessage('assistant', confirmation);
+              if (!cancelled && updated) setChatMessages(bubblesFromSession(updated));
+            } catch (persistErr) {
+              console.warn('Could not persist payment confirmation:', persistErr);
+            }
+          }
+        }
       } catch (err) {
         console.warn('Payment status check failed:', err);
       }
@@ -862,7 +852,7 @@ function DashboardInner() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [agencySessionId, paymentPending]);
+  }, [agencySessionId, paymentPending, persistMessage]);
 
   const handleDownloadReceipt = useCallback(async () => {
     if (!receiptRef) return;
@@ -919,14 +909,23 @@ function DashboardInner() {
 
   const talkingAvatar = (
     <div className="rd-assistant-figure rd-assistant-figure--live">
-      <img src={rafikiAvatar} alt="" className="rd-assistant-photo" aria-hidden="true" />
-      <RafikiTalkingAvatar
-        state={avatarState}
-        audioData={avatarState === 'speaking' ? avatarAudioData : undefined}
-        size="100%"
-        accessible
-        showParticles={false}
-        showWaveform={false}
+      <TalkingAvatar
+        imageUrl={rafikiAvatar}
+        audioUrl={lipSyncClip?.audioUrl}
+        visemeTimeline={lipSyncClip?.visemeTimeline}
+        playId={lipSyncClip?.playId}
+        isSpeaking={!lipSyncClip && Boolean(conversation.isSpeaking || isSpeaking)}
+        className={isListening ? 'talking-avatar--listening' : undefined}
+        autoPlay
+        onPlay={() => setIsSpeaking(true)}
+        onEnded={() => {
+          setIsSpeaking(false);
+          setLipSyncClip(null);
+        }}
+        onError={() => {
+          setIsSpeaking(false);
+          setLipSyncClip(null);
+        }}
       />
     </div>
   );

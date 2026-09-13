@@ -9,13 +9,13 @@ Mount this in your backend/main.py with:
 """
 
 from fastapi import APIRouter, HTTPException, Request, Header
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+import json
 import uuid
 import logging
 import hmac
 import hashlib
-import os
 
 from services.agency_workflows import (
     handle_message,
@@ -39,14 +39,19 @@ from services.application_service import (
     get_application,
     get_application_by_payment_ref,
     mark_application_paid,
+    confirmation_sms_already_sent as app_sms_already_sent,
+    mark_confirmation_sms_sent as mark_app_sms_sent,
 )
 from services.booking_service import (
     create_agency_booking,
     get_agency_booking,
     get_agency_booking_by_payment_ref,
     mark_agency_booking_paid,
+    confirmation_sms_already_sent as booking_sms_already_sent,
+    mark_confirmation_sms_sent as mark_booking_sms_sent,
 )
 from services.elevenlabs_service import elevenlabs_service
+from rafiki_settings import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -56,30 +61,37 @@ router = APIRouter()
 # TTS Helper
 # ---------------------------------------------------------------------------
 
-async def generate_tts_audio(text: str, language: str = "en", session_id: Optional[str] = None) -> Optional[str]:
-    """Generate TTS audio for response text. Returns base64 string or None."""
+async def generate_tts_audio(
+    text: str, language: str = "en", session_id: Optional[str] = None
+) -> dict:
+    """Generate TTS audio plus viseme timeline. Audio is never blocked on lip-sync."""
+    empty = {"audio_base64": None, "viseme_timeline": [], "audio_mime": "audio/mpeg"}
     try:
         voice_id = await elevenlabs_service.resolve_tts_voice_id()
         if session_id:
             from services.agency_workflows import get_or_create_session
             state = get_or_create_session(session_id)
             state.voice_id = voice_id
-        
+
         result = await elevenlabs_service.text_to_speech(
             text=text,
             voice_id=voice_id,
             language=language,
-            model_id="eleven_flash_v2_5"
+            model_id="eleven_flash_v2_5",
+            include_visemes=True,
         )
-        
+
         if result.get("success") and result.get("audio_data"):
-            return result["audio_data"]
-        else:
-            logger.warning(f"TTS failed: {result.get('error', 'unknown error')}")
-            return None
+            return {
+                "audio_base64": result["audio_data"],
+                "viseme_timeline": result.get("viseme_timeline") or [],
+                "audio_mime": result.get("content_type") or "audio/mpeg",
+            }
+        logger.warning(f"TTS failed: {result.get('error', 'unknown error')}")
+        return empty
     except Exception as e:
         logger.error(f"TTS generation error: {e}")
-        return None
+        return empty
 
 
 # ---------------------------------------------------------------------------
@@ -105,10 +117,13 @@ class ChatResponse(BaseModel):
     payment_mpesa: Optional[str] = None     # M-PESA number for STK push
     audio_base64: Optional[str] = None      # TTS audio as base64
     audio_mime: str = "audio/mpeg"          # Audio MIME type
+    viseme_timeline: List[Dict[str, Any]] = Field(default_factory=list)
     application_ref: Optional[str] = None
     payment_ref: Optional[str] = None
     receipt_available: bool = False
     payment_demo: bool = False
+    stk_sent: bool = False
+    stk_message: Optional[str] = None
 
 
 class StartServiceRequest(BaseModel):
@@ -229,6 +244,132 @@ async def send_booking_sms(phone: str, service: str, details: dict, language: st
         logger.error(f"SMS send error: {e}")
 
 
+def _session_phone(state, fallback: str = "") -> str:
+    if not state:
+        return (fallback or "").strip()
+    for candidate in (
+        state.payment_mpesa,
+        state.data.get("mpesa"),
+        state.data.get("phone"),
+        fallback,
+    ):
+        if candidate and str(candidate).strip():
+            return str(candidate).strip()
+    return ""
+
+
+def _find_session_for_reference(reference: str):
+    from services.agency_workflows import _sessions
+    for session_id, state in _sessions.items():
+        if state.payment_ref == reference or state.data.get("payment_reference") == reference:
+            return session_id, state
+    return None, None
+
+
+def _payment_already_notified(state, reference: str) -> bool:
+    if state and (
+        state.data.get("payment_sms_sent")
+        or state.data.get("sms_sent")
+        or state.data.get("webhook_sms_sent")
+    ):
+        return True
+    return app_sms_already_sent(reference) or booking_sms_already_sent(reference)
+
+
+def _mark_session_notified(state) -> None:
+    if not state:
+        return
+    state.data["payment_sms_sent"] = True
+    state.data["sms_sent"] = True
+    state.data["webhook_sms_sent"] = True
+    state.data["marked_paid"] = True
+    state.awaiting_payment = False
+
+
+def _with_stk_chat_note(response_text: str, extra: dict, language: str = "en") -> str:
+    error = extra.get("stk_error")
+    if not error:
+        return response_text
+    if language == "sw":
+        return f"{response_text}\n\nSikuweza kutuma ombi la M-PESA: {error}"
+    return (
+        f"{response_text}\n\nI could not send the M-PESA prompt: {error}. "
+        "Please confirm your number and try again."
+    )
+
+
+async def fulfill_successful_payment(
+    reference: str,
+    amount_ksh: Optional[int] = None,
+    transaction_id: Optional[str] = None,
+    fallback_phone: str = "",
+) -> dict:
+    """Mark records paid and send one confirmation SMS."""
+    _, state = _find_session_for_reference(reference)
+    app = get_application_by_payment_ref(reference)
+    booking = get_agency_booking_by_payment_ref(reference)
+
+    phone = _session_phone(state, fallback_phone)
+    if not phone:
+        phone = (
+            (app or {}).get("applicant", {}).get("phone")
+            or (booking or {}).get("applicant", {}).get("phone")
+            or ""
+        )
+
+    service = (
+        (state.payment_description if state else None)
+        or (state.service if state else None)
+        or (state.agency if state else None)
+        or (app or {}).get("service")
+        or (booking or {}).get("service")
+        or "Government Service"
+    )
+    amount = (
+        amount_ksh
+        or (state.payment_amount if state else None)
+        or (app or {}).get("payment", {}).get("amount")
+        or (booking or {}).get("payment", {}).get("amount")
+        or 0
+    )
+    language = state.language if state else "en"
+
+    app_updated = mark_application_paid(reference, transaction_id)
+    booking_updated = mark_agency_booking_paid(reference, transaction_id)
+    if state:
+        state.data["marked_paid"] = True
+        state.awaiting_payment = False
+
+    if _payment_already_notified(state, reference):
+        _mark_session_notified(state)
+        return {"paid": True, "sms_sent": False, "already_notified": True, "phone": phone}
+
+    sms_sent = False
+    if phone:
+        await send_payment_confirmed_sms(
+            phone=phone,
+            service=service,
+            amount=int(amount or 0),
+            reference=reference,
+            language=language,
+        )
+        sms_sent = True
+        mark_app_sms_sent(reference)
+        mark_booking_sms_sent(reference)
+    else:
+        logger.warning(f"Payment confirmed but no phone for SMS: ref={reference}")
+
+    _mark_session_notified(state)
+    return {
+        "paid": True,
+        "sms_sent": sms_sent,
+        "already_notified": False,
+        "phone": phone,
+        "application": app_updated,
+        "booking": booking_updated,
+    }
+
+
 async def _user_id_from_header(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -243,9 +384,15 @@ async def _user_id_from_header(authorization: Optional[str]) -> Optional[str]:
         return None
 
 
-def _chat_payload(session_id: str, response_text: str, audio_base64: Optional[str] = None, extra: Optional[dict] = None) -> ChatResponse:
+def _chat_payload(
+    session_id: str,
+    response_text: str,
+    tts: Optional[dict] = None,
+    extra: Optional[dict] = None,
+) -> ChatResponse:
     state = get_or_create_session(session_id)
     extra = extra or {}
+    tts = tts or {}
     receipt = extra.get("application_ref") or state.application_ref or extra.get("payment_ref") or state.payment_ref
     return ChatResponse(
         session_id=session_id,
@@ -258,67 +405,88 @@ def _chat_payload(session_id: str, response_text: str, audio_base64: Optional[st
         payment_amount=state.payment_amount,
         payment_description=state.payment_description,
         payment_mpesa=state.payment_mpesa,
-        audio_base64=audio_base64,
-        audio_mime="audio/mpeg",
+        audio_base64=tts.get("audio_base64"),
+        audio_mime=tts.get("audio_mime") or "audio/mpeg",
+        viseme_timeline=tts.get("viseme_timeline") or [],
         application_ref=extra.get("application_ref") or state.application_ref,
         payment_ref=extra.get("payment_ref") or state.payment_ref,
         receipt_available=bool(receipt),
         payment_demo=bool(extra.get("payment_demo")),
+        stk_sent=bool(extra.get("stk_sent") or state.data.get("stk_sent")),
+        stk_message=extra.get("stk_message"),
     )
 
 
 async def maybe_initiate_workflow_payment(session_id: str, user_id: Optional[str] = None) -> dict:
-    """Save the application and send STK when the workflow asks for payment."""
+    """Save the application and send one STK when the workflow asks for payment."""
     state = get_or_create_session(session_id)
-    if not (state.awaiting_payment and state.payment_amount):
-        return {
-            "application_ref": state.application_ref,
-            "payment_ref": state.payment_ref,
-            "payment_demo": False,
-        }
-
-    mpesa_number = state.payment_mpesa or state.data.get("mpesa", "")
-    service_name = state.payment_description or state.service or state.agency or "Government Service"
     extra = {
         "application_ref": state.application_ref,
         "payment_ref": state.payment_ref,
         "payment_demo": False,
+        "stk_sent": bool(state.data.get("stk_sent")),
     }
+    if not (state.awaiting_payment and state.payment_amount):
+        return extra
+
+    mpesa_number = _session_phone(state)
+    service_name = state.payment_description or state.service or state.agency or "Government Service"
+    extra["stk_message"] = (
+        "Check your phone for the M-PESA PIN prompt. "
+        "You will get an SMS when payment is confirmed."
+    )
+
+    if state.data.get("stk_sent") and state.payment_ref:
+        extra["stk_sent"] = True
+        extra["payment_ref"] = state.payment_ref
+        return extra
+
     if not mpesa_number:
+        extra["stk_error"] = "No M-PESA number found for this payment."
         return extra
 
     try:
-        reference = generate_reference(session_id, service_name)
-        state.payment_ref = reference
+        if not state.payment_ref:
+            state.payment_ref = generate_reference(session_id, service_name)
+        reference = state.payment_ref
         extra["payment_ref"] = reference
         is_booking = "Test" in service_name or "Appointment" in service_name or "Booking" in service_name
 
-        if is_booking:
-            booking = create_agency_booking(
-                session_id=session_id,
-                agency=state.agency or "NTSA",
-                service=service_name,
-                applicant_data=state.data,
-                payment_ref=reference,
-                amount=state.payment_amount,
-                user_id=user_id,
-            )
-            extra["application_ref"] = booking.get("booking_ref")
-            logger.info(f"Booking created: {booking.get('booking_ref')}")
+        existing_app = get_application_by_payment_ref(reference)
+        existing_booking = get_agency_booking_by_payment_ref(reference)
+        if not existing_app and not existing_booking:
+            if is_booking:
+                booking = create_agency_booking(
+                    session_id=session_id,
+                    agency=state.agency or "NTSA",
+                    service=service_name,
+                    applicant_data=state.data,
+                    payment_ref=reference,
+                    amount=state.payment_amount,
+                    user_id=user_id,
+                )
+                extra["application_ref"] = booking.get("booking_ref")
+                logger.info(f"Booking created: {booking.get('booking_ref')}")
+            else:
+                application = save_application(
+                    session_id=session_id,
+                    agency=state.agency or "NTSA",
+                    service=service_name,
+                    applicant_data=state.data,
+                    payment_ref=reference,
+                    amount=state.payment_amount,
+                    user_id=user_id,
+                )
+                extra["application_ref"] = application.get("application_ref")
+                logger.info(f"Application saved: {application.get('application_ref')}")
+            state.application_ref = extra.get("application_ref")
         else:
-            application = save_application(
-                session_id=session_id,
-                agency=state.agency or "NTSA",
-                service=service_name,
-                applicant_data=state.data,
-                payment_ref=reference,
-                amount=state.payment_amount,
-                user_id=user_id,
+            extra["application_ref"] = (
+                (existing_app or {}).get("application_ref")
+                or (existing_booking or {}).get("booking_ref")
+                or state.application_ref
             )
-            extra["application_ref"] = application.get("application_ref")
-            logger.info(f"Application saved: {application.get('application_ref')}")
 
-        state.application_ref = extra.get("application_ref")
         payment_result = await initiate_stk_push(
             phone=mpesa_number,
             amount_ksh=state.payment_amount,
@@ -326,23 +494,29 @@ async def maybe_initiate_workflow_payment(session_id: str, user_id: Optional[str
             reference=reference,
             description=f"Rafiki.ai - {service_name}",
         )
-        extra["payment_demo"] = bool(payment_result.get("demo"))
-        if payment_result.get("demo"):
-            mark_application_paid(reference, "RAFIKI-STANDALONE")
-            mark_agency_booking_paid(reference, "RAFIKI-STANDALONE")
 
         if payment_result.get("success"):
+            state.data["stk_sent"] = True
+            extra["stk_sent"] = True
+            extra["stk_just_sent"] = True
+            extra["stk_message"] = payment_result.get(
+                "display_text",
+                extra["stk_message"],
+            )
             logger.info(f"STK push sent: session={session_id}, ref={reference}, amount={state.payment_amount}")
             await send_payment_initiated_sms(
                 phone=mpesa_number,
                 service=service_name,
                 amount=state.payment_amount,
                 reference=reference,
-                language=state.language
+                language=state.language,
             )
         else:
-            logger.warning(f"STK push failed: {payment_result.get('message')}")
+            extra["stk_sent"] = False
+            extra["stk_error"] = payment_result.get("message", "Failed to initiate payment")
+            logger.warning(f"STK push failed: {extra['stk_error']}")
     except Exception as e:
+        extra["stk_error"] = "Could not start the M-PESA payment. Please try again."
         logger.error(f"Payment initiation error: {e}", exc_info=True)
 
     return extra
@@ -359,6 +533,8 @@ async def process_workflow_turn(
     session_id = session_id or str(uuid.uuid4())
     response_text = handle_message(session_id, "__new_session__" if is_new else message)
     extra = await maybe_initiate_workflow_payment(session_id, user_id)
+    state = get_or_create_session(session_id)
+    response_text = _with_stk_chat_note(response_text, extra, state.language)
     if chat_session_id:
         bind_chat_to_agency(chat_session_id, session_id)
     return {"session_id": session_id, "response": response_text, **extra}
@@ -393,8 +569,8 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
 
     session_id = result["session_id"]
     state = get_or_create_session(session_id)
-    audio_base64 = await generate_tts_audio(result["response"], state.language, session_id)
-    return _chat_payload(session_id, result["response"], audio_base64, result)
+    tts = await generate_tts_audio(result["response"], state.language, session_id)
+    return _chat_payload(session_id, result["response"], tts, result)
 
 
 @router.post("/chat/start", response_model=ChatResponse)
@@ -408,8 +584,8 @@ async def start_chat():
     state = get_or_create_session(session_id)
 
     state.voice_id = await elevenlabs_service.resolve_tts_voice_id(state.voice_id)
-    audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
-    return _chat_payload(session_id, response_text, audio_base64)
+    tts = await generate_tts_audio(response_text, state.language, session_id)
+    return _chat_payload(session_id, response_text, tts)
 
 
 @router.get("/services")
@@ -440,10 +616,11 @@ async def start_guided_service(req: StartServiceRequest, authorization: Optional
         bind_chat_to_agency(req.chat_session_id, session_id)
 
     state = get_or_create_session(session_id)
-    state.voice_id = await elevenlabs_service.resolve_tts_voice_id(state.voice_id)
-    audio_base64 = await generate_tts_audio(response_text, state.language, session_id)
     extra = await maybe_initiate_workflow_payment(session_id, await _user_id_from_header(authorization))
-    return _chat_payload(session_id, response_text, audio_base64, extra)
+    response_text = _with_stk_chat_note(response_text, extra, state.language)
+    state.voice_id = await elevenlabs_service.resolve_tts_voice_id(state.voice_id)
+    tts = await generate_tts_audio(response_text, state.language, session_id)
+    return _chat_payload(session_id, response_text, tts, extra)
 
 
 @router.delete("/chat/{session_id}")
@@ -474,6 +651,16 @@ async def initiate_payment(req: PaymentInitRequest):
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
 
+    state.data["stk_sent"] = True
+    state.payment_mpesa = req.phone
+    await send_payment_initiated_sms(
+        phone=req.phone,
+        service=req.service,
+        amount=req.amount_ksh,
+        reference=reference,
+        language=state.language,
+    )
+
     return {
         "reference": reference,
         "message": result["message"],
@@ -493,42 +680,12 @@ async def verify_payment_endpoint(req: PaymentVerifyRequest):
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
 
-    # Send SMS when payment is confirmed
     if result.get("paid"):
-        # Find the session with this reference to get phone and service details
-        from services.agency_workflows import _sessions
-        for session_id, state in _sessions.items():
-            if state.payment_ref == req.reference:
-                phone = state.data.get("mpesa") or state.data.get("phone", "")
-                service = state.payment_description or state.service or state.agency or "Government Service"
-                amount = result.get("amount_ksh", state.payment_amount or 0)
-                
-                # Mark application or booking as paid
-                app_updated = mark_application_paid(req.reference, result.get("transaction_id"))
-                booking_updated = mark_agency_booking_paid(req.reference, result.get("transaction_id"))
-                
-                if app_updated:
-                    logger.info(f"Application marked paid: {app_updated.get('application_ref')}")
-                if booking_updated:
-                    logger.info(f"Booking marked paid: {booking_updated.get('booking_ref')}")
-                
-                if phone:
-                    await send_payment_confirmed_sms(
-                        phone=phone,
-                        service=service,
-                        amount=amount,
-                        reference=req.reference
-                    )
-                    # Also send booking confirmation SMS
-                    await send_booking_sms(
-                        phone=phone,
-                        service=service,
-                        details={
-                            "name": state.data.get("name", "Customer"),
-                            "agency": state.agency or "Government Agency",
-                        }
-                    )
-                break
+        await fulfill_successful_payment(
+            req.reference,
+            amount_ksh=result.get("amount_ksh"),
+            transaction_id=result.get("transaction_id"),
+        )
 
     return result
 
@@ -541,37 +698,17 @@ async def payment_status(session_id: str):
         return {"paid": False, "message": "No payment initiated for this session."}
 
     result = await verify_payment(state.payment_ref)
-    
-    # Send SMS when payment is confirmed (only if not already sent)
-    if result.get("paid") and not state.data.get("sms_sent"):
-        phone = state.data.get("mpesa") or state.data.get("phone", "")
-        service = state.service or state.agency or "Government Service"
-        amount = result.get("amount_ksh", state.payment_amount or 0)
-        
-        if phone:
-            await send_payment_confirmed_sms(
-                phone=phone,
-                service=service,
-                amount=amount,
-                reference=state.payment_ref
-            )
-            await send_booking_sms(
-                phone=phone,
-                service=service,
-                details={
-                    "name": state.data.get("name", "Customer"),
-                    "agency": state.agency or "Government Agency",
-                }
-            )
-            # Mark SMS as sent to avoid duplicates
-            state.data["sms_sent"] = True
+
+    if result.get("paid"):
+        notify = await fulfill_successful_payment(
+            state.payment_ref,
+            amount_ksh=result.get("amount_ksh"),
+            transaction_id=result.get("transaction_id"),
+        )
+        result["sms_sent"] = bool(notify.get("sms_sent") or notify.get("already_notified"))
 
     result["application_ref"] = state.application_ref
     result["payment_ref"] = state.payment_ref
-    if result.get("paid") and not state.data.get("marked_paid"):
-        mark_application_paid(state.payment_ref, result.get("transaction_id") or "RAFIKI-STANDALONE")
-        mark_agency_booking_paid(state.payment_ref, result.get("transaction_id") or "RAFIKI-STANDALONE")
-        state.data["marked_paid"] = True
     return result
 
 
@@ -606,104 +743,36 @@ class ConfirmationRequest(BaseModel):
 
 
 @router.post("/payment/auto-initiate")
-async def auto_initiate_payment(req: AutoInitiatePaymentRequest):
+async def auto_initiate_payment(req: AutoInitiatePaymentRequest, authorization: Optional[str] = Header(None)):
     """
     Auto-initiate payment from session state.
     Call this when frontend detects awaiting_payment=True.
     Returns payment reference and status.
     """
+    extra = await maybe_initiate_workflow_payment(
+        req.session_id,
+        await _user_id_from_header(authorization),
+    )
     state = get_or_create_session(req.session_id)
-    
-    if not state.awaiting_payment or not state.payment_amount:
+    if extra.get("stk_error"):
         return {
             "success": False,
-            "message": "No payment awaiting for this session.",
-            "awaiting_payment": state.awaiting_payment,
+            "reference": extra.get("payment_ref"),
+            "message": extra["stk_error"],
         }
-    
-    mpesa_number = state.payment_mpesa or state.data.get("mpesa", "")
-    if not mpesa_number:
+    if extra.get("stk_sent") or extra.get("payment_ref"):
         return {
-            "success": False,
-            "message": "No M-PESA number found in session.",
+            "success": True,
+            "reference": extra.get("payment_ref"),
+            "amount": state.payment_amount,
+            "phone": _session_phone(state),
+            "message": extra.get("stk_message") or "STK push sent. Check your phone.",
         }
-    
-    service_name = state.payment_description or state.service or state.agency or "Government Service"
-    
-    try:
-        # Generate reference if not already set
-        if not state.payment_ref:
-            state.payment_ref = generate_reference(req.session_id, service_name)
-        
-        reference = state.payment_ref
-        
-        # Save application/booking if not already saved
-        is_booking = "Test" in service_name or "Appointment" in service_name or "Booking" in service_name
-        
-        # Check if already saved
-        existing_app = get_application_by_payment_ref(reference)
-        existing_booking = get_agency_booking_by_payment_ref(reference)
-        
-        if not existing_app and not existing_booking:
-            if is_booking:
-                booking = create_agency_booking(
-                    session_id=req.session_id,
-                    agency=state.agency or "NTSA",
-                    service=service_name,
-                    applicant_data=state.data,
-                    payment_ref=reference,
-                    amount=state.payment_amount,
-                )
-                logger.info(f"Booking created: {booking.get('booking_ref')}")
-            else:
-                application = save_application(
-                    session_id=req.session_id,
-                    agency=state.agency or "NTSA",
-                    service=service_name,
-                    applicant_data=state.data,
-                    payment_ref=reference,
-                    amount=state.payment_amount,
-                )
-                logger.info(f"Application saved: {application.get('application_ref')}")
-        
-        # Initiate STK push
-        payment_result = await initiate_stk_push(
-            phone=mpesa_number,
-            amount_ksh=state.payment_amount,
-            email=f"user_{req.session_id[:8]}@rafiki.ai",
-            reference=reference,
-            description=f"Rafiki.ai - {service_name}",
-        )
-        
-        if payment_result.get("success"):
-            # Send SMS notification
-            await send_payment_initiated_sms(
-                phone=mpesa_number,
-                service=service_name,
-                amount=state.payment_amount,
-                reference=reference
-            )
-            
-            return {
-                "success": True,
-                "reference": reference,
-                "amount": state.payment_amount,
-                "phone": mpesa_number,
-                "message": "STK push sent. Check your phone.",
-            }
-        else:
-            return {
-                "success": False,
-                "reference": reference,
-                "message": payment_result.get("message", "Failed to initiate payment"),
-            }
-            
-    except Exception as e:
-        logger.error(f"Auto-initiate payment error: {e}", exc_info=True)
-        return {
-            "success": False,
-            "message": f"Payment error: {str(e)}",
-        }
+    return {
+        "success": False,
+        "message": "No payment awaiting for this session.",
+        "awaiting_payment": state.awaiting_payment,
+    }
 
 
 @router.post("/confirmation/send")
@@ -810,14 +879,12 @@ async def paystack_webhook(request: Request):
         paystack_signature = request.headers.get("x-paystack-signature", "")
         
         # Verify signature (optional but recommended for production)
-        paystack_secret = os.getenv("PAYSTACK_SECRET_KEY", "")
+        paystack_secret = (get_settings().PAYSTACK_SECRET_KEY or "").strip()
         if paystack_secret and paystack_signature:
             if not verify_paystack_signature(payload, paystack_signature, paystack_secret):
                 logger.warning("Invalid Paystack webhook signature")
                 raise HTTPException(status_code=401, detail="Invalid signature")
         
-        # Parse JSON payload
-        import json
         data = json.loads(payload)
         
         event = data.get("event", "")
@@ -830,57 +897,15 @@ async def paystack_webhook(request: Request):
             amount_ksh = event_data.get("amount", 0) // 100  # Paystack sends in kobo/cents
             customer_data = event_data.get("customer", {})
             customer_phone = customer_data.get("phone", "")
-            customer_email = customer_data.get("email", "")
             transaction_id = event_data.get("id", "")
             
             logger.info(f"Payment success: ref={reference}, amount={amount_ksh} KES")
-            
-            # Find the session with this reference and send confirmation SMS
-            from services.agency_workflows import _sessions
-            for session_id, session_state in _sessions.items():
-                if session_state.payment_ref == reference or session_state.data.get("payment_reference") == reference:
-                    # Get phone number from session or customer data
-                    phone = session_state.data.get("mpesa") or session_state.data.get("phone") or customer_phone
-                    service = session_state.payment_description or session_state.service or session_state.agency or "Government Service"
-                    lang = session_state.language
-                    
-                    # Mark application or booking as paid
-                    app_updated = mark_application_paid(reference, str(transaction_id))
-                    booking_updated = mark_agency_booking_paid(reference, str(transaction_id))
-                    
-                    if app_updated:
-                        logger.info(f"Application marked paid via webhook: {app_updated.get('application_ref')}")
-                    if booking_updated:
-                        logger.info(f"Booking marked paid via webhook: {booking_updated.get('booking_ref')}")
-                    
-                    # Send SMS confirmation in session language
-                    if phone and not session_state.data.get("webhook_sms_sent"):
-                        if lang == "sw":
-                            sms_text = (
-                                f"Rafiki.ai: Malipo ya Ksh {amount_ksh:,} kwa {service} "
-                                f"yamekubaliwa. Kumbukumbu: {reference}. Asante!"
-                            )
-                        else:
-                            sms_text = (
-                                f"Rafiki.ai: Payment of Ksh {amount_ksh:,} for {service} "
-                                f"confirmed. Reference: {reference}. Thank you!"
-                            )
-                        
-                        sms_result = await sms_service.send_sms(phone=phone, message=sms_text)
-                        logger.info(f"Webhook SMS confirmation sent to {phone[:4]}****: {sms_result}")
-                        
-                        # Mark as sent to avoid duplicates
-                        session_state.data["webhook_sms_sent"] = True
-                    
-                    # Clear payment awaiting flag
-                    session_state.awaiting_payment = False
-                    break
-            else:
-                # Session not found in memory, try to update records anyway
-                logger.warning(f"Session not found for payment ref {reference}, updating records only")
-                mark_application_paid(reference, str(transaction_id))
-                mark_agency_booking_paid(reference, str(transaction_id))
-        
+            await fulfill_successful_payment(
+                reference,
+                amount_ksh=amount_ksh,
+                transaction_id=str(transaction_id) if transaction_id != "" else None,
+                fallback_phone=customer_phone or "",
+            ) 
         elif event == "charge.failed":
             reference = event_data.get("reference", "")
             message = event_data.get("gateway_response", "Payment failed")

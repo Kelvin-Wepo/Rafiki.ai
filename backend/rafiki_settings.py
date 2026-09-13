@@ -117,6 +117,8 @@ class Settings(BaseSettings):
     
     # Paystack Payment Integration (M-PESA)
     PAYSTACK_SECRET_KEY: str = ""
+    # Public webhook URL, e.g. https://your-host/api/agencies/payments/webhook
+    PAYSTACK_CALLBACK_URL: str = ""
     
     # Database Settings
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rafiki"

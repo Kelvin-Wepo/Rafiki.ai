@@ -14,6 +14,7 @@ from datetime import datetime
 
 from rafiki_settings import get_settings
 from utils.logger import get_logger
+from utils.phone import to_africastalking_msisdn
 
 logger = get_logger(__name__)
 
@@ -149,29 +150,36 @@ class SMSService:
                 }
         
         try:
-            # Ensure phone number is a list
-            recipients = [phone_number] if isinstance(phone_number, str) else phone_number
-            
+            raw_recipients = [phone_number] if isinstance(phone_number, str) else list(phone_number)
+            recipients = []
+            for raw in raw_recipients:
+                try:
+                    recipients.append(to_africastalking_msisdn(str(raw)))
+                except ValueError:
+                    logger.warning("SMS skipped invalid phone format")
+                    recipients.append(str(raw).strip())
+
             # Use configured sender ID if not provided
+            self.settings = get_settings()
             sender = sender_id or self.settings.AFRICASTALKING_SENDER_ID
-            
-            logger.info(f"Sending SMS to {recipients}")
-            
+
+            logger.info(f"Sending SMS to {[self._mask_phone(r) for r in recipients]}")
+
             # Send SMS
             if sender:
                 response = self._sms_client.send(message, recipients, sender_id=sender)
             else:
                 response = self._sms_client.send(message, recipients)
-            
+
             logger.info(f"SMS response: {response}")
-            
+
             # Parse response
             sms_data = response.get("SMSMessageData", {})
             recipients_data = sms_data.get("Recipients", [])
-            
+
             success_count = sum(
-                1 for r in recipients_data 
-                if r.get("status") == "Success"
+                1 for r in recipients_data
+                if str(r.get("status") or "").lower() in ("success", "sent")
             )
             
             return {

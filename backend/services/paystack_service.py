@@ -8,15 +8,15 @@ Docs: https://paystack.com/docs/payments/mobile-money/
 """
 
 import logging
-import httpx
 from typing import Optional
 
+import httpx
+
 from rafiki_settings import get_settings
+from utils.phone import to_paystack_msisdn
 
 logger = logging.getLogger(__name__)
 
-settings = get_settings()
-PAYSTACK_SECRET_KEY = settings.PAYSTACK_SECRET_KEY
 PAYSTACK_BASE_URL = "https://api.paystack.co"
 
 # Kenya M-PESA via Paystack uses the "mobile_money" channel with provider "mpesa"
@@ -24,32 +24,20 @@ PAYSTACK_CURRENCY = "KES"
 PAYSTACK_PROVIDER = "mpesa"
 
 
+def _paystack_secret() -> str:
+    return (get_settings().PAYSTACK_SECRET_KEY or "").strip()
+
+
 def _headers() -> dict:
     return {
-        "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}",
+        "Authorization": f"Bearer {_paystack_secret()}",
         "Content-Type": "application/json",
     }
 
 
 def _format_phone(phone: str) -> str:
-    """Normalize Kenyan phone to 07XXXXXXXX format for Paystack."""
-    phone = phone.strip()
-    phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-
-    if phone.startswith("+254"):
-        phone = "254" + phone[4:]
-    elif phone.startswith("254"):
-        phone = phone
-    elif phone.startswith("0") and len(phone) == 10:
-        phone = "254" + phone[1:]
-    elif phone.startswith("7") and len(phone) == 9:
-        phone = "254" + phone
-
-    # Now phone should be in 12-digit format starting with '254'
-    if not (phone.startswith("254") and len(phone) == 12 and phone.isdigit()):
-        raise ValueError("Invalid Kenyan phone number format. Use 07XXXXXXXX or +2547XXXXXXXX or 2547XXXXXXXX")
-
-    return phone
+    """Normalize Kenyan phone to 2547XXXXXXXX for Paystack (no plus)."""
+    return to_paystack_msisdn(phone)
 
 
 async def initiate_stk_push(
@@ -69,19 +57,18 @@ async def initiate_stk_push(
         email:        Customer email (required by Paystack)
         reference:    Unique transaction reference
         description:  Payment description shown to customer
-        callback_url: Webhook URL for payment confirmation
+        callback_url: Optional redirect URL after hosted checkout (webhook is dashboard-configured)
 
     Returns:
-        dict with keys: success (bool), reference, authorization_url, message
+        dict with keys: success (bool), reference, display_text, message
     """
-    if not PAYSTACK_SECRET_KEY:
-        logger.warning("PAYSTACK_SECRET_KEY is not set; recording a standalone Rafiki payment")
+    secret = _paystack_secret()
+    if not secret:
+        logger.error("PAYSTACK_SECRET_KEY is not set; cannot send an M-PESA STK prompt")
         return {
-            "success": True,
+            "success": False,
             "reference": reference,
-            "demo": True,
-            "display_text": "Payment recorded on Rafiki. Enter your M-PESA PIN if a prompt appears.",
-            "message": "Payment recorded on Rafiki.",
+            "message": "Paystack is not configured. Set PAYSTACK_SECRET_KEY to send an M-PESA prompt.",
         }
 
     try:
@@ -91,6 +78,8 @@ async def initiate_stk_push(
         return {"success": False, "message": str(e)}
 
     amount_kobo = amount_ksh * 100  # Paystack uses smallest currency unit
+    settings = get_settings()
+    resolved_callback = (callback_url or settings.PAYSTACK_CALLBACK_URL or "").strip() or None
 
     payload = {
         "email": email,
@@ -107,25 +96,10 @@ async def initiate_stk_push(
             "platform": "rafiki_ai",
         },
     }
+    if resolved_callback:
+        payload["callback_url"] = resolved_callback
 
-    # Log payload for troubleshooting phone format issues
-    logger.info(f"Paystack STK push - formatted_phone={formatted_phone}")
-    try:
-        logger.debug(f"Paystack STK payload: {payload}")
-    except Exception:
-        logger.info("Paystack STK payload prepared (debug suppressed)")
-
-    # Also print to stdout to ensure visibility in quick tests
-    try:
-        print(f"[PAYSTACK DEBUG] formatted_phone={formatted_phone}")
-        # Try sending with '+' prefix for Paystack (temporary test)
-        payload['mobile_money']['phone'] = '+' + formatted_phone
-        print(f"[PAYSTACK DEBUG] payload_mobile_money_phone={payload.get('mobile_money', {}).get('phone')}")
-    except Exception:
-        pass
-
-    if callback_url:
-        payload["callback_url"] = callback_url
+    logger.info(f"Paystack STK push - phone={formatted_phone} amount={amount_ksh} ref={reference}")
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -138,20 +112,24 @@ async def initiate_stk_push(
 
             if response.status_code == 200 and data.get("status"):
                 charge_data = data.get("data", {})
+                display_text = charge_data.get(
+                    "display_text",
+                    "Check your phone and enter your M-PESA PIN to complete payment.",
+                )
                 logger.info(f"STK push initiated: ref={reference}, phone={formatted_phone}")
                 return {
                     "success": True,
                     "reference": reference,
                     "charge_status": charge_data.get("status"),
-                    "display_text": charge_data.get("display_text", "Check your phone for the M-PESA prompt."),
+                    "display_text": display_text,
                     "message": "STK push initiated successfully.",
                 }
-            else:
-                logger.error(f"Paystack charge failed: {data}")
-                return {
-                    "success": False,
-                    "message": data.get("message", "Payment initiation failed. Please try again."),
-                }
+
+            logger.error(f"Paystack charge failed: {data}")
+            return {
+                "success": False,
+                "message": data.get("message", "Payment initiation failed. Please try again."),
+            }
 
     except httpx.RequestError as e:
         logger.error(f"Paystack request error: {e}")
@@ -168,14 +146,13 @@ async def verify_payment(reference: str) -> dict:
     Returns:
         dict with keys: success (bool), paid (bool), amount_ksh, message
     """
-    if not PAYSTACK_SECRET_KEY:
+    if not _paystack_secret():
         return {
             "success": True,
-            "paid": True,
-            "status": "success",
-            "demo": True,
+            "paid": False,
+            "status": "unconfigured",
             "amount_ksh": 0,
-            "message": "Payment recorded on Rafiki.",
+            "message": "Paystack is not configured. Payment cannot be confirmed.",
         }
 
     try:
@@ -188,9 +165,10 @@ async def verify_payment(reference: str) -> dict:
 
             if response.status_code == 200 and data.get("status"):
                 tx = data.get("data", {})
-                tx_status = tx.get("status", "").lower()
+                tx_status = (tx.get("status") or "").lower()
                 paid = tx_status == "success"
                 amount_ksh = tx.get("amount", 0) // 100
+                transaction_id = str(tx.get("id") or "")
 
                 logger.info(f"Payment verification: ref={reference}, status={tx_status}, paid={paid}")
                 return {
@@ -198,15 +176,16 @@ async def verify_payment(reference: str) -> dict:
                     "paid": paid,
                     "status": tx_status,
                     "amount_ksh": amount_ksh,
+                    "transaction_id": transaction_id,
                     "gateway_response": tx.get("gateway_response", ""),
                     "message": "Payment confirmed." if paid else f"Payment status: {tx_status}",
                 }
-            else:
-                return {
-                    "success": False,
-                    "paid": False,
-                    "message": data.get("message", "Could not verify payment."),
-                }
+
+            return {
+                "success": False,
+                "paid": False,
+                "message": data.get("message", "Could not verify payment."),
+            }
 
     except httpx.RequestError as e:
         logger.error(f"Paystack verification error: {e}")
@@ -215,7 +194,8 @@ async def verify_payment(reference: str) -> dict:
 
 def generate_reference(session_id: str, service: str) -> str:
     """Generate a unique, readable transaction reference."""
-    import uuid, time
+    import time
+    import uuid
     short_uuid = str(uuid.uuid4()).replace("-", "")[:8].upper()
     service_code = service.replace(" ", "_").upper()[:10]
     timestamp = int(time.time())

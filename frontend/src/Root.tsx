@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OTPVerification } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
 import { SignUpPage, LoginPage, LandingPage, ForgotPasswordPage } from './pages';
+import LipSyncDemoPage from './pages/LipSyncDemoPage';
 import { destinationAfterAuth, isGuidedServiceSlug, rememberPendingService } from './lib/guidedServices';
 
 /**
@@ -128,6 +129,7 @@ function AppRouter() {
 
       {/* Public Landing Page and home route */}
       <Route path="/" element={<HomeRoute />} />
+      <Route path="/lipsync-demo" element={<LipSyncDemoPage />} />
 
       {/* Protected Routes */}
       <Route

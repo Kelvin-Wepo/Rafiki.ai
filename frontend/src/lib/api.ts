@@ -285,6 +285,7 @@ export interface TTSResponse {
   success: boolean;
   audio_data?: string; // Base64 encoded audio
   content_type?: string;
+  viseme_timeline?: Array<{ time: number; viseme: string; duration: number }>;
   error?: string;
 }
 
@@ -560,6 +561,7 @@ export interface AgenciesChatResponse {
   payment_mpesa?: string | null;
   audio_base64?: string | null;
   audio_mime?: string;
+  viseme_timeline?: Array<{ time: number; viseme: string; duration: number }>;
 }
 
 export interface StartServiceRequest {

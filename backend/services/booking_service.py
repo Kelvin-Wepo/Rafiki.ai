@@ -593,3 +593,22 @@ def mark_agency_booking_paid(
     
     logger.info(f"Agency booking marked paid: ref={booking_ref}")
     return bookings[booking_ref]
+
+
+def confirmation_sms_already_sent(payment_ref: str) -> bool:
+    booking = get_agency_booking_by_payment_ref(payment_ref)
+    return bool(booking and booking.get("payment", {}).get("confirmation_sms_sent"))
+
+
+def mark_confirmation_sms_sent(payment_ref: str) -> Optional[Dict[str, Any]]:
+    """Record that the post-payment SMS was sent so retries do not double-text."""
+    booking = get_agency_booking_by_payment_ref(payment_ref)
+    if not booking:
+        return None
+
+    bookings = _load_agency_bookings()
+    booking_ref = booking["booking_ref"]
+    bookings[booking_ref].setdefault("payment", {})["confirmation_sms_sent"] = True
+    bookings[booking_ref]["updated_at"] = datetime.now().isoformat()
+    _save_agency_bookings(bookings)
+    return bookings[booking_ref]

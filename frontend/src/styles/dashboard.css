@@ -609,6 +609,22 @@
   height: 100%;
 }
 
+.rd-assistant-figure .talking-avatar,
+.talking-avatar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.talking-avatar canvas,
+.talking-avatar__fallback {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
 .rd-assistant-photo {
   position: absolute;
   inset: 0;

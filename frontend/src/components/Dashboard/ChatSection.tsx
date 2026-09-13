@@ -185,12 +185,14 @@ export function ChatSection({
 
         {(receiptRef || paymentPending) && (
           <div className="rd-chat-receipt" role="status">
-            {paymentPending && !receiptRef && (
-              <p>Waiting for M-PESA. Enter your PIN on the prompt, then you can download the receipt.</p>
+            {paymentPending && (
+              <p>
+                Check your phone for the M-PESA PIN prompt. Enter your PIN, then you will get an SMS when payment is confirmed.
+              </p>
             )}
-            {receiptRef && (
+            {receiptRef && !paymentPending && (
               <>
-                <p>Receipt {receiptRef} is ready. Keep it as proof of payment.</p>
+                <p>Receipt {receiptRef} is ready. A confirmation SMS has been sent. Keep the receipt as proof of payment.</p>
                 <div className="rd-chat-receipt-actions">
                   {onDownloadReceipt && (
                     <button type="button" className="rd-btn-primary" onClick={onDownloadReceipt} disabled={downloadingReceipt}>

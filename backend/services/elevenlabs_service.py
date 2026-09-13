@@ -624,6 +624,107 @@ class ElevenLabsService:
             logger.error(f"Error getting conversation token: {e}")
             return {"success": False, "error": str(e)}
 
+    def _resolve_tts_voice(
+        self,
+        voice_id: Optional[str],
+        voice_name: Optional[str],
+        language: str,
+    ) -> tuple:
+        target_voice = None
+        voice_display_name = self.current_voice_name
+
+        if voice_name:
+            voice_key = voice_name.lower()
+            if voice_key in self.FREE_VOICES:
+                voice_config = self.FREE_VOICES[voice_key]
+                target_voice = voice_config["voice_id"]
+                voice_display_name = voice_config["name"]
+                logger.info(f"Selected FREE voice: {voice_display_name} for language: {language}")
+            elif voice_key in self.KENYAN_VOICES:
+                voice_config = self.KENYAN_VOICES[voice_key]
+                target_voice = voice_config["voice_id"]
+                voice_display_name = voice_config["name"]
+                logger.info(
+                    f"Selected Kenyan voice: {voice_display_name} for language: {language} "
+                    "(requires paid subscription)"
+                )
+
+        if not target_voice:
+            if voice_id:
+                target_voice = voice_id
+            else:
+                target_voice = self.default_voice_id
+                logger.info(f"Using default voice: {self.current_voice_name} for language: {language}")
+
+        return target_voice, voice_display_name
+
+    async def _tts_with_timestamps(
+        self,
+        text: str,
+        target_voice: str,
+        model_id: str,
+        voice_settings: Dict[str, Any],
+        output_format: str,
+        language: str,
+        content_type: str,
+    ) -> Optional[Dict[str, Any]]:
+        """ElevenLabs character alignment. Returns None if the endpoint is unavailable."""
+        try:
+            response = await self.client.post(
+                f"/text-to-speech/{target_voice}/with-timestamps",
+                json={
+                    "text": text,
+                    "model_id": model_id,
+                    "voice_settings": voice_settings,
+                },
+                params={"output_format": output_format},
+                timeout=30.0,
+            )
+        except Exception as exc:
+            logger.warning(f"ElevenLabs with-timestamps request failed: {exc}")
+            return None
+
+        if response.status_code != 200:
+            logger.info(
+                "ElevenLabs with-timestamps unavailable (%s); using standard TTS",
+                response.status_code,
+            )
+            return None
+
+        try:
+            payload = response.json()
+        except Exception:
+            logger.warning("ElevenLabs with-timestamps returned non-JSON; ignoring")
+            return None
+
+        audio_b64 = payload.get("audio_base64") or payload.get("audio")
+        if not audio_b64:
+            return None
+
+        alignment = payload.get("alignment") or payload.get("normalized_alignment")
+        from services.viseme_service import visemes_from_elevenlabs_alignment
+
+        visemes = visemes_from_elevenlabs_alignment(alignment)
+        logger.info(
+            "Generated TTS with timestamps using %s. chars=%s visemes=%s language=%s",
+            self.current_voice_name,
+            len(text),
+            len(visemes),
+            language,
+        )
+        return {
+            "success": True,
+            "audio_data": audio_b64,
+            "content_type": f"audio/{output_format.split('_')[0]}",
+            "text_length": len(text),
+            "voice_name": self.current_voice_name,
+            "voice_id": target_voice,
+            "speech_type": content_type,
+            "language": language,
+            "alignment": alignment,
+            "viseme_timeline": visemes,
+        }
+
     async def text_to_speech(
         self,
         text: str,
@@ -633,7 +734,8 @@ class ElevenLabsService:
         output_format: str = "mp3_44100_128",
         content_type: str = "conversational",
         optimize_speech: bool = True,
-        language: str = "en"
+        language: str = "en",
+        include_visemes: bool = True,
     ) -> Dict[str, Any]:
         """
         Convert text to speech using ElevenLabs TTS API with Kenyan voice.
@@ -654,43 +756,38 @@ class ElevenLabsService:
         """
         try:
             model_id = model_id or self.default_model_id
-            # Select voice: prefer voice_name, check FREE_VOICES first then KENYAN_VOICES
-            target_voice = None
-            voice_display_name = self.current_voice_name
-            
-            if voice_name:
-                voice_key = voice_name.lower()
-                # Check free voices first
-                if voice_key in self.FREE_VOICES:
-                    voice_config = self.FREE_VOICES[voice_key]
-                    target_voice = voice_config["voice_id"]
-                    voice_display_name = voice_config["name"]
-                    logger.info(f"Selected FREE voice: {voice_display_name} for language: {language}")
-                # Then check paid Kenyan voices
-                elif voice_key in self.KENYAN_VOICES:
-                    voice_config = self.KENYAN_VOICES[voice_key]
-                    target_voice = voice_config["voice_id"]
-                    voice_display_name = voice_config["name"]
-                    logger.info(f"Selected Kenyan voice: {voice_display_name} for language: {language} (requires paid subscription)")
-            
-            if not target_voice:
-                if voice_id:
-                    # Use provided voice_id directly
-                    target_voice = voice_id
-                else:
-                    # Use default voice (Adam - FREE)
-                    target_voice = self.default_voice_id
-                    logger.info(f"Using default voice: {self.current_voice_name} for language: {language}")
-            
-            # Optimize text for natural speech with language support
+            target_voice, _voice_display_name = self._resolve_tts_voice(voice_id, voice_name, language)
+
             optimized_text = text
             if optimize_speech:
                 optimized_text = self.optimize_text_for_speech(text, content_type, language)
-            
-            # Prepare voice settings optimized for Kenyan accent clarity
+
             voice_settings = self.VOICE_SETTINGS_OPTIMIZED.copy()
             started = time.perf_counter()
-            
+
+            if include_visemes:
+                stamped = await self._tts_with_timestamps(
+                    optimized_text,
+                    target_voice,
+                    model_id,
+                    voice_settings,
+                    output_format,
+                    language,
+                    content_type,
+                )
+                if stamped:
+                    total_ms = round((time.perf_counter() - started) * 1000, 1)
+                    logger.info(
+                        "[ELEVENLABS_TTS] ttfb_ms=%s total_ms=%s voice_id=%s model_id=%s "
+                        "chars=%s timestamps=true",
+                        total_ms,
+                        total_ms,
+                        target_voice,
+                        model_id,
+                        len(text),
+                    )
+                    return stamped
+
             response = await log_stage_timing("elevenlabs_http_call")(lambda: self.client.post(
                 f"/text-to-speech/{target_voice}",
                 json={
@@ -712,14 +809,14 @@ class ElevenLabsService:
                 model_id,
                 len(text),
             )
-            
+
             if response.status_code == 200:
                 audio_data = base64.b64encode(response.content).decode("utf-8")
                 logger.info(
                     f"Generated TTS audio using {self.current_voice_name} voice. "
                     f"Text: {len(text)} chars, Language: {language}, Content type: {content_type}"
                 )
-                return {
+                result = {
                     "success": True,
                     "audio_data": audio_data,
                     "content_type": f"audio/{output_format.split('_')[0]}",
@@ -727,8 +824,10 @@ class ElevenLabsService:
                     "voice_name": self.current_voice_name,
                     "voice_id": target_voice,
                     "speech_type": content_type,
-                    "language": language
+                    "language": language,
+                    "viseme_timeline": [],
                 }
+                return result
             else:
                 error_msg = f"TTS failed: {response.status_code}"
                 try:
@@ -746,22 +845,21 @@ class ElevenLabsService:
                 except Exception:
                     logger.error(f"{error_msg} - Voice ID: {target_voice}")
 
-                # Try Google Cloud TTS fallback
                 logger.warning(f"ElevenLabs failed with {response.status_code}. Trying Google Cloud TTS fallback...")
-                return await self._google_tts_text_fallback(text, language)
-                
+                return await self._google_tts_text_fallback(text, language, include_visemes=include_visemes)
+
         except Exception as e:
             logger.error(f"TTS error: {e}")
-            # Try Google Cloud TTS fallback on exception
             try:
-                return await self._google_tts_text_fallback(text, language)
+                return await self._google_tts_text_fallback(text, language, include_visemes=include_visemes)
             except Exception as fallback_error:
                 logger.error(f"Google Cloud TTS fallback also failed: {fallback_error}")
                 return {
                     "success": False,
-                    "error": str(e)
+                    "error": str(e),
+                    "viseme_timeline": [],
                 }
-    
+
     async def text_to_speech_file(
         self,
         text: str,
@@ -793,7 +891,8 @@ class ElevenLabsService:
                 text=text,
                 voice_name=voice_name,
                 language=language,
-                output_format="mp3_44100_128"
+                output_format="mp3_44100_128",
+                include_visemes=False,
             )
             
             if result.get("success"):
@@ -866,7 +965,9 @@ class ElevenLabsService:
             # Final fallback to espeak
             return await self._pyttsx3_fallback(text)
     
-    async def _google_tts_text_fallback(self, text: str, language: str = "en") -> Dict[str, Any]:
+    async def _google_tts_text_fallback(
+        self, text: str, language: str = "en", include_visemes: bool = True
+    ) -> Dict[str, Any]:
         """
         Generate TTS audio using Google Cloud TTS as fallback for text_to_speech method.
         
@@ -898,7 +999,7 @@ class ElevenLabsService:
             if audio_bytes:
                 audio_data = base64.b64encode(audio_bytes).decode('utf-8')
                 logger.info(f"Generated TTS audio using Google Cloud TTS fallback. Text: {len(text)} chars")
-                return {
+                result = {
                     "success": True,
                     "audio_data": audio_data,
                     "content_type": "audio/mp3",
@@ -906,8 +1007,10 @@ class ElevenLabsService:
                     "voice_name": "Google Cloud Neural2-J",
                     "voice_id": "en-US-Neural2-J",
                     "speech_type": "conversational",
-                    "language": language
+                    "language": language,
+                    "viseme_timeline": [],
                 }
+                return result
             else:
                 logger.error("Google Cloud TTS returned no audio bytes")
                 # Try pyttsx3 as final fallback
@@ -960,7 +1063,7 @@ class ElevenLabsService:
                     
                     audio_data = base64.b64encode(audio_bytes).decode('utf-8')
                     logger.info(f"Generated TTS audio using espeak fallback. Text: {len(text)} chars")
-                    return {
+                    result = {
                         "success": True,
                         "audio_data": audio_data,
                         "content_type": "audio/wav",
@@ -968,8 +1071,10 @@ class ElevenLabsService:
                         "voice_name": "espeak-offline",
                         "voice_id": "espeak",
                         "speech_type": "fallback",
-                        "language": language
+                        "language": language,
+                        "viseme_timeline": [],
                     }
+                    return result
                 else:
                     logger.error("espeak did not generate audio file")
                     return {"success": False, "error": "espeak_no_audio", "message": "espeak did not generate audio"}

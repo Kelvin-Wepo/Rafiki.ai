@@ -11,6 +11,8 @@ import tempfile
 import os
 import logging
 import aiofiles
+import base64
+import struct
 
 from services.sadtalker_service import get_sadtalker_service
 
@@ -422,3 +424,83 @@ async def get_service_status():
                 "animated_fallback": True
             }
         }
+
+
+class LipsyncPreviewRequest(BaseModel):
+    text: str = "Habari! Mimi ni Rafiki."
+    language: str = "en"
+
+
+@router.get("/lipsync/config")
+async def lipsync_config():
+    """Mouth-region coordinates and viseme extraction status for the canvas avatar."""
+    from services.viseme_service import mouth_region_config, rhubarb_bin
+
+    return {
+        "success": True,
+        "mouth_region": mouth_region_config(),
+        "rhubarb_available": bool(rhubarb_bin()),
+        "source_order": ["elevenlabs_timestamps", "rhubarb", "pcm_energy"],
+    }
+
+
+@router.post("/lipsync/preview")
+async def lipsync_preview(request: LipsyncPreviewRequest):
+    """TTS + viseme timeline for the /lipsync-demo tuner. Never raises on viseme failure."""
+    from services.elevenlabs_service import elevenlabs_service
+    from services.viseme_service import get_viseme_timeline, mouth_region_config
+
+    text = (request.text or "").strip()[:500]
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required")
+
+    result = await elevenlabs_service.text_to_speech(
+        text=text,
+        language=request.language,
+        include_visemes=True,
+    )
+    if result.get("success") and result.get("audio_data"):
+        visemes = result.get("viseme_timeline") or []
+        if not visemes:
+            audio_bytes = base64.b64decode(result["audio_data"])
+            visemes = get_viseme_timeline(audio_bytes, text=text)
+        return {
+            "success": True,
+            "audio_base64": result["audio_data"],
+            "audio_mime": result.get("content_type") or "audio/mpeg",
+            "viseme_timeline": visemes,
+            "mouth_region": mouth_region_config(),
+            "fallback": not bool(result.get("viseme_timeline")),
+        }
+
+    # Tiny amplitude-modulated tone so the demo still exercises the canvas.
+    import io
+    import math
+    import wave as wave_mod
+
+    sample_rate = 22050
+    duration_s = 1.2
+    frames = bytearray()
+    for i in range(int(sample_rate * duration_s)):
+        t = i / sample_rate
+        envelope = 0.15 + 0.85 * abs(math.sin(t * 9.0))
+        sample = int(12000 * envelope * math.sin(2 * math.pi * 220 * t))
+        frames += struct.pack("<h", max(-32767, min(32767, sample)))
+
+    buf = io.BytesIO()
+    with wave_mod.open(buf, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(bytes(frames))
+    wav_bytes = buf.getvalue()
+    timeline = get_viseme_timeline(wav_bytes, text=text)
+    return {
+        "success": True,
+        "audio_base64": base64.b64encode(wav_bytes).decode("utf-8"),
+        "audio_mime": "audio/wav",
+        "viseme_timeline": timeline,
+        "mouth_region": mouth_region_config(),
+        "fallback": True,
+        "note": result.get("error") or "TTS unavailable; playing a tone so you can still check mouth motion.",
+    }

@@ -252,3 +252,22 @@ def mark_application_paid(
     
     logger.info(f"Application marked paid: ref={app_ref}, payment_ref={payment_ref}")
     return applications[app_ref]
+
+
+def confirmation_sms_already_sent(payment_ref: str) -> bool:
+    app = get_application_by_payment_ref(payment_ref)
+    return bool(app and app.get("payment", {}).get("confirmation_sms_sent"))
+
+
+def mark_confirmation_sms_sent(payment_ref: str) -> Optional[Dict[str, Any]]:
+    """Record that the post-payment SMS was sent so retries do not double-text."""
+    app = get_application_by_payment_ref(payment_ref)
+    if not app:
+        return None
+
+    applications = _load_applications()
+    app_ref = app["application_ref"]
+    applications[app_ref].setdefault("payment", {})["confirmation_sms_sent"] = True
+    applications[app_ref]["updated_at"] = datetime.now().isoformat()
+    _save_applications(applications)
+    return applications[app_ref]

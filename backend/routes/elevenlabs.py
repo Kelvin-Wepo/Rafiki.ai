@@ -43,6 +43,7 @@ class TTSResponse(BaseModel):
     success: bool
     audio_data: Optional[str] = None
     content_type: Optional[str] = None
+    viseme_timeline: Optional[list] = None
     error: Optional[str] = None
 
 
@@ -183,7 +184,8 @@ async def text_to_speech(request: TTSRequest):
             return TTSResponse(
                 success=True,
                 audio_data=result["audio_data"],
-                content_type=result["content_type"]
+                content_type=result["content_type"],
+                viseme_timeline=result.get("viseme_timeline") or [],
             )
         else:
             return TTSResponse(
