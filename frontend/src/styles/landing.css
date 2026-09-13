@@ -185,6 +185,7 @@
   color: var(--rafiki-text);
   font-weight: 600;
   font-size: 0.88rem;
+  text-decoration: none;
 }
 
 .rl-control-muted {
@@ -504,6 +505,7 @@
   color: var(--rl-control-fg);
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 

@@ -37,6 +37,7 @@ import {
   CircleCheck,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAccessMode } from '../../contexts/AccessModeContext';
 import type { Conversation } from '../../services/authService';
 import { RafikiLogo } from '../RafikiLogo';
 import LanguageSelector from '../LanguageSelector';
@@ -307,6 +308,7 @@ function DashboardInner() {
   const pendingService = searchParams.get('service') || readPendingService();
   const pendingLang = searchParams.get('lang') === 'sw' ? 'sw' : 'en';
   const { user, logout } = useAuth();
+  const { enable: enableAccessMode } = useAccessMode();
   const {
     sessions,
     transcripts,
@@ -1141,6 +1143,10 @@ function DashboardInner() {
                   void handleMicToggle();
                 }}
                 onSignOut={handleLogout}
+                onOpenAccess={() => {
+                  enableAccessMode();
+                  navigate('/access');
+                }}
               />
             )}
 
@@ -1349,6 +1355,7 @@ function SettingsPanel({
   onChangeLanguage,
   onToggleVoice,
   onSignOut,
+  onOpenAccess,
 }: {
   language: 'en' | 'sw' | null;
   voiceConfigured: boolean;
@@ -1358,6 +1365,7 @@ function SettingsPanel({
   onChangeLanguage: () => void;
   onToggleVoice: () => void;
   onSignOut: () => void;
+  onOpenAccess: () => void;
 }) {
   return (
     <section className="rd-panel" aria-labelledby="settings-heading">
@@ -1403,6 +1411,18 @@ function SettingsPanel({
             disabled={!voiceConfigured}
           >
             {voiceConnected ? 'End' : 'Start'}
+          </button>
+        </div>
+
+        <div className="rd-setting">
+          <span className="rd-setting-copy">
+            <span className="rd-setting-name">Rafiki Access</span>
+            <span className="rd-setting-desc">
+              Large gold-on-black keypad with read-aloud, built for low vision
+            </span>
+          </span>
+          <button type="button" className="rd-btn-secondary" onClick={onOpenAccess}>
+            Open
           </button>
         </div>
 

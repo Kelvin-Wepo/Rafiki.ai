@@ -9,6 +9,7 @@ import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
 import { RafikiLogo } from '../components/RafikiLogo';
 import { useAuth } from '../contexts/AuthContext';
 import { destinationAfterAuth } from '../lib/guidedServices';
+import { setAccessModeEnabled } from '../lib/accessMode';
 import '../styles/auth.css';
 
 interface FormData {
@@ -110,6 +111,7 @@ export function LoginPage() {
       if (response.user?.full_name) {
         localStorage.setItem('rafiki_last_user', response.user.full_name.split(' ')[0]);
       }
+      if (response.user?.has_disability) setAccessModeEnabled(true);
       navigate(destinationAfterAuth(searchParams), { replace: true });
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Invalid email/phone or password');

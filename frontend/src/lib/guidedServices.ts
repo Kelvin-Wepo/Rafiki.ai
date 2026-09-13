@@ -3,6 +3,8 @@
  * Must stay in sync with backend GUIDED_SERVICES in agency_workflows.py.
  */
 
+import { isAccessModeEnabled } from './accessMode';
+
 export const GUIDED_SERVICE_SLUGS = [
   'passport-apply',
   'passport-renew',
@@ -137,6 +139,16 @@ export function destinationAfterAuth(searchParams: URLSearchParams): string {
     serviceFromNext(searchParams.get('next')) ||
     readPendingService();
 
+  if (isAccessModeEnabled()) {
+    if (slug) {
+      rememberPendingService(slug);
+      return `/access?service=${slug}`;
+    }
+    const next = searchParams.get('next');
+    if (next && next.startsWith('/access')) return '/access';
+    return '/access';
+  }
+
   if (slug) {
     rememberPendingService(slug);
     return chatPathForService(slug);
@@ -159,6 +171,7 @@ export function loginPathForService(slug: string): string {
 export function safeAuthNext(next: string | null | undefined): string {
   if (!next) return '/chat';
   const decoded = decodeMaybe(next);
+  if (decoded.startsWith('/access')) return decoded;
   if (decoded.startsWith('/chat')) return decoded;
   return '/chat';
 }

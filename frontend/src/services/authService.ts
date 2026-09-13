@@ -56,6 +56,7 @@ export interface User {
   status?: string;
   created_at?: string;
   last_login?: string | null;
+  has_disability?: boolean;
 }
 
 export interface AuthResponse {

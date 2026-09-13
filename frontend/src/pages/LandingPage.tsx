@@ -74,7 +74,7 @@ const FOOTER_COLUMNS: Array<{
     items: [
       { label: 'About Rafiki' },
       { label: 'How it Works' },
-      { label: 'Accessibility' },
+      { label: 'Accessibility', href: '/access' },
       { label: 'Our Impact' },
     ],
   },
@@ -150,10 +150,14 @@ export function LandingPage() {
 
             <span className="rl-divider" aria-hidden="true" />
 
-            <button type="button" className="rl-control" aria-label="Accessibility">
+            <Link
+              to="/access"
+              className="rl-control"
+              aria-label="Open Rafiki Access, a large-print talking keypad for visually impaired people"
+            >
               <Accessibility size={19} aria-hidden="true" />
               <span className="rl-control-label">Accessibility</span>
-            </button>
+            </Link>
 
             <span className="rl-divider" aria-hidden="true" />
 

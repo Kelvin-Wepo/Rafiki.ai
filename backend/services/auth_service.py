@@ -270,7 +270,8 @@ class AuthService:
             "full_name": user.full_name,
             "email_masked": user.email_masked,
             "phone_masked": user.phone_number_masked,
-            "status": user.status
+            "status": user.status,
+            "has_disability": bool(getattr(user, "has_disability", False)),
         }
 
     async def initiate_login(

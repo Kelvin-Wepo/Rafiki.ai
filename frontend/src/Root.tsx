@@ -10,6 +10,9 @@ import { Dashboard } from './components/Dashboard';
 import { SignUpPage, LoginPage, LandingPage, ForgotPasswordPage } from './pages';
 import LipSyncDemoPage from './pages/LipSyncDemoPage';
 import { destinationAfterAuth, isGuidedServiceSlug, rememberPendingService } from './lib/guidedServices';
+import { isAccessModeEnabled } from './lib/accessMode';
+import { AccessModeProvider } from './contexts/AccessModeContext';
+import { AccessPage } from './pages/AccessPage';
 
 /**
  * Loading Screen Component
@@ -85,7 +88,15 @@ function HomeRoute() {
     return <LoadingScreen />;
   }
 
-  return isAuthenticated ? <Dashboard /> : <LandingPage />;
+  if (!isAuthenticated) {
+    return <LandingPage />;
+  }
+
+  if (isAccessModeEnabled()) {
+    return <Navigate to="/access" replace />;
+  }
+
+  return <Dashboard />;
 }
 
 /**
@@ -129,6 +140,7 @@ function AppRouter() {
 
       {/* Public Landing Page and home route */}
       <Route path="/" element={<HomeRoute />} />
+      <Route path="/access" element={<AccessPage />} />
       <Route path="/lipsync-demo" element={<LipSyncDemoPage />} />
 
       {/* Protected Routes */}
@@ -154,7 +166,9 @@ function Root() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRouter />
+        <AccessModeProvider>
+          <AppRouter />
+        </AccessModeProvider>
       </AuthProvider>
     </BrowserRouter>
   );

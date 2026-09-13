@@ -21,6 +21,7 @@ import {
 import { AuthInput, AuthButton, AuthCard } from '../components/Auth/components';
 import { useAuth } from '../contexts/AuthContext';
 import { destinationAfterAuth } from '../lib/guidedServices';
+import { setAccessModeEnabled } from '../lib/accessMode';
 import signupBg from '../assets/signup.png';
 import rafikiAvatar from '../assets/rafiki_avatar.png';
 import '../styles/auth.css';
@@ -283,6 +284,7 @@ export function SignUpPage() {
         localStorage.setItem('rafiki_session_id', data.session_id);
         localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
         completeAuth(data.user ?? null);
+        if (formData.hasDisability) setAccessModeEnabled(true);
         navigate(destinationAfterAuth(searchParams), { replace: true });
       }
     } catch (err) {
@@ -342,6 +344,7 @@ export function SignUpPage() {
       completeSession(data.user || { full_name: formData.fullName }, data.access_token, data.session_id);
       localStorage.setItem('rafiki_last_user', formData.fullName.split(' ')[0]);
       completeAuth(data.user ?? null);
+      if (formData.hasDisability) setAccessModeEnabled(true);
       navigate(destinationAfterAuth(searchParams), { replace: true });
     } catch (err) {
       setOtpState(prev => ({
