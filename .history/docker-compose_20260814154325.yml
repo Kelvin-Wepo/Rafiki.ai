@@ -28,7 +28,7 @@ services:
       dockerfile: Dockerfile
     container_name: rafiki-backend
     ports:
-      - "8001:8000"
+      - "8000:8000"
     environment:
       # Database
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/rafiki
@@ -67,7 +67,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8001
+      - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
     restart: unless-stopped
