@@ -80,7 +80,15 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = "kelvinwepo7710@gmail.com"
     SMTP_FROM_NAME: str = "Kelvin Wepo"
-    EMAIL_ENABLED: bool = False  # Set to True when SMTP is configured
+    EMAIL_ENABLED: bool = True
+
+    @field_validator("SMTP_PASSWORD", mode="before")
+    @classmethod
+    def strip_smtp_password(cls, value):
+        # Gmail app passwords are often copied with spaces ("xxxx xxxx xxxx xxxx").
+        if value is None:
+            return ""
+        return str(value).replace(" ", "").strip()
 
     # OTP/SMS simulation (dev only)
     OTP_SIMULATE: bool = False
@@ -155,6 +163,15 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+
+    @property
+    def email_configured(self) -> bool:
+        return bool(
+            self.EMAIL_ENABLED
+            and self.SMTP_USERNAME
+            and self.SMTP_PASSWORD
+            and self.SMTP_HOST
+        )
 
 
 _settings_mtime: float = -1.0

@@ -48,15 +48,26 @@ class EmailService:
             True if configuration is valid
         """
         if not self.settings.EMAIL_ENABLED:
-            logger.warning("Email service disabled (EMAIL_ENABLED=False)")
+            logger.error(
+                "OTP emails disabled: EMAIL_ENABLED is false. "
+                "Set EMAIL_ENABLED=true and SMTP_USERNAME/SMTP_PASSWORD on the server."
+            )
             return False
         
         if not self.settings.SMTP_USERNAME or not self.settings.SMTP_PASSWORD:
-            logger.warning("SMTP credentials not configured")
+            logger.error(
+                "OTP emails disabled: SMTP_USERNAME or SMTP_PASSWORD is missing. "
+                "Add them to the hosting environment (they are not in the Git repo)."
+            )
             return False
         
         self._initialized = True
-        logger.info("Email service initialized successfully")
+        logger.info(
+            "Email service initialized (%s:%s as %s)",
+            self.settings.SMTP_HOST,
+            self.settings.SMTP_PORT,
+            self._mask_email(self.settings.SMTP_USERNAME),
+        )
         return True
     
     def _send_email_sync(
@@ -94,19 +105,24 @@ class EmailService:
             part2 = MIMEText(html_body, "html")
             msg.attach(part2)
             
-            # Create secure connection
             context = ssl.create_default_context()
-            
-            with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT) as server:
-                server.ehlo()
-                server.starttls(context=context)
-                server.ehlo()
-                server.login(self.settings.SMTP_USERNAME, self.settings.SMTP_PASSWORD)
-                server.sendmail(
-                    self.settings.SMTP_FROM_EMAIL,
-                    to_email,
-                    msg.as_string()
-                )
+            host = self.settings.SMTP_HOST
+            port = int(self.settings.SMTP_PORT)
+            username = self.settings.SMTP_USERNAME
+            password = self.settings.SMTP_PASSWORD
+            from_email = self.settings.SMTP_FROM_EMAIL or username
+
+            if port == 465:
+                with smtplib.SMTP_SSL(host, port, timeout=20, context=context) as server:
+                    server.login(username, password)
+                    server.sendmail(from_email, to_email, msg.as_string())
+            else:
+                with smtplib.SMTP(host, port, timeout=20) as server:
+                    server.ehlo()
+                    server.starttls(context=context)
+                    server.ehlo()
+                    server.login(username, password)
+                    server.sendmail(from_email, to_email, msg.as_string())
             
             logger.info(f"Email sent to {self._mask_email(to_email)}")
             return {"success": True}
@@ -145,7 +161,11 @@ class EmailService:
                 if self.settings.OTP_SIMULATE:
                     logger.info(f"[SIMULATION] Email would be sent to {self._mask_email(to_email)}")
                     return {"success": True, "simulated": True}
-                return {"success": False, "error": "Email service not initialized"}
+                return {
+                    "success": False,
+                    "error": "email_not_configured",
+                    "message": "Email delivery is not configured on the server.",
+                }
         
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(

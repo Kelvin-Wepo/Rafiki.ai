@@ -408,6 +408,7 @@ async def health_check():
         services_status["sms"] = False
 
     services_status["elevenlabs"] = bool(settings.ELEVENLABS_API_KEY)
+    services_status["email"] = settings.email_configured
 
     return {
         "status": "healthy",

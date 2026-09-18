@@ -265,7 +265,18 @@ export function SignUpPage() {
         if (data.error === 'email_exists') throw new Error('An account with this email already exists');
         if (data.error === 'phone_exists') throw new Error('An account with this phone number already exists');
         if (data.error === 'id_exists') throw new Error('An account with this ID number already exists');
-        throw new Error(data.message || data.detail || 'Registration failed');
+        if (data.error === 'otp_failed' || data.error === 'delivery_failed') {
+          throw new Error(
+            typeof data.message === 'string' && data.message
+              ? data.message
+              : 'We could not send your verification code. Please try again.'
+          );
+        }
+        throw new Error(
+          typeof data.message === 'string' && data.message
+            ? data.message
+            : 'Registration failed'
+        );
       }
 
       if (data.requires_verification) {

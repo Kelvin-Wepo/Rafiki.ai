@@ -35,6 +35,21 @@ services:
         value: sandbox
       - key: AFRICASTALKING_API_KEY
         sync: false
+      # OTP emails. Password must be set in the Render dashboard — never commit it.
+      - key: EMAIL_ENABLED
+        value: "true"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Rafiki
       - key: COLAB_SADTALKER_URL
         sync: false
       - key: HOST

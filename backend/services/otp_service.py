@@ -685,6 +685,21 @@ class OTPService:
         phone_hash = hash_value(phone_number)
         return self._last_plain_otps.get(phone_hash)
 
+    def _otp_email_user_message(self, email_result: Dict[str, Any]) -> str:
+        """Turn a mail-provider failure into a signup-facing sentence."""
+        error = str(email_result.get("error") or email_result.get("message") or "").lower()
+        if "not_configured" in error or "not initialized" in error:
+            return (
+                "We couldn't send your verification code because email delivery "
+                "is not set up on the server."
+            )
+        if "authentication" in error or "username and password" in error:
+            return (
+                "We couldn't send your verification code because the mail server "
+                "rejected the login. Check SMTP_USERNAME and SMTP_PASSWORD."
+            )
+        return "We couldn't send your verification code. Please try again in a minute."
+
     async def _send_otp_email(self, email: str, otp: str) -> Dict[str, Any]:
         """
         Send OTP via email.
@@ -824,6 +839,10 @@ class OTPService:
             
             return response
         else:
+            logger.error(
+                "OTP email delivery failed: %s",
+                email_result.get("error") or email_result.get("message"),
+            )
             self._log_audit_event(
                 "otp_request_email",
                 email_hash,
@@ -835,7 +854,7 @@ class OTPService:
             return {
                 "success": False,
                 "error": "delivery_failed",
-                "message": "Failed to send OTP email. Please try again."
+                "message": self._otp_email_user_message(email_result),
             }
 
     async def verify_otp_for_email(
