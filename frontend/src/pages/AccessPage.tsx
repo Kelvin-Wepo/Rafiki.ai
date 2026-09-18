@@ -1,5 +1,5 @@
 /**
- * Rafiki Access — a gold-on-black talking keypad for low-vision users.
+ * Rafiki Access — a high-contrast talking keypad for low-vision users.
  * One action at a time. Number keys 1–9. Optional read-aloud.
  */
 
@@ -50,7 +50,7 @@ const COPY = {
     skip: 'Skip to actions',
     kicker: 'Accessibility layer',
     title: 'Press a number. Rafiki will help.',
-    lede: 'This screen is built for low vision: large gold type on black, one step at a time. Listen, then choose.',
+    lede: 'This screen is built for low vision: large green type, one step at a time. Listen, then choose.',
     talk: 'Talk to Rafiki',
     talkSub: 'Microphone. Rafiki listens and speaks.',
     type: 'Type to Rafiki',
@@ -70,7 +70,7 @@ const COPY = {
     back: 'Back to keypad',
     say: 'Rafiki is saying',
     talkTitle: 'Talk to Rafiki',
-    talkReady: 'Press 1 or the gold button to start. Speak after you hear the tone.',
+    talkReady: 'Press 1 or the green button to start. Speak after you hear the tone.',
     start: 'Start listening',
     stop: 'Stop listening',
     listening: 'Listening',
@@ -89,7 +89,7 @@ const COPY = {
     skip: 'Ruka kwenda vitendo',
     kicker: 'Safu ya ufikivu',
     title: 'Bonyeza nambari. Rafiki atakusaidia.',
-    lede: 'Skrini hii ni kwa watu wenye uoni hafifu: maandishi makubwa ya dhahabu kwenye nyeusi, hatua moja. Sikiliza, kisha chagua.',
+    lede: 'Skrini hii ni kwa watu wenye uoni hafifu: maandishi makubwa ya kijani, hatua moja. Sikiliza, kisha chagua.',
     talk: 'Ongea na Rafiki',
     talkSub: 'Maikrofoni. Rafiki husikiliza na kuongea.',
     type: 'Andika kwa Rafiki',
@@ -109,7 +109,7 @@ const COPY = {
     back: 'Rudi kwenye kibodi',
     say: 'Rafiki anasema',
     talkTitle: 'Ongea na Rafiki',
-    talkReady: 'Bonyeza 1 au kitufe cha dhahabu kuanza. Ongea baada ya sauti.',
+    talkReady: 'Bonyeza 1 au kitufe cha kijani kuanza. Ongea baada ya sauti.',
     start: 'Anza kusikiliza',
     stop: 'Acha kusikiliza',
     listening: 'Anasikiliza',

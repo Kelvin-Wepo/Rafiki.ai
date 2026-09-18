@@ -2,20 +2,26 @@
 
 /**
  * Rafiki Access — low-vision kiosk UI.
- * Gold-on-black keypad, Atkinson Hyperlegible type, huge targets.
+ * Same forest-green / ivory palette as the landing page, with huge targets
+ * and Atkinson Hyperlegible type.
  */
 
 .ra-page {
-  --ra-bg: #070707;
-  --ra-ink: #fff8d6;
-  --ra-gold: #ffd000;
-  --ra-gold-deep: #f5c400;
-  --ra-muted: #e8d98a;
-  --ra-danger: #ff6b6b;
-  --ra-ok: #7dff9a;
-  --ra-panel: #121212;
-  --ra-line: #ffd000;
-  --ra-focus: #ffffff;
+  --ra-bg: #f8f3e7;
+  --ra-ink: #16191c;
+  --ra-gold: #14532d;
+  --ra-gold-deep: #0f3d21;
+  --ra-muted: #5b6470;
+  --ra-danger: #bb0000;
+  --ra-ok: #15803d;
+  --ra-panel: #ffffff;
+  --ra-line: #14532d;
+  --ra-focus: #15803d;
+  --ra-on-accent: #ffffff;
+  --ra-header: #14532d;
+  --ra-header-ink: #f7f9f6;
+  --ra-header-muted: #cfe5d6;
+  --ra-tint: #eef3ee;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -33,7 +39,7 @@
   z-index: 20;
   padding: 12px 18px;
   background: var(--ra-gold);
-  color: #000;
+  color: var(--ra-on-accent);
   font-weight: 700;
   border-radius: 8px;
 }
@@ -67,15 +73,15 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 4px solid var(--ra-gold);
-  background: #000;
+  border-bottom: 4px solid var(--ra-gold-deep);
+  background: var(--ra-header);
 }
 
 .ra-brand {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: var(--ra-gold);
+  color: var(--ra-header-ink);
   text-decoration: none;
   font-weight: 700;
 }
@@ -87,7 +93,7 @@
 
 .ra-brand-tag {
   font-size: 1rem;
-  color: var(--ra-muted);
+  color: var(--ra-header-muted);
   font-weight: 400;
 }
 
@@ -101,7 +107,7 @@
 .ra-key {
   appearance: none;
   border: 3px solid var(--ra-gold);
-  background: #000;
+  background: var(--ra-panel);
   color: var(--ra-gold);
   font: inherit;
   font-weight: 700;
@@ -116,10 +122,23 @@
   gap: 8px;
 }
 
+.ra-header .ra-chip {
+  border-color: var(--ra-header-ink);
+  background: transparent;
+  color: var(--ra-header-ink);
+}
+
 .ra-chip[aria-pressed='true'],
 .ra-chip.is-on {
   background: var(--ra-gold);
-  color: #000;
+  color: var(--ra-on-accent);
+}
+
+.ra-header .ra-chip[aria-pressed='true'],
+.ra-header .ra-chip.is-on {
+  background: var(--ra-header-ink);
+  color: var(--ra-header);
+  border-color: var(--ra-header-ink);
 }
 
 .ra-chip:focus-visible,
@@ -180,7 +199,7 @@
   height: 56px;
   border-radius: 50%;
   background: var(--ra-gold);
-  color: #000;
+  color: var(--ra-on-accent);
   display: grid;
   place-items: center;
   font-size: 1.8rem;
@@ -200,16 +219,16 @@
 
 .ra-key--primary {
   background: var(--ra-gold);
-  color: #000;
+  color: var(--ra-on-accent);
 }
 
 .ra-key--primary .ra-key-num {
-  background: #000;
+  background: var(--ra-on-accent);
   color: var(--ra-gold);
 }
 
 .ra-key--primary .ra-key-sub {
-  color: #3a3000;
+  color: var(--ra-header-muted);
 }
 
 .ra-hint {
@@ -222,11 +241,12 @@
   margin-top: auto;
   padding: 16px 20px 22px;
   border-top: 4px solid var(--ra-gold);
-  background: #000;
+  background: var(--ra-header);
+  color: var(--ra-header-ink);
 }
 
 .ra-say-label {
-  color: var(--ra-gold);
+  color: var(--ra-header-muted);
   font-weight: 700;
   font-size: 0.95rem;
   letter-spacing: 0.06em;
@@ -261,7 +281,7 @@
 
 .ra-status.is-live .ra-dot {
   background: var(--ra-ok);
-  box-shadow: 0 0 0 6px rgba(125, 255, 154, 0.2);
+  box-shadow: 0 0 0 6px rgba(21, 128, 61, 0.2);
 }
 
 .ra-transcript {
@@ -289,13 +309,13 @@
 }
 
 .ra-bubble--assistant {
-  background: #000;
+  background: var(--ra-tint);
   color: var(--ra-gold);
 }
 
 .ra-bubble--user {
   background: var(--ra-gold);
-  color: #000;
+  color: var(--ra-on-accent);
 }
 
 .ra-composer-row {
@@ -311,8 +331,8 @@
   padding: 14px 16px;
   border: 3px solid var(--ra-gold);
   border-radius: 12px;
-  background: #000;
-  color: var(--ra-gold);
+  background: var(--ra-panel);
+  color: var(--ra-ink);
   font: inherit;
   font-size: 1.4rem;
 }

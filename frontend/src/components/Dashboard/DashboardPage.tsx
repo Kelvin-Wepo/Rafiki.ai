@@ -1418,7 +1418,7 @@ function SettingsPanel({
           <span className="rd-setting-copy">
             <span className="rd-setting-name">Rafiki Access</span>
             <span className="rd-setting-desc">
-              Large gold-on-black keypad with read-aloud, built for low vision
+              Large green keypad with read-aloud, built for low vision
             </span>
           </span>
           <button type="button" className="rd-btn-secondary" onClick={onOpenAccess}>
