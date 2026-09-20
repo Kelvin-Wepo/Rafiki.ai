@@ -83,27 +83,26 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
     }
   }, [sessionId, onError]);
 
-  // Play TTS audio
+  // Play ElevenLabs TTS audio
   const speak = useCallback(async (text: string): Promise<void> => {
     updateState('speaking');
-    
+
     try {
-      // Try ElevenLabs TTS first
       const ttsResponse = await ttsApi.textToSpeech({ text });
-      
+
       if (ttsResponse.success && ttsResponse.audio_data) {
         const audioBlob = new Blob(
           [Uint8Array.from(atob(ttsResponse.audio_data), c => c.charCodeAt(0))],
           { type: ttsResponse.content_type || 'audio/mpeg' }
         );
         const audioUrl = URL.createObjectURL(audioBlob);
-        
+
         return new Promise((resolve, reject) => {
           if (audioRef.current) {
             audioRef.current.pause();
             audioRef.current.src = '';
           }
-          
+
           audioRef.current = new Audio(audioUrl);
           audioRef.current.onended = () => {
             URL.revokeObjectURL(audioUrl);
@@ -112,41 +111,25 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
           };
           audioRef.current.onerror = () => {
             URL.revokeObjectURL(audioUrl);
-            // Fallback to browser TTS
-            speakWithBrowser(text).then(resolve).catch(reject);
+            updateState('idle');
+            reject(new Error('ElevenLabs audio failed to play'));
           };
-          audioRef.current.play().catch(() => {
-            speakWithBrowser(text).then(resolve).catch(reject);
+          audioRef.current.play().catch((err) => {
+            URL.revokeObjectURL(audioUrl);
+            updateState('idle');
+            reject(err);
           });
         });
-      } else {
-        return speakWithBrowser(text);
       }
-    } catch (err) {
-      console.error('TTS error, falling back to browser:', err);
-      return speakWithBrowser(text);
-    }
-  }, [updateState]);
 
-  // Browser TTS fallback
-  const speakWithBrowser = useCallback((text: string): Promise<void> => {
-    return new Promise((resolve) => {
-      updateState('speaking');
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = language === 'sw-KE' ? 'sw-KE' : 'en-KE';
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.onend = () => {
-        updateState('idle');
-        resolve();
-      };
-      utterance.onerror = () => {
-        updateState('idle');
-        resolve();
-      };
-      speechSynthesis.speak(utterance);
-    });
-  }, [language, updateState]);
+      updateState('idle');
+      onError?.(ttsResponse.error || 'ElevenLabs TTS failed');
+    } catch (err) {
+      console.error('TTS error:', err);
+      updateState('idle');
+      onError?.('ElevenLabs TTS failed');
+    }
+  }, [onError, updateState]);
 
   // Stop speaking
   const stopSpeaking = useCallback(() => {
@@ -154,7 +137,6 @@ export function useVoiceConversation(options: UseVoiceConversationOptions = {}) 
       audioRef.current.pause();
       audioRef.current.src = '';
     }
-    speechSynthesis.cancel();
     updateState('idle');
   }, [updateState]);
 

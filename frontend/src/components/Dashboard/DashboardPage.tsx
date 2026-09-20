@@ -55,7 +55,12 @@ import {
   rememberPendingService,
   titleForService,
 } from '../../lib/guidedServices';
-import { agentMessageText, ensureRafikiAgentId, fetchElevenLabsConfig, type ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
+import {
+  agentMessageText,
+  fetchElevenLabsConfig,
+  readConversationToken,
+  type ElevenLabsRuntimeConfig,
+} from '../../lib/elevenlabsAgent';
 import {
   checkAgencyPayment,
   continueAgencyChat,
@@ -651,6 +656,7 @@ function DashboardInner() {
     }
 
     setView('voice');
+    setLipSyncClip(null);
 
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -663,13 +669,10 @@ function DashboardInner() {
       return;
     }
 
-    // Always refresh live agent/key from the server before connecting.
     let conversationToken: string | null = null;
-    let agentId = liveAgentId;
     try {
       const config = await fetchElevenLabsConfig(API_BASE);
       setVoiceConfig(config);
-      if (config.agent_id) agentId = config.agent_id;
     } catch (err) {
       console.warn('Could not refresh ElevenLabs config:', err);
     }
@@ -677,51 +680,32 @@ function DashboardInner() {
       const res = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.token) conversationToken = data.token;
-        else console.warn('Conversation token unavailable:', data.error);
-        if (data.agent_id) agentId = ensureRafikiAgentId(data.agent_id);
+        conversationToken = readConversationToken(data);
+        if (!conversationToken) console.warn('Conversation token unavailable:', data.error);
       }
     } catch (err) {
       console.warn('Could not reach the conversation-token endpoint:', err);
     }
 
-    if (!agentId) {
-      const config = await fetchElevenLabsConfig(API_BASE);
-      setVoiceConfig(config);
-      agentId = config.agent_id || '';
-    }
-
-    agentId = ensureRafikiAgentId(agentId);
-
-    if (!conversationToken && !agentId) {
+    if (!conversationToken) {
       alert(
-        'Voice mode is not configured. Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID on the server.'
+        'Voice mode needs an ElevenLabs conversation token. Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID on the server.'
       );
       return;
     }
 
     try {
-      await conversation.startSession(
-        conversationToken
-          ? { conversationToken, connectionType: 'webrtc' }
-          : { agentId, connectionType: 'webrtc' }
-      );
+      await conversation.startSession({
+        conversationToken,
+        connectionType: 'webrtc',
+      });
       setIsListening(true);
-    } catch (tokenErr) {
-      console.warn('Token session failed, trying public agent ID:', tokenErr);
-      try {
-        await conversation.startSession({
-          agentId,
-          connectionType: 'webrtc',
-        });
-        setIsListening(true);
-      } catch (err) {
-        console.error('Failed to start voice conversation:', err);
-        alert('Could not start voice mode. Please try again.');
-        setIsListening(false);
-      }
+    } catch (err) {
+      console.error('Failed to start voice conversation:', err);
+      alert('Could not start voice mode. Please try again.');
+      setIsListening(false);
     }
-  }, [conversation, isVoiceConnected, liveAgentId]);
+  }, [conversation, isVoiceConnected]);
 
   const handleSend = useCallback(() => {
     if (chatInput.trim()) sendMessage(chatInput);

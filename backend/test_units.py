@@ -66,17 +66,22 @@ def elevenlabs_service():
 async def test_elevenlabs_tts_success(elevenlabs_service):
     """Test text-to-speech with mock API success"""
     mock_audio_content = b"fake_audio_data"
-    
-    with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
-        mock_post.return_value.status_code = 200
-        mock_post.return_value.content = mock_audio_content
-        
-        # Mock file writing to avoid actual disk I/O
-        with patch('builtins.open', new_callable=Mock) as mock_open:
-            path = await elevenlabs_service.text_to_speech_file("Hello", "voice_id")
-            
-            assert path is not None
-            assert str(path).endswith(".mp3") or str(path).endswith(".wav")
+
+    with patch.object(elevenlabs_service, 'get_live_agent_config', new_callable=AsyncMock) as mock_live:
+        mock_live.return_value = {
+            "success": True,
+            "voice_id": "voice_live",
+            "tts_model": "eleven_flash_v2_5",
+        }
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.content = mock_audio_content
+
+            with patch('builtins.open', new_callable=Mock):
+                path = await elevenlabs_service.text_to_speech_file("Hello", "en")
+
+                assert path is not None
+                assert str(path).endswith(".mp3")
 
 
 def test_elevenlabs_uses_flash_model_by_default():

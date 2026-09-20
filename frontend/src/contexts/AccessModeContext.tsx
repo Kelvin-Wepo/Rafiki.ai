@@ -15,6 +15,7 @@ import {
   writeAccessLang,
   type AccessLang,
 } from '../lib/accessMode';
+import { playElevenLabsText, stopElevenLabsAudio } from '../lib/elevenlabsAudio';
 
 type AccessModeContextValue = {
   enabled: boolean;
@@ -30,11 +31,6 @@ type AccessModeContextValue = {
 
 const AccessModeContext = createContext<AccessModeContextValue | undefined>(undefined);
 
-function cancelSpeech() {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-}
-
 export function AccessModeProvider({ children }: { children: ReactNode }) {
   const [enabled, setEnabled] = useState(() => isAccessModeEnabled());
   const [language, setLanguageState] = useState<AccessLang>(() => readAccessLang());
@@ -48,7 +44,7 @@ export function AccessModeProvider({ children }: { children: ReactNode }) {
   const disable = useCallback(() => {
     setAccessModeEnabled(false);
     setEnabled(false);
-    cancelSpeech();
+    stopElevenLabsAudio();
   }, []);
 
   const setLanguage = useCallback((lang: AccessLang) => {
@@ -59,21 +55,15 @@ export function AccessModeProvider({ children }: { children: ReactNode }) {
   const setSpeakOn = useCallback((on: boolean) => {
     setAccessSpeakEnabled(on);
     setSpeakOnState(on);
-    if (!on) cancelSpeech();
+    if (!on) stopElevenLabsAudio();
   }, []);
 
   const speak = useCallback(
     (text: string) => {
-      if (!speakOn || !text.trim() || typeof window === 'undefined' || !window.speechSynthesis) {
-        return;
-      }
-      cancelSpeech();
-      const utterance = new SpeechSynthesisUtterance(text.trim());
-      utterance.lang = language === 'sw' ? 'sw-KE' : 'en-KE';
-      utterance.rate = 0.92;
-      window.speechSynthesis.speak(utterance);
+      if (!speakOn || !text.trim()) return;
+      void playElevenLabsText(text);
     },
-    [language, speakOn]
+    [speakOn]
   );
 
   const value = useMemo(
@@ -86,7 +76,7 @@ export function AccessModeProvider({ children }: { children: ReactNode }) {
       setLanguage,
       setSpeakOn,
       speak,
-      stopSpeaking: cancelSpeech,
+      stopSpeaking: stopElevenLabsAudio,
     }),
     [disable, enable, enabled, language, setLanguage, setSpeakOn, speak, speakOn]
   );

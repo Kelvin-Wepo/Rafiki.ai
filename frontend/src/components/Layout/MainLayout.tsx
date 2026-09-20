@@ -177,9 +177,7 @@ export default function MainLayout({ user, onLogout }: MainLayoutProps) {
         
         await audioPlayerRef.current.play();
       } else {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.onend = () => setVoiceState('idle');
-        speechSynthesis.speak(utterance);
+        setVoiceState('idle');
       }
     } catch (err) {
       console.error('TTS error:', err);

@@ -17,9 +17,9 @@ import {
 } from '../lib/agencyWorkflow';
 import {
   agentMessageText,
-  ensureRafikiAgentId,
-  fetchElevenLabsConfig,
+  readConversationToken,
 } from '../lib/elevenlabsAgent';
+import { playElevenLabsBase64 } from '../lib/elevenlabsAudio';
 import {
   isGuidedServiceSlug,
   rememberPendingService,
@@ -148,7 +148,6 @@ function AccessInner() {
       if (!parsed?.text) return;
       if (parsed.source !== 'user') {
         setAnnouncement(parsed.text);
-        speak(parsed.text);
       }
     },
   });
@@ -168,14 +167,16 @@ function AccessInner() {
   );
 
   useEffect(() => {
+    if (view === 'talk') {
+      stopSpeaking();
+      return;
+    }
     const intro =
       view === 'home'
         ? `${t.title} ${t.lede}`
-        : view === 'talk'
-          ? t.talkReady
-          : view === 'type'
-            ? t.typeTitle
-            : t.servicesTitle;
+        : view === 'type'
+          ? t.typeTitle
+          : t.servicesTitle;
     announce(intro);
     // Speak once per view/language, not on every announce identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,30 +210,27 @@ function AccessInner() {
       announce(t.ready);
       return;
     }
+    stopSpeaking();
     try {
       const tokenRes = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
       let conversationToken = '';
-      let agentId = '';
       if (tokenRes.ok) {
         const data = await tokenRes.json();
-        conversationToken = data.conversation_token || '';
-        if (data.agent_id) agentId = ensureRafikiAgentId(data.agent_id);
+        conversationToken = readConversationToken(data);
       }
-      if (!agentId) {
-        const config = await fetchElevenLabsConfig(API_BASE);
-        agentId = ensureRafikiAgentId(config.agent_id);
+      if (!conversationToken) {
+        setError(language === 'sw' ? 'Sikuweza kuanza sauti.' : 'Could not start voice.');
+        return;
       }
-      await conversation.startSession(
-        conversationToken
-          ? { conversationToken, connectionType: 'webrtc' }
-          : { agentId, connectionType: 'webrtc' }
-      );
-      announce(t.listening);
+      await conversation.startSession({
+        conversationToken,
+        connectionType: 'webrtc',
+      });
     } catch (err) {
       console.error(err);
       setError(language === 'sw' ? 'Sikuweza kuanza sauti.' : 'Could not start voice.');
     }
-  }, [announce, connected, conversation, isAuthenticated, language, requireAuth, t.listening, t.ready]);
+  }, [connected, conversation, isAuthenticated, language, requireAuth, announce, stopSpeaking, t.ready]);
 
   const sendTyped = useCallback(async () => {
     const text = draft.trim();
@@ -255,7 +253,12 @@ function AccessInner() {
             ...prev,
             { id: `a-${Date.now()}`, sender: 'assistant', content: data.response },
           ]);
-          announce(data.response);
+          if (data.audio_base64) {
+            stopSpeaking();
+            void playElevenLabsBase64(data.audio_base64, data.audio_mime || 'audio/mpeg');
+          } else {
+            announce(data.response);
+          }
           await persistMessage('assistant', data.response);
         }
       } else {
@@ -292,6 +295,7 @@ function AccessInner() {
     requireAuth,
     sendTurn,
     sending,
+    stopSpeaking,
   ]);
 
   const startService = useCallback(
@@ -312,7 +316,12 @@ function AccessInner() {
           setMessages([
             { id: `a-${Date.now()}`, sender: 'assistant', content: data.response },
           ]);
-          announce(data.response);
+          if (data.audio_base64) {
+            stopSpeaking();
+            void playElevenLabsBase64(data.audio_base64, data.audio_mime || 'audio/mpeg');
+          } else {
+            announce(data.response);
+          }
           await persistMessage('assistant', data.response);
         }
       } catch (err) {
@@ -333,6 +342,7 @@ function AccessInner() {
       navigate,
       persistMessage,
       rememberAgency,
+      stopSpeaking,
     ]
   );
 

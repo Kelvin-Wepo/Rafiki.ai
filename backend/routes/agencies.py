@@ -77,8 +77,6 @@ async def generate_tts_audio(
             text=text,
             voice_id=voice_id,
             language=language,
-            model_id="eleven_flash_v2_5",
-            include_visemes=True,
         )
 
         if result.get("success") and result.get("audio_data"):

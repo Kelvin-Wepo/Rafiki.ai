@@ -30,6 +30,14 @@ export async function fetchElevenLabsConfig(apiBase: string): Promise<ElevenLabs
   };
 }
 
+export function readConversationToken(data: {
+  success?: boolean;
+  token?: string;
+  conversation_token?: string;
+}): string {
+  return String(data?.token || data?.conversation_token || '').trim();
+}
+
 export function ensureRafikiAgentId(
   agentId?: string,
   name?: string,

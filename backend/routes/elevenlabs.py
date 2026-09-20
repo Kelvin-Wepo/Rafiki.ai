@@ -19,7 +19,7 @@ class TTSRequest(BaseModel):
     """Text-to-speech request model."""
     text: str
     voice_id: Optional[str] = None
-    model_id: str = "eleven_multilingual_v2"
+    model_id: Optional[str] = None
 
 
 class SignedUrlResponse(BaseModel):
@@ -132,9 +132,6 @@ async def get_conversation_token(
 ):
     """
     Get a WebRTC conversation token for the configured agent.
-
-    Returns success=False rather than raising so the frontend can fall back to
-    connecting with a public agent ID.
     """
     try:
         result = await elevenlabs_service.get_conversation_token(agent_id)

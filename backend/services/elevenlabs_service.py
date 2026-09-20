@@ -733,9 +733,9 @@ class ElevenLabsService:
         model_id: Optional[str] = None,
         output_format: str = "mp3_44100_128",
         content_type: str = "conversational",
-        optimize_speech: bool = True,
+        optimize_speech: bool = False,
         language: str = "en",
-        include_visemes: bool = True,
+        include_visemes: bool = False,
     ) -> Dict[str, Any]:
         """
         Convert text to speech using ElevenLabs TTS API with Kenyan voice.
@@ -754,51 +754,43 @@ class ElevenLabsService:
         Returns:
             Dict with audio data (base64) or error
         """
-        try:
-            model_id = model_id or self.default_model_id
-            target_voice, _voice_display_name = self._resolve_tts_voice(voice_id, voice_name, language)
+        if not self.api_key:
+            return {
+                "success": False,
+                "error": "ElevenLabs API key not configured",
+                "viseme_timeline": [],
+            }
 
-            optimized_text = text
+        try:
+            live = await self.get_live_agent_config()
+            live_voice = live.get("voice_id") if live.get("success") else None
+            live_model = live.get("tts_model") if live.get("success") else None
+            model_id = model_id or live_model or self.default_model_id
+            target_voice, _voice_display_name = self._resolve_tts_voice(
+                voice_id or live_voice,
+                voice_name,
+                language,
+            )
+
+            spoken_text = text
             if optimize_speech:
-                optimized_text = self.optimize_text_for_speech(text, content_type, language)
+                spoken_text = self.optimize_text_for_speech(text, content_type, language)
+            _ = include_visemes
 
             voice_settings = self.VOICE_SETTINGS_OPTIMIZED.copy()
             started = time.perf_counter()
 
-            if include_visemes:
-                stamped = await self._tts_with_timestamps(
-                    optimized_text,
-                    target_voice,
-                    model_id,
-                    voice_settings,
-                    output_format,
-                    language,
-                    content_type,
-                )
-                if stamped:
-                    total_ms = round((time.perf_counter() - started) * 1000, 1)
-                    logger.info(
-                        "[ELEVENLABS_TTS] ttfb_ms=%s total_ms=%s voice_id=%s model_id=%s "
-                        "chars=%s timestamps=true",
-                        total_ms,
-                        total_ms,
-                        target_voice,
-                        model_id,
-                        len(text),
-                    )
-                    return stamped
-
+            # One ElevenLabs request only. A timestamps probe then a retry is an
+            # audible stall, and Google/espeak fallbacks are a second voice.
             response = await log_stage_timing("elevenlabs_http_call")(lambda: self.client.post(
                 f"/text-to-speech/{target_voice}",
                 json={
-                    "text": optimized_text,
+                    "text": spoken_text,
                     "model_id": model_id,
                     "voice_settings": voice_settings
                 },
                 params={"output_format": output_format}
             ))()
-            # Buffered POST: first byte is not available until the full body arrives,
-            # so ttfb_ms ≈ total_ms. Streaming synthesis is required to measure real TTFB.
             total_ms = round((time.perf_counter() - started) * 1000, 1)
             logger.info(
                 "[ELEVENLABS_TTS] ttfb_ms=%s total_ms=%s voice_id=%s model_id=%s "
@@ -816,7 +808,7 @@ class ElevenLabsService:
                     f"Generated TTS audio using {self.current_voice_name} voice. "
                     f"Text: {len(text)} chars, Language: {language}, Content type: {content_type}"
                 )
-                result = {
+                return {
                     "success": True,
                     "audio_data": audio_data,
                     "content_type": f"audio/{output_format.split('_')[0]}",
@@ -827,38 +819,26 @@ class ElevenLabsService:
                     "language": language,
                     "viseme_timeline": [],
                 }
-                return result
-            else:
-                error_msg = f"TTS failed: {response.status_code}"
-                try:
-                    error_detail = response.json()
-                    logger.error(f"{error_msg} - Detail: {error_detail}")
 
-                    # Detect subscription/payment issues and make a clear log
-                    detail_status = None
-                    if isinstance(error_detail, dict):
-                        detail_status = error_detail.get("detail", {}).get("status") or error_detail.get("status")
-
-                    if response.status_code == 402 or detail_status == "payment_required":
-                        logger.warning("ElevenLabs returned 402 Payment Required for the requested voice. This usually means your subscription does not allow library voices via the API. Consider selecting a different voice or upgrading your subscription.")
-
-                except Exception:
-                    logger.error(f"{error_msg} - Voice ID: {target_voice}")
-
-                logger.warning(f"ElevenLabs failed with {response.status_code}. Trying Google Cloud TTS fallback...")
-                return await self._google_tts_text_fallback(text, language, include_visemes=include_visemes)
+            error_msg = f"TTS failed: {response.status_code}"
+            try:
+                error_detail = response.json()
+                logger.error(f"{error_msg} - Detail: {error_detail}")
+            except Exception:
+                logger.error(f"{error_msg} - Voice ID: {target_voice}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "viseme_timeline": [],
+            }
 
         except Exception as e:
             logger.error(f"TTS error: {e}")
-            try:
-                return await self._google_tts_text_fallback(text, language, include_visemes=include_visemes)
-            except Exception as fallback_error:
-                logger.error(f"Google Cloud TTS fallback also failed: {fallback_error}")
-                return {
-                    "success": False,
-                    "error": str(e),
-                    "viseme_timeline": [],
-                }
+            return {
+                "success": False,
+                "error": str(e),
+                "viseme_timeline": [],
+            }
 
     async def text_to_speech_file(
         self,
@@ -866,287 +846,38 @@ class ElevenLabsService:
         language: str = "en",
         voice_name: Optional[str] = None
     ) -> Optional[str]:
-        """
-        Convert text to speech and save to a temporary file.
-        Used by SadTalker service for avatar animation.
-        Falls back to pyttsx3 if ElevenLabs is unavailable.
-        
-        Args:
-            text: Text to convert to speech
-            language: Language code ('en' or 'sw')
-            voice_name: Optional voice name (defaults to 'adam' for FREE tier)
-            
-        Returns:
-            Path to the generated audio file, or None on error
-        """
+        """Convert text to speech and save to a temporary file using ElevenLabs only."""
+        if not self.api_key:
+            logger.error("ElevenLabs API key not configured")
+            return None
+
         try:
             import tempfile
-            
-            # Auto-select Adam (FREE voice) if no voice specified
-            if not voice_name:
-                voice_name = "adam"  # Default to FREE tier voice
-            
-            # Try ElevenLabs first
+
             result = await self.text_to_speech(
                 text=text,
                 voice_name=voice_name,
                 language=language,
                 output_format="mp3_44100_128",
                 include_visemes=False,
-            )
-            
-            if result.get("success"):
-                # Decode audio and save to file
-                audio_data = base64.b64decode(result["audio_data"])
-                
-                # Create temp file
-                temp_file = tempfile.NamedTemporaryFile(
-                    suffix=".mp3",
-                    delete=False
-                )
-                temp_file.write(audio_data)
-                temp_file.close()
-                
-                logger.info(f"Generated TTS audio file (ElevenLabs): {temp_file.name}")
-                return temp_file.name
-            
-            # ElevenLabs failed - try Google Cloud TTS fallback
-            logger.warning(f"ElevenLabs TTS failed: {result.get('error')}. Trying Google Cloud TTS fallback...")
-            return await self._google_tts_fallback(text)
-            
-        except Exception as e:
-            logger.error(f"TTS file generation error: {e}")
-            # Try Google Cloud TTS fallback on any exception
-            try:
-                return await self._google_tts_fallback(text)
-            except Exception as fallback_error:
-                logger.error(f"Google Cloud TTS fallback also failed: {fallback_error}")
-                # Final fallback to espeak
-                try:
-                    return await self._pyttsx3_fallback(text)
-                except Exception as final_error:
-                    logger.error(f"espeak fallback also failed: {final_error}")
-                    return None
-    
-    async def _google_tts_fallback(self, text: str) -> Optional[str]:
-        """
-        Generate TTS audio using Google Cloud TTS as fallback.
-        
-        Args:
-            text: Text to convert to speech
-            
-        Returns:
-            Path to the generated MP3 file, or None on error
-        """
-        try:
-            from services.google_tts_service import google_tts_service
-            
-            # Initialize if needed
-            if not google_tts_service._initialized:
-                google_tts_service.initialize()
-            
-            # Generate audio file
-            audio_file = await google_tts_service.text_to_speech_file(
-                text=text,
-                voice_name="en-US-Neural2-J",  # Warm male voice
-                language="en"
-            )
-            
-            if audio_file:
-                logger.info(f"Generated TTS audio file (Google Cloud fallback): {audio_file}")
-                return audio_file
-            
-            # If Google TTS fails, fall back to espeak
-            logger.warning("Google Cloud TTS fallback failed, trying espeak...")
-            return await self._pyttsx3_fallback(text)
-            
-        except Exception as e:
-            logger.error(f"Google Cloud TTS fallback error: {e}")
-            # Final fallback to espeak
-            return await self._pyttsx3_fallback(text)
-    
-    async def _google_tts_text_fallback(
-        self, text: str, language: str = "en", include_visemes: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Generate TTS audio using Google Cloud TTS as fallback for text_to_speech method.
-        
-        Args:
-            text: Text to convert to speech
-            language: Language code
-            
-        Returns:
-            Dict with audio data (base64) or error
-        """
-        try:
-            from services.google_tts_service import google_tts_service
-            
-            # Initialize if needed
-            if not google_tts_service._initialized:
-                initialized = google_tts_service.initialize()
-                if not initialized:
-                    logger.warning("Google Cloud TTS not initialized (missing credentials). Please set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_API_KEY.")
-                    # Try pyttsx3 as final fallback
-                    return await self._pyttsx3_text_fallback(text, language)
-            
-            # Generate audio bytes
-            audio_bytes = await google_tts_service.text_to_speech(
-                text=text,
-                voice_name="en-US-Neural2-J",  # Warm male voice
-                language=language
+                optimize_speech=False,
             )
 
-            if audio_bytes:
-                audio_data = base64.b64encode(audio_bytes).decode('utf-8')
-                logger.info(f"Generated TTS audio using Google Cloud TTS fallback. Text: {len(text)} chars")
-                result = {
-                    "success": True,
-                    "audio_data": audio_data,
-                    "content_type": "audio/mp3",
-                    "text_length": len(text),
-                    "voice_name": "Google Cloud Neural2-J",
-                    "voice_id": "en-US-Neural2-J",
-                    "speech_type": "conversational",
-                    "language": language,
-                    "viseme_timeline": [],
-                }
-                return result
-            else:
-                logger.error("Google Cloud TTS returned no audio bytes")
-                # Try pyttsx3 as final fallback
-                return await self._pyttsx3_text_fallback(text, language)
-            
-        except Exception as e:
-            logger.error(f"Google Cloud TTS text fallback error: {e}")
-            # Try pyttsx3 as final fallback
-            return await self._pyttsx3_text_fallback(text, language)
-    
-    async def _pyttsx3_text_fallback(self, text: str, language: str = "en") -> Dict[str, Any]:
-        """
-        Generate TTS audio using pyttsx3 (offline) as final fallback.
-        Uses subprocess to avoid async/threading issues with espeak.
-        
-        Args:
-            text: Text to convert to speech
-            language: Language code
-            
-        Returns:
-            Dict with audio data (base64) or error
-        """
-        try:
-            import tempfile
-            import os
-            import subprocess
-            
-            logger.info("Using espeak offline TTS as final fallback...")
-            
-            # Create temp file
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            try:
-                # Use espeak directly via subprocess (avoids pyttsx3 threading issues)
-                # -w writes to WAV file, -s sets speed (words per minute)
-                voice = "en" if language == "en" else "sw"  # espeak supports Swahili
-                cmd = ["espeak", "-v", voice, "-s", "150", "-w", temp_path, text]
-                
-                result = subprocess.run(cmd, capture_output=True, timeout=30)
-                
-                if result.returncode != 0:
-                    logger.error(f"espeak failed: {result.stderr.decode()}")
-                    return {"success": False, "error": "espeak_failed"}
-                
-                # Read the file and encode to base64
-                if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
-                    with open(temp_path, 'rb') as f:
-                        audio_bytes = f.read()
-                    
-                    audio_data = base64.b64encode(audio_bytes).decode('utf-8')
-                    logger.info(f"Generated TTS audio using espeak fallback. Text: {len(text)} chars")
-                    result = {
-                        "success": True,
-                        "audio_data": audio_data,
-                        "content_type": "audio/wav",
-                        "text_length": len(text),
-                        "voice_name": "espeak-offline",
-                        "voice_id": "espeak",
-                        "speech_type": "fallback",
-                        "language": language,
-                        "viseme_timeline": [],
-                    }
-                    return result
-                else:
-                    logger.error("espeak did not generate audio file")
-                    return {"success": False, "error": "espeak_no_audio", "message": "espeak did not generate audio"}
-                    
-            finally:
-                # Cleanup temp file
-                if os.path.exists(temp_path):
-                    os.unlink(temp_path)
-                    
-        except Exception as e:
-            logger.error(f"espeak fallback error: {e}")
-            return {
-                "success": False,
-                "error": f"All TTS methods failed. Last error: {str(e)}"
-            }
-    
-    async def _pyttsx3_fallback(self, text: str) -> Optional[str]:
-        """
-        Generate TTS audio using espeak as a fallback.
-        
-        Args:
-            text: Text to convert to speech
-            
-        Returns:
-            Path to the generated WAV file, or None on error
-        """
-        try:
-            import tempfile
-            import subprocess
-            import shutil
-            
-            # Create temp file for output
-            temp_file = tempfile.NamedTemporaryFile(
-                suffix=".wav",
-                delete=False
-            )
+            if not result.get("success"):
+                logger.error(f"ElevenLabs TTS failed: {result.get('error')}")
+                return None
+
+            audio_data = base64.b64decode(result["audio_data"])
+            temp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+            temp_file.write(audio_data)
             temp_file.close()
-            
-            # Check if espeak is available
-            espeak_path = shutil.which('espeak') or shutil.which('espeak-ng')
-            if not espeak_path:
-                logger.error("espeak not installed. Install with: sudo apt install espeak")
-                return None
-            
-            # Generate audio using espeak
-            result = subprocess.run(
-                [espeak_path, '-w', temp_file.name, '-s', '150', text],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
-            if result.returncode != 0:
-                logger.error(f"espeak failed: {result.stderr}")
-                return None
-            
-            # Verify file was created
-            import os
-            if os.path.getsize(temp_file.name) < 100:
-                logger.error("espeak generated empty or too small audio file")
-                return None
-            
-            logger.info(f"Generated TTS audio file (espeak fallback): {temp_file.name}")
+            logger.info(f"Generated TTS audio file (ElevenLabs): {temp_file.name}")
             return temp_file.name
-            
-        except subprocess.TimeoutExpired:
-            logger.error("espeak timed out")
-            return None
+
         except Exception as e:
-            logger.error(f"espeak fallback error: {e}")
+            logger.error(f"TTS file generation error: {e}")
             return None
-    
+
     async def get_voices(self) -> Dict[str, Any]:
         """
         Get available ElevenLabs voices with Kenyan voice preferences.

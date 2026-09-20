@@ -112,25 +112,13 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Voice service unavailable: {e}")
 
     async def init_tts_services():
-        """Initialize TTS services (non-blocking)."""
-        # Initialize Google Cloud TTS Service
-        try:
-            from services.google_tts_service import google_tts_service
-            initialized = google_tts_service.initialize()
-            if initialized:
-                logger.info("Google Cloud TTS service initialized successfully")
-            else:
-                logger.warning("Google Cloud TTS service not initialized (credentials missing)")
-        except Exception as e:
-            logger.warning(f"Google Cloud TTS initialization failed: {e}")
-
-        # Initialize ElevenLabs Service
+        """Initialize the ElevenLabs voice used across chat and live talk."""
         try:
             from services.elevenlabs_service import elevenlabs_service
             if settings.ELEVENLABS_API_KEY:
                 logger.info("ElevenLabs service initialized successfully")
             else:
-                logger.warning("ElevenLabs API key not configured - TTS will use fallback")
+                logger.warning("ElevenLabs API key not configured - voice is disabled")
         except Exception as e:
             logger.warning(f"ElevenLabs service unavailable: {e}")
 
