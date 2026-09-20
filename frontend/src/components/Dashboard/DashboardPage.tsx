@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccessMode } from '../../contexts/AccessModeContext';
+import { InstallSettingsRow } from '../pwa/InstallApp';
 import type { Conversation } from '../../services/authService';
 import { RafikiLogo } from '../RafikiLogo';
 import LanguageSelector from '../LanguageSelector';
@@ -1361,6 +1362,8 @@ function SettingsPanel({
       </div>
 
       <div style={{ marginTop: 8 }}>
+        <InstallSettingsRow />
+
         <div className="rd-setting">
           <span className="rd-setting-copy">
             <span className="rd-setting-name">Conversation language</span>

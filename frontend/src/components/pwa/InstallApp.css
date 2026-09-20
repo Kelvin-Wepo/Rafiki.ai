@@ -1,0 +1,223 @@
+body.pwa-banner-visible {
+  padding-bottom: 108px;
+}
+
+.pwa-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #14532d;
+  color: #faf3e0;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(20, 83, 45, 0.28);
+}
+
+.pwa-banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pwa-banner-title {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pwa-banner-sub {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: rgba(250, 243, 224, 0.82);
+}
+
+.pwa-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pwa-banner-install,
+.pwa-banner-dismiss,
+.pwa-sheet-done,
+.pwa-sheet-close {
+  appearance: none;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.pwa-banner-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  background: #faf3e0;
+  color: #14532d;
+  border: 0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.pwa-banner-install:hover {
+  background: #fff;
+}
+
+.pwa-banner-dismiss {
+  min-height: 44px;
+  padding: 10px 12px;
+  background: transparent;
+  color: #faf3e0;
+  border: 0;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.pwa-banner-dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pwa-header-btn {
+  flex-shrink: 0;
+}
+
+.pwa-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(15, 23, 15, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+}
+
+.pwa-sheet {
+  position: relative;
+  width: min(420px, 100%);
+  background: #faf3e0;
+  color: #161616;
+  border-radius: 18px;
+  padding: 28px 24px 22px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.pwa-sheet-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: #4b5563;
+}
+
+.pwa-sheet-close:hover {
+  background: rgba(20, 83, 45, 0.08);
+  color: #14532d;
+}
+
+.pwa-sheet-title {
+  margin: 0 36px 10px 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pwa-sheet-copy {
+  margin: 0 0 18px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #4b5563;
+}
+
+.pwa-sheet-steps {
+  margin: 0 0 20px;
+  padding-left: 22px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: #161616;
+}
+
+.pwa-sheet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: #fff;
+  border: 1px solid #d6ddd6;
+  border-radius: 8px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.pwa-sheet-done {
+  width: 100%;
+  min-height: 44px;
+  background: #14532d;
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.pwa-sheet-done:hover {
+  background: #0f3d21;
+}
+
+.pwa-banner-install:focus-visible,
+.pwa-banner-dismiss:focus-visible,
+.pwa-sheet-done:focus-visible,
+.pwa-sheet-close:focus-visible,
+.pwa-header-btn:focus-visible {
+  outline: 3px solid #c8860a;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .pwa-banner {
+    flex-direction: column;
+    align-items: stretch;
+    left: 12px;
+    right: 12px;
+  }
+
+  .pwa-banner-actions {
+    justify-content: stretch;
+  }
+
+  .pwa-banner-install {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-banner,
+  .pwa-sheet,
+  .pwa-banner-install,
+  .pwa-sheet-done {
+    transition: none;
+  }
+}

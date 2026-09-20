@@ -13,6 +13,7 @@ import { destinationAfterAuth, isGuidedServiceSlug, rememberPendingService } fro
 import { isAccessModeEnabled } from './lib/accessMode';
 import { AccessModeProvider } from './contexts/AccessModeContext';
 import { AccessPage } from './pages/AccessPage';
+import { InstallBanner } from './components/pwa/InstallApp';
 
 /**
  * Loading Screen Component
@@ -168,6 +169,7 @@ function Root() {
       <AuthProvider>
         <AccessModeProvider>
           <AppRouter />
+          <InstallBanner />
         </AccessModeProvider>
       </AuthProvider>
     </BrowserRouter>

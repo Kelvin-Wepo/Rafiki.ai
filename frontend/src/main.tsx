@@ -1,7 +1,15 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { registerSW } from 'virtual:pwa-register'
+import { capturePwaInstallEvents } from './lib/pwaInstall'
 import './index.css'
 import Root from './Root.tsx'
+
+capturePwaInstallEvents()
+
+if (import.meta.env.MODE !== 'test') {
+  registerSW({ immediate: true })
+}
 
 // Hide the initial loader once React renders
 const hideLoader = () => {

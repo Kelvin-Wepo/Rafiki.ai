@@ -26,6 +26,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { RafikiLogo } from '../components/RafikiLogo';
 import { LinkedInIcon, XIcon, TikTokIcon } from '../components/SocialIcons';
+import { InstallAppButton } from '../components/pwa/InstallApp';
 import '../styles/auth.css';
 import '../styles/landing.css';
 
@@ -178,6 +179,8 @@ export function LandingPage() {
             </button>
 
             <span className="rl-divider" aria-hidden="true" />
+
+            <InstallAppButton />
 
             <Link to="/login" className="rl-voice">
               <span className="rl-voice-label">Sign up</span>

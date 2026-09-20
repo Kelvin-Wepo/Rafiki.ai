@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Rafiki">
+  <rect width="512" height="512" fill="#14532d"/>
+  <rect x="51" y="72" width="133" height="42" fill="#161616"/>
+  <rect x="184" y="72" width="12" height="42" fill="#ffffff"/>
+  <rect x="196" y="72" width="120" height="42" fill="#C8102E"/>
+  <rect x="316" y="72" width="12" height="42" fill="#ffffff"/>
+  <rect x="328" y="72" width="133" height="42" fill="#007A33"/>
+  <text x="256" y="360" text-anchor="middle" font-family="DejaVu Sans, Arial Black, sans-serif" font-weight="700" font-size="280" fill="#FAF3E0">R</text>
+</svg>
