@@ -128,7 +128,14 @@ class EmailService:
             return {"success": True}
             
         except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"SMTP authentication failed: {e}")
+            logger.error(
+                "SMTP authentication failed for %s@%s: %s. "
+                "Use a Gmail App Password (16 characters), not the account password "
+                "or the .env.example placeholder.",
+                self._mask_email(username),
+                host,
+                e,
+            )
             return {"success": False, "error": "SMTP authentication failed"}
         except smtplib.SMTPException as e:
             logger.error(f"SMTP error: {e}")

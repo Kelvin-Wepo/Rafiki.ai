@@ -693,11 +693,6 @@ class OTPService:
                 "We couldn't send your verification code because email delivery "
                 "is not set up on the server."
             )
-        if "authentication" in error or "username and password" in error:
-            return (
-                "We couldn't send your verification code because the mail server "
-                "rejected the login. Check SMTP_USERNAME and SMTP_PASSWORD."
-            )
         return "We couldn't send your verification code. Please try again in a minute."
 
     async def _send_otp_email(self, email: str, otp: str) -> Dict[str, Any]:

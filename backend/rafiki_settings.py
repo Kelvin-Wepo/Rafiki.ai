@@ -82,13 +82,28 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: str = "Kelvin Wepo"
     EMAIL_ENABLED: bool = True
 
+    @field_validator("SMTP_USERNAME", "SMTP_FROM_EMAIL", mode="before")
+    @classmethod
+    def strip_smtp_identity(cls, value):
+        if value is None:
+            return ""
+        return str(value).strip().strip('"').strip("'").strip()
+
     @field_validator("SMTP_PASSWORD", mode="before")
     @classmethod
     def strip_smtp_password(cls, value):
         # Gmail app passwords are often copied with spaces ("xxxx xxxx xxxx xxxx").
         if value is None:
             return ""
-        return str(value).replace(" ", "").strip()
+        cleaned = str(value).strip().strip('"').strip("'").replace(" ", "").strip()
+        if cleaned.lower() in {
+            "your-gmail-app-password",
+            "changeme",
+            "password",
+            "smtp_password",
+        }:
+            return ""
+        return cleaned
 
     # OTP/SMS simulation (dev only)
     OTP_SIMULATE: bool = False
