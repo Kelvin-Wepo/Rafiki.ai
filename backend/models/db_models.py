@@ -148,8 +148,15 @@ class Session(Base):
         return datetime.utcnow() > self.expires_at
 
 
+class ChatSessionStatus(str, enum.Enum):
+    """Chat session state values."""
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    CLOSED = "closed"
+
+
 class Conversation(Base):
-    """Conversation history for a user session."""
+    """Conversation history for a user session (also known as ChatSession)."""
     __tablename__ = "conversations"
     
     id: Mapped[str] = mapped_column(
@@ -159,7 +166,15 @@ class Conversation(Base):
     )
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(
+        SQLEnum(ChatSessionStatus, name="chat_session_status_enum"),
+        default=ChatSessionStatus.ACTIVE
+    )
+    last_message_preview: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     language: Mapped[str] = mapped_column(String(10), default="en")
     service_category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -170,10 +185,12 @@ class Conversation(Base):
     # Relationships
     user: Mapped["User"] = relationship(back_populates="conversations")
     messages: Mapped[List["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan")
+    transcript: Mapped[Optional["Transcript"]] = relationship(back_populates="conversation", cascade="all, delete-orphan", uselist=False)
     
     # Index for quick lookup
     __table_args__ = (
         Index("ix_conversations_user_active", "user_id", "is_active"),
+        Index("ix_conversations_user_updated", "user_id", "updated_at"),
     )
 
 
@@ -260,6 +277,12 @@ class ServiceBooking(Base):
     )
 
 
+class ChatSessionStatus(str, enum.Enum):
+    """Chat session status."""
+    ACTIVE = "active"
+    CLOSED = "closed"
+
+
 class WaitlistStatus(str, enum.Enum):
     """Waitlist entry status."""
     PENDING = "pending"
@@ -291,4 +314,31 @@ class Waitlist(Base):
         Index("ix_waitlist_phone", "phone_number"),
         Index("ix_waitlist_status", "status"),
         Index("ix_waitlist_service", "service_interest"),
+    )
+
+
+class Transcript(Base):
+    """Transcript/receipt of a chat session."""
+    __tablename__ = "transcripts"
+    
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), 
+        primary_key=True, 
+        default=lambda: str(uuid.uuid4())
+    )
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), 
+        unique=True, 
+        nullable=False
+    )
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)  # path or S3 key
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    conversation: Mapped["Conversation"] = relationship(back_populates="transcript")
+    
+    # Index for user lookups
+    __table_args__ = (
+        Index("ix_transcripts_conversation", "conversation_id"),
     )

@@ -8,6 +8,7 @@ export { default as RafikiAvatar } from './RafikiAvatar';
 export { default as RafikiAvatarEnhanced } from './RafikiAvatarEnhanced';
 export { default as RafikiImageAvatar } from './RafikiImageAvatar';
 export { default as RafikiTalkingAvatar } from './RafikiTalkingAvatar';
+export { default as TalkingAvatar } from './TalkingAvatar';
 export { default as RafikiSadTalkerAvatar } from './RafikiSadTalkerAvatar';
 
 // Base components

@@ -60,6 +60,7 @@ def save_application(
     applicant_data: Dict[str, Any],
     payment_ref: Optional[str] = None,
     amount: Optional[int] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Save a new application record.
@@ -82,12 +83,13 @@ def save_application(
     application = {
         "application_ref": app_ref,
         "session_id": session_id,
+        "user_id": user_id,
         "agency": agency,
         "service": service,
         "status": "pending_payment" if payment_ref else "draft",
         "applicant": {
-            "name": applicant_data.get("name", ""),
-            "id_number": applicant_data.get("id", ""),
+            "name": applicant_data.get("name") or applicant_data.get("owner_name") or "",
+            "id_number": applicant_data.get("id_number") or applicant_data.get("id") or "",
             "phone": applicant_data.get("phone", "") or applicant_data.get("mpesa", ""),
             "email": applicant_data.get("email", ""),
             "county": applicant_data.get("county", ""),
@@ -249,4 +251,23 @@ def mark_application_paid(
     _save_applications(applications)
     
     logger.info(f"Application marked paid: ref={app_ref}, payment_ref={payment_ref}")
+    return applications[app_ref]
+
+
+def confirmation_sms_already_sent(payment_ref: str) -> bool:
+    app = get_application_by_payment_ref(payment_ref)
+    return bool(app and app.get("payment", {}).get("confirmation_sms_sent"))
+
+
+def mark_confirmation_sms_sent(payment_ref: str) -> Optional[Dict[str, Any]]:
+    """Record that the post-payment SMS was sent so retries do not double-text."""
+    app = get_application_by_payment_ref(payment_ref)
+    if not app:
+        return None
+
+    applications = _load_applications()
+    app_ref = app["application_ref"]
+    applications[app_ref].setdefault("payment", {})["confirmation_sms_sent"] = True
+    applications[app_ref]["updated_at"] = datetime.now().isoformat()
+    _save_applications(applications)
     return applications[app_ref]

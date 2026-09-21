@@ -29,8 +29,8 @@ export function AuthButton({
   className = '',
   'aria-label': ariaLabel,
 }: AuthButtonProps) {
-  const baseClass = variant === 'primary' ? 'auth-button' : 'google-button';
-  const widthClass = fullWidth ? 'w-full' : '';
+  const baseClass = variant === 'primary' ? 'auth-btn auth-btn-primary' : 'auth-btn auth-btn-google';
+  const widthClass = fullWidth ? 'auth-btn-fullwidth' : '';
   
   return (
     <button
@@ -43,7 +43,7 @@ export function AuthButton({
     >
       {loading ? (
         <>
-          <Loader2 className="auth-button-spinner" size={20} aria-hidden="true" />
+          <Loader2 className="auth-spinner" size={20} aria-hidden="true" />
           <span className="sr-only">Loading...</span>
         </>
       ) : (

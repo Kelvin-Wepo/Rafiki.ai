@@ -30,11 +30,20 @@ class SignedUrlResponse(BaseModel):
     error: Optional[str] = None
 
 
+class ConversationTokenResponse(BaseModel):
+    """WebRTC conversation token response model."""
+    success: bool
+    token: Optional[str] = None
+    agent_id: Optional[str] = None
+    error: Optional[str] = None
+
+
 class TTSResponse(BaseModel):
     """TTS response model."""
     success: bool
     audio_data: Optional[str] = None
     content_type: Optional[str] = None
+    viseme_timeline: Optional[list] = None
     error: Optional[str] = None
 
 
@@ -43,6 +52,40 @@ class VoicesResponse(BaseModel):
     success: bool
     voices: Optional[list] = None
     error: Optional[str] = None
+
+
+@router.get(
+    "/config",
+    summary="Live ElevenLabs agent config",
+    description="Return the current API-key agent, voice, and branch from ElevenLabs (not a hardcoded ID)",
+)
+async def get_runtime_config():
+    """Dashboard voice mode loads this at runtime so dashboard edits apply immediately."""
+    result = await elevenlabs_service.get_live_agent_config(force=True)
+    if not result.get("success"):
+        from rafiki_settings import get_settings
+        settings = get_settings()
+        return {
+            "success": False,
+            "error": result.get("error", "ElevenLabs is not configured"),
+            "configured": bool(settings.ELEVENLABS_API_KEY),
+            "agent_id": elevenlabs_service.RAFIKI_AGENT_ID,
+            "voice_id": settings.ELEVENLABS_VOICE_ID or None,
+            "branch_id": settings.ELEVENLABS_BRANCH_ID or None,
+            "api_key_hint": elevenlabs_service.api_key_hint,
+        }
+    return {
+        "success": True,
+        "configured": True,
+        "agent_id": result.get("agent_id"),
+        "name": result.get("name"),
+        "voice_id": result.get("voice_id"),
+        "tts_model": result.get("tts_model"),
+        "branch_id": result.get("branch_id"),
+        "first_message": result.get("first_message"),
+        "language": result.get("language"),
+        "api_key_hint": elevenlabs_service.api_key_hint,
+    }
 
 
 @router.get(
@@ -78,6 +121,41 @@ async def get_signed_url(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get(
+    "/conversation-token",
+    response_model=ConversationTokenResponse,
+    summary="Get WebRTC conversation token for ElevenLabs agent",
+    description="Mint a short-lived token so the browser can open a WebRTC session with a private agent"
+)
+async def get_conversation_token(
+    agent_id: Optional[str] = Query(None, description="Optional agent ID override")
+):
+    """
+    Get a WebRTC conversation token for the configured agent.
+
+    Returns success=False rather than raising so the frontend can fall back to
+    connecting with a public agent ID.
+    """
+    try:
+        result = await elevenlabs_service.get_conversation_token(agent_id)
+
+        if result.get("success"):
+            return ConversationTokenResponse(
+                success=True,
+                token=result["token"],
+                agent_id=result["agent_id"]
+            )
+
+        return ConversationTokenResponse(
+            success=False,
+            error=result.get("error", "Unknown error")
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting conversation token: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post(
     "/tts",
     response_model=TTSResponse,
@@ -106,7 +184,8 @@ async def text_to_speech(request: TTSRequest):
             return TTSResponse(
                 success=True,
                 audio_data=result["audio_data"],
-                content_type=result["content_type"]
+                content_type=result["content_type"],
+                viseme_timeline=result.get("viseme_timeline") or [],
             )
         else:
             return TTSResponse(
@@ -171,13 +250,19 @@ async def get_agent_info(
     description="Check if ElevenLabs service is configured and accessible"
 )
 async def health_check():
-    """Check ElevenLabs service health."""
+    """Check ElevenLabs service health against the live agent, not stale defaults."""
     from rafiki_settings import get_settings
     settings = get_settings()
-    
+    live = await elevenlabs_service.get_live_agent_config()
+
     return {
-        "status": "ok",
+        "status": "ok" if live.get("success") else "degraded",
         "configured": bool(settings.ELEVENLABS_API_KEY),
-        "agent_id": settings.ELEVENLABS_AGENT_ID,
-        "voice_id": settings.ELEVENLABS_VOICE_ID
+        "env_agent_id": settings.ELEVENLABS_AGENT_ID or None,
+        "agent_id": live.get("agent_id") or settings.ELEVENLABS_AGENT_ID,
+        "voice_id": live.get("voice_id") or settings.ELEVENLABS_VOICE_ID,
+        "branch_id": live.get("branch_id") or settings.ELEVENLABS_BRANCH_ID or None,
+        "name": live.get("name"),
+        "api_key_hint": elevenlabs_service.api_key_hint,
+        "error": None if live.get("success") else live.get("error"),
     }

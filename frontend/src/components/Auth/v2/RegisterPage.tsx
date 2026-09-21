@@ -97,10 +97,10 @@ export function RegisterPage() {
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/30">
               <Shield className="w-6 h-6 text-white" />
             </div>
-            <div>
+            {/* <div>
               <span className="text-xl font-bold text-slate-900">Rafiki.ai</span>
               <p className="text-xs text-slate-500">Government Services Platform</p>
-            </div>
+            </div> */}``
           </div>
 
           {/* Heading */}

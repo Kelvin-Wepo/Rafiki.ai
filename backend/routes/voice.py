@@ -18,15 +18,78 @@ from models.schemas import (
 from services.voice_service import voice_service
 from services.gemini_service import gemini_service
 from services.dialogflow_service import dialogflow_service
+from services.language_service import language_detector
 from services.booking_service import booking_service
 from services.workflow_integration import get_workflow_integration
+from services.auth_service import get_auth_service
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
 from utils.logger import get_logger, RequestLogger
 from rafiki_settings import ASSISTANT_RESPONSES
 
+# Import optional user dependency from auth routes to preserve auth-aware transcript saving
+from routes.auth import get_optional_user
+
 logger = get_logger(__name__)
 router = APIRouter(prefix="/voice", tags=["Voice Processing"])
+
+
+def _build_transcript_title(history: list) -> str:
+    """Create a friendly transcript title from conversation history."""
+    if not history:
+        return "Completed Service Transcript"
+
+    first_user = next((m for m in history if m.get("role") == "user"), history[0])
+    prompt = first_user.get("content", "Completed Service Transcript").strip()
+    title = prompt[:60].strip()
+    if len(prompt) > 60:
+        title = f"{title}..."
+    return title or "Completed Service Transcript"
+
+
+def _should_save_transcript(workflow_response: dict) -> bool:
+    """Decide whether a completed workflow should generate a transcript."""
+    if workflow_response.get("workflow_complete"):
+        return True
+    workflow_context = workflow_response.get("workflow_context", {})
+    if workflow_context.get("step") == "SESSION_END":
+        return True
+    return False
+
+
+async def _save_transcript_for_user(session_identifier, user: dict):
+    """Save a transcript conversation for an authenticated user."""
+    if not user:
+        return
+
+    session_id = session_identifier.session_id if hasattr(session_identifier, "session_id") else session_identifier
+    session = await session_manager.get_session(session_id)
+    if not session or session.conversation_context.get("_transcript_saved"):
+        return
+
+    history = session.conversation_context.get("history", [])
+    if not history:
+        return
+
+    auth_service = get_auth_service()
+    title = _build_transcript_title(history)
+    conversation = await auth_service.create_conversation(user["user_id"], title=title)
+    conversation_id = conversation.get("conversation_id") or conversation.get("id")
+    if not conversation_id:
+        return
+
+    for message in history:
+        await auth_service.add_message(
+            conversation_id=conversation_id,
+            role=message.get("role", "user"),
+            content=message.get("content", ""),
+            metadata=message.get("metadata")
+        )
+
+    await session_manager.update_session(
+        session_id,
+        conversation_context={"_transcript_saved": True}
+    )
 
 
 async def check_rate_limit(request: Request):
@@ -55,7 +118,8 @@ async def check_rate_limit(request: Request):
 )
 async def process_input(
     request: VoiceInputRequest,
-    rate_limit: dict = Depends(check_rate_limit)
+    rate_limit: dict = Depends(check_rate_limit),
+    user: dict = Depends(get_optional_user)
 ):
     """
     Process voice or text input from the user.
@@ -115,7 +179,22 @@ async def process_input(
             
             # === STRUCTURED LOGGING: Start of intent pipeline ===
             logger.info(f"[PIPELINE] Session: {session.session_id} | Input: '{user_text[:100]}...' | Mode: {request.input_mode.value}")
-            
+
+            # Auto-detect spoken/typed language from the actual message content,
+            # falling back to the client-supplied language when detection is unclear
+            # (e.g. very short utterances) or when the user set an explicit preference.
+            detected_language, language_confidence = language_detector.detect(
+                user_text, session.conversation_context
+            )
+            if detected_language in ("en", "sw") and language_confidence >= 0.55:
+                response_language = detected_language
+            else:
+                response_language = "sw" if request.language.startswith("sw") else "en"
+            logger.info(
+                f"[PIPELINE] Language detected: {detected_language} "
+                f"(confidence: {language_confidence:.2f}) -> using '{response_language}'"
+            )
+
             # Process with Dialogflow for conversation management
             dialogflow_result = await dialogflow_service.detect_intent(
                 user_text,
@@ -123,7 +202,8 @@ async def process_input(
                 {
                     "conversation_context": session.conversation_context.get("context", "welcome"),
                     "entities": session.booking_state
-                }
+                },
+                language=response_language
             )
             
             # === STRUCTURED LOGGING: Intent detection result ===
@@ -135,8 +215,7 @@ async def process_input(
             # === WORKFLOW ENGINE INTEGRATION ===
             # Check if this should be handled by workflow engine
             workflow_integration = get_workflow_integration()
-            response_language = "sw" if request.language.startswith("sw") else "en"
-            
+
             workflow_handled, workflow_response = await workflow_integration.handle_voice_input(
                 user_text=user_text,
                 session_id=session.session_id,
@@ -148,19 +227,23 @@ async def process_input(
             if workflow_handled:
                 logger.info(f"[PIPELINE] Handled by workflow engine: {workflow_response.get('intent', 'workflow')}")
                 
-                # Update session with workflow context
+                updated_context = {
+                    "context": "workflow_active",
+                    "last_intent": workflow_response.get("intent"),
+                    "workflow_context": workflow_response.get("workflow_context", {}),
+                    "history": session.conversation_context.get("history", [])[-10:] + [
+                        {"role": "user", "content": user_text},
+                        {"role": "assistant", "content": workflow_response.get("text", "")}
+                    ]
+                }
+
                 await session_manager.update_session(
                     session.session_id,
-                    conversation_context={
-                        "context": "workflow_active",
-                        "last_intent": workflow_response.get("intent"),
-                        "workflow_context": workflow_response.get("workflow_context", {}),
-                        "history": session.conversation_context.get("history", [])[-10:] + [
-                            {"role": "user", "content": user_text},
-                            {"role": "assistant", "content": workflow_response.get("text", "")}
-                        ]
-                    }
+                    conversation_context=updated_context
                 )
+
+                if _should_save_transcript(workflow_response) and user:
+                    await _save_transcript_for_user(session, user)
                 
                 return AssistantResponse(
                     text=workflow_response.get("text", ""),
@@ -179,13 +262,12 @@ async def process_input(
             # === END WORKFLOW ENGINE INTEGRATION ===
             
             # Check if we need to complete a booking (legacy path)
+            save_transcript_on_booking = False
             if dialogflow_result.get("action") == "complete_booking":
                 booking_result = await _complete_booking(session)
                 if booking_result:
                     dialogflow_result["response"] = booking_result["message"]
-            
-            # Determine the response language (sw for Kiswahili, en for English)
-            response_language = "sw" if request.language.startswith("sw") else "en"
+                    save_transcript_on_booking = True
             
             # Check if this is a knowledge query that should use RAG/Gemini
             def _is_knowledge_query(text: str) -> bool:
@@ -253,6 +335,9 @@ async def process_input(
                 },
                 booking_state=entities if entities else session.booking_state
             )
+
+            if save_transcript_on_booking and user:
+                await _save_transcript_for_user(session.session_id, user)
             
             # Get conversation state for UI
             conv_state = dialogflow_service.get_conversation_state({
@@ -558,8 +643,8 @@ Response to analyze: "{text}"
 Return JSON with:
 {{
     "automation": {{
-        "action": "navigate/autofill/click/none",
-        "target_url": "eCitizen URL if navigating",
+        "action": "none",
+        "target_url": null,
         "form_data": {{}},
         "element_to_click": null
     }},
@@ -571,11 +656,8 @@ Return JSON with:
     }}
 }}
 
-eCitizen URLs:
-- Passport: https://accounts.ecitizen.go.ke/en/services/passport
-- National ID: https://accounts.ecitizen.go.ke/en/services/id
-- Driving License: https://accounts.ecitizen.go.ke/en/services/dl
-- Good Conduct: https://accounts.ecitizen.go.ke/en/services/goodconduct"""
+Rafiki is standalone. Never navigate to eCitizen or any government login page.
+Always keep action as "none"."""
 
         import json
         response = gemini_service._model.generate_content(analysis_prompt)

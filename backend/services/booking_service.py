@@ -500,6 +500,7 @@ def create_agency_booking(
     payment_ref: Optional[str] = None,
     amount: Optional[int] = None,
     appointment_slot: Optional[Dict[str, Any]] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new booking/appointment record for agency workflows.
@@ -518,12 +519,13 @@ def create_agency_booking(
     booking = {
         "booking_ref": booking_ref,
         "session_id": session_id,
+        "user_id": user_id,
         "agency": agency,
         "service": service,
         "status": "pending_payment" if payment_ref else "draft",
         "applicant": {
             "name": applicant_data.get("name", ""),
-            "id_number": applicant_data.get("id", ""),
+            "id_number": applicant_data.get("id_number") or applicant_data.get("id", ""),
             "phone": applicant_data.get("phone", "") or applicant_data.get("mpesa", ""),
             "email": applicant_data.get("email", ""),
             "county": applicant_data.get("county", ""),
@@ -590,4 +592,23 @@ def mark_agency_booking_paid(
     _save_agency_bookings(bookings)
     
     logger.info(f"Agency booking marked paid: ref={booking_ref}")
+    return bookings[booking_ref]
+
+
+def confirmation_sms_already_sent(payment_ref: str) -> bool:
+    booking = get_agency_booking_by_payment_ref(payment_ref)
+    return bool(booking and booking.get("payment", {}).get("confirmation_sms_sent"))
+
+
+def mark_confirmation_sms_sent(payment_ref: str) -> Optional[Dict[str, Any]]:
+    """Record that the post-payment SMS was sent so retries do not double-text."""
+    booking = get_agency_booking_by_payment_ref(payment_ref)
+    if not booking:
+        return None
+
+    bookings = _load_agency_bookings()
+    booking_ref = booking["booking_ref"]
+    bookings[booking_ref].setdefault("payment", {})["confirmation_sms_sent"] = True
+    bookings[booking_ref]["updated_at"] = datetime.now().isoformat()
+    _save_agency_bookings(bookings)
     return bookings[booking_ref]

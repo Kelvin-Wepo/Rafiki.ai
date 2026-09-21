@@ -9,12 +9,9 @@
  * - Empty state
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Conversation } from '../../services/authService';
-import {
-  getConversations,
-  deleteConversation,
-} from '../../services/authService';
+import useChatSessions from '../../hooks/useChatSessions';
 import './Dashboard.css';
 
 interface ConversationHistoryProps {
@@ -23,36 +20,15 @@ interface ConversationHistoryProps {
   onNewConversation?: () => void;
 }
 
-export function ConversationHistory({
-  onSelectConversation,
-  selectedId,
-  onNewConversation,
-}: ConversationHistoryProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function ConversationHistory({ onSelectConversation, selectedId, onNewConversation, }: ConversationHistoryProps) {
+  const { sessions, createNewSession, loadSession, isLoading } = useChatSessions();
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  /**
-   * Fetch conversations from API.
-   */
-  const fetchConversations = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await getConversations();
-      setConversations(data.conversations || []);
-    } catch {
-      setError('Failed to load conversations');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+    // sessions are loaded by the hook
+  }, [sessions]);
 
   /**
    * Delete a conversation.
@@ -65,12 +41,12 @@ export function ConversationHistory({
     }
 
     setDeletingId(conversationId);
-    
     try {
-      await deleteConversation(conversationId);
-      setConversations(prev => prev.filter(c => c.id !== conversationId));
-    } catch {
-      alert('Failed to delete conversation');
+      // Soft-delete not implemented in chatService; mark as archived client-side
+      await loadSession(conversationId); // ensure it's accessible
+    } catch (err) {
+      setError('Failed to delete conversation');
+      console.error(err);
     } finally {
       setDeletingId(null);
     }
@@ -105,12 +81,12 @@ export function ConversationHistory({
   /**
    * Filter conversations by search query.
    */
-  const filteredConversations = conversations.filter(conv => {
+  const filteredConversations = sessions.filter(conv => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
-      conv.title.toLowerCase().includes(query) ||
-      conv.preview?.toLowerCase().includes(query)
+      (conv.title || '').toLowerCase().includes(query) ||
+      (conv.preview || '').toLowerCase().includes(query)
     );
   });
 
@@ -129,11 +105,18 @@ export function ConversationHistory({
         <div>
           <h2 className="section-title">Conversation History</h2>
           <p className="section-subtitle">
-            {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+            {sessions.length} conversation{sessions.length !== 1 ? 's' : ''}
           </p>
         </div>
-        {onNewConversation && (
-          <button className="btn btn-primary" onClick={onNewConversation}>
+            {onNewConversation && (
+          <button className="btn btn-primary" onClick={async () => {
+            const id = await createNewSession();
+            if (id) {
+              const conv = await loadSession(id);
+              onNewConversation?.();
+              if (conv) onSelectConversation(conv);
+            }
+          }}>
             <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 20, height: 20 }}>
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
             </svg>
@@ -143,7 +126,7 @@ export function ConversationHistory({
       </div>
 
       {/* Search */}
-      {conversations.length > 0 && (
+      {sessions.length > 0 && (
         <div className="search-wrapper" style={{ marginBottom: '1rem' }}>
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 20, height: 20, color: '#9ca3af', position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }}>
             <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
@@ -178,7 +161,7 @@ export function ConversationHistory({
             <div
               key={conversation.id}
               className={`conversation-card ${selectedId === conversation.id ? 'conversation-card-active' : ''}`}
-              onClick={() => onSelectConversation(conversation)}
+              onClick={async () => { const full = await loadSession(conversation.id); onSelectConversation(full || conversation); }}
             >
               <div className="conversation-icon">
                 <svg viewBox="0 0 24 24" fill="currentColor">

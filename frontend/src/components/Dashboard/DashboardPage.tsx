@@ -1,186 +1,742 @@
 /**
- * DashboardPage - Rafiki.ai
- * Main dashboard component matching the design mockup exactly.
- * Features: sidebar navigation, avatar card, quick actions, voice input
+ * DashboardPage — Rafiki.ai signed-in shell.
+ *
+ * Layout: fixed left navigation, a content column with the greeting, ask bar
+ * and service grid, a right rail carrying the assistant and recent activity,
+ * and a full-bleed trust band across the bottom.
+ *
+ * Palette and type are the landing page's (styles/landing.css), so the signed
+ * out and signed in halves of the product read as one thing.
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useConversation, ConversationProvider } from '@elevenlabs/react';
 import {
-  PlusIcon,
-  ClockIcon,
-  DocumentTextIcon,
-  EnvelopeIcon,
-  PowerIcon,
-  MicrophoneIcon,
-  PaperAirplaneIcon,
-  IdentificationIcon,
-  TruckIcon,
-  DocumentCheckIcon,
-  BuildingLibraryIcon,
-  ExclamationTriangleIcon,
-  MegaphoneIcon,
-} from '@heroicons/react/24/outline';
-import rafikiAvatar from '../../assets/rafiki_avatar.png';
+  LayoutDashboard,
+  LayoutGrid,
+  CalendarCheck,
+  FileText,
+  CreditCard,
+  BarChart3,
+  MessageSquareText,
+  MessagesSquare,
+  Settings as SettingsIcon,
+  LogOut,
+  Menu,
+  Mic,
+  Send,
+  ShieldCheck,
+  BookUser,
+  IdCard,
+  Home,
+  Lock,
+  Accessibility,
+  Languages,
+  Sparkles,
+  CircleCheck,
+} from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAccessMode } from '../../contexts/AccessModeContext';
+import type { Conversation } from '../../services/authService';
+import { RafikiLogo } from '../RafikiLogo';
 import LanguageSelector from '../LanguageSelector';
+import { ConversationHistory } from './ConversationHistory';
+import TranscriptDownload from './TranscriptDownload';
+import useChatSessions from '../../hooks/useChatSessions';
+import { TalkingAvatar } from '../avatar';
+import rafikiAvatar from '../../assets/rafiki_avatar.png';
+import type { VisemeCue } from '../avatar/visemeShapes';
+import {
+  chatPathForService,
+  clearPendingService,
+  isGuidedServiceSlug,
+  readPendingService,
+  rememberPendingService,
+  titleForService,
+} from '../../lib/guidedServices';
+import { agentMessageText, ensureRafikiAgentId, fetchElevenLabsConfig, type ElevenLabsRuntimeConfig } from '../../lib/elevenlabsAgent';
+import {
+  checkAgencyPayment,
+  continueAgencyChat,
+  readAgencySessionId,
+  startAgencyService,
+  writeAgencySessionId,
+  type AgencyChatResponse,
+} from '../../lib/agencyWorkflow';
+import { downloadReceipt } from '../../services/authService';
+import { ChatSection, type ChatBubble } from './ChatSection';
+import { VoiceSection } from './VoiceSection';
 import '../../styles/dashboard.css';
 
-// Types
-interface QuickAction {
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+/* ------------------------------------------------------------------ *
+ * Navigation
+ * ------------------------------------------------------------------ */
+
+type NavId =
+  | 'dashboard'
+  | 'chat'
+  | 'voice'
+  | 'services'
+  | 'appointments'
+  | 'documents'
+  | 'payments'
+  | 'reports'
+  | 'feedback'
+  | 'settings';
+
+/** `history` is reachable from the rail's "View All", not from the nav. */
+type ViewId = NavId | 'history';
+
+const NAV_ITEMS: Array<{ id: NavId; label: string; icon: React.ElementType }> = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'chat', label: 'Chat', icon: MessagesSquare },
+  { id: 'voice', label: 'Voice', icon: Mic },
+  { id: 'services', label: 'My Services', icon: LayoutGrid },
+  { id: 'appointments', label: 'Appointments', icon: CalendarCheck },
+  { id: 'documents', label: 'My Documents', icon: FileText },
+  { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'reports', label: 'Reports', icon: BarChart3 },
+  { id: 'feedback', label: 'Feedback', icon: MessageSquareText },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon },
+];
+
+/* ------------------------------------------------------------------ *
+ * Popular services — same slugs and agency marks as the landing page,
+ * so a card starts the requested workflow end to end.
+ * ------------------------------------------------------------------ */
+
+interface ServiceCard {
   id: string;
-  title: string;
+  name: string;
   desc: string;
-  message: string;
-  icon: React.ReactNode;
+  slug: string;
+  icon?: React.ElementType;
+  image?: string;
 }
 
-// Simplified Speech Recognition type (use any for browser compatibility)
-type SpeechRecognitionInstance = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-};
-
-// API Base URL
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
-
-// Quick Actions Data
-const QUICK_ACTIONS: QuickAction[] = [
+const SERVICES: ServiceCard[] = [
   {
-    id: 'check-id',
-    title: 'Check ID',
-    desc: 'Check the status of your National ID card application.',
-    message: 'I want to check the status of my National ID application',
-    icon: <IdentificationIcon />,
+    id: 'passport-apply',
+    name: 'Apply for Passport',
+    desc: 'Immigration application',
+    icon: BookUser,
+    slug: 'passport-apply',
   },
   {
-    id: 'renew-license',
-    title: 'Renew Driving License',
-    desc: 'Renew your Kenyan driving license online.',
-    message: 'I want to renew my driving license',
-    icon: <TruckIcon />,
+    id: 'ntsa-renew',
+    name: 'Renew Driving Licence',
+    desc: 'NTSA licence renewal',
+    image: '/images/agencies/ntsa.png',
+    slug: 'ntsa-renew',
   },
   {
-    id: 'kra-services',
-    title: 'KRA Services',
-    desc: 'Access KRA services for taxes and PIN.',
-    message: 'I need help with KRA services',
-    icon: <DocumentCheckIcon />,
+    id: 'id-replace',
+    name: 'Replace Lost ID',
+    desc: 'NRB ID replacement',
+    icon: IdCard,
+    slug: 'id-replace',
   },
   {
-    id: 'huduma-centre',
-    title: 'Find Huduma Centre',
-    desc: 'Locate and get directions to Huduma Centres.',
-    message: 'Find me the nearest Huduma Centre',
-    icon: <BuildingLibraryIcon />,
+    id: 'brs-register',
+    name: 'Register a Business',
+    desc: 'BRS business name',
+    image: '/images/agencies/brs.png',
+    slug: 'brs-register',
   },
   {
-    id: 'emergency',
-    title: 'Report Emergency',
-    desc: 'Contact the emergency services hotline.',
-    message: 'I need to report an emergency',
-    icon: <ExclamationTriangleIcon />,
+    id: 'dci-good-conduct',
+    name: 'Police Clearance',
+    desc: 'DCI good conduct',
+    image: '/images/agencies/dci.jpeg',
+    slug: 'dci-good-conduct',
   },
   {
-    id: 'corruption',
-    title: 'Report Corruption',
-    desc: 'Report incidents of corruption to authorities.',
-    message: 'I want to report a corruption incident',
-    icon: <MegaphoneIcon />,
+    id: 'kra-itax',
+    name: 'KRA iTax',
+    desc: 'File income tax returns',
+    image: '/images/agencies/kra.jpeg',
+    slug: 'kra-itax',
+  },
+  {
+    id: 'land-rates',
+    name: 'Land Services',
+    desc: 'County land rates',
+    icon: Home,
+    slug: 'land-rates',
+  },
+  {
+    id: 'more',
+    name: 'More Services',
+    desc: 'All government agencies',
+    icon: LayoutGrid,
+    slug: 'agencies',
   },
 ];
 
-// Nav items
-type NavSection = 'chat' | 'history' | 'transcripts';
+const TRUST_ITEMS = [
+  {
+    icon: ShieldCheck,
+    title: 'Security First',
+    sub: 'Encrypted sessions, hash-chained audit logs',
+  },
+  {
+    icon: Lock,
+    title: 'Privacy by Design',
+    sub: 'Consent-based, data minimisation, PII redaction',
+  },
+  {
+    icon: Accessibility,
+    title: 'Accessibility',
+    sub: 'WCAG 2.1 AA, voice and text for all',
+  },
+  {
+    icon: Languages,
+    title: 'Bilingual',
+    sub: 'English and Kiswahili, everywhere',
+  },
+];
+
+/** Sections without a screen of their own yet, with the prompt each hands to Rafiki. */
+const PLACEHOLDERS: Record<
+  'appointments' | 'payments' | 'reports' | 'feedback',
+  { title: string; text: string; icon: React.ElementType; slug?: string; message?: string; cta: string }
+> = {
+  appointments: {
+    title: 'Appointments',
+    text: 'Booked appointments will be listed here. For now, Rafiki can book one for you and send the confirmation by SMS.',
+    icon: CalendarCheck,
+    slug: 'ntsa-appointment',
+    cta: 'Book an appointment',
+  },
+  payments: {
+    title: 'Payments',
+    text: 'Your M-PESA receipts will be listed here. Rafiki can start a payment for any service that has a government fee.',
+    icon: CreditCard,
+    slug: 'agencies',
+    cta: 'Pay a government fee',
+  },
+  reports: {
+    title: 'Reports',
+    text: 'Summaries of your applications will appear here. In the meantime, Rafiki can check the status of anything you have filed.',
+    icon: BarChart3,
+    message: 'Check the status of my application',
+    cta: 'Check a status',
+  },
+  feedback: {
+    title: 'Feedback',
+    text: 'Tell us how Rafiki is working for you. You can send feedback anonymously, and it goes straight to the service team.',
+    icon: MessageSquareText,
+    message: 'I want to submit feedback',
+    cta: 'Send feedback',
+  },
+};
+
+/* ------------------------------------------------------------------ *
+ * Helpers
+ * ------------------------------------------------------------------ */
+
+/** Only the fields of a chat session this screen reads. */
+interface SessionSummary {
+  id?: string;
+  conversation_id?: string;
+  title?: string;
+  preview?: string;
+  last_message_preview?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+function bubblesFromSession(session: unknown): ChatBubble[] {
+  if (!session || typeof session !== 'object') return [];
+  const record = session as { messages?: Array<Record<string, unknown>> };
+  return (record.messages || []).map((message, index) => {
+    const senderRaw = String(message.sender || message.role || 'assistant').toLowerCase();
+    return {
+      id: String(message.id || `msg-${index}`),
+      sender: senderRaw === 'user' ? 'user' : 'assistant',
+      content: String(message.content || ''),
+      created_at: String(message.created_at || message.timestamp || ''),
+    };
+  });
+}
+
+function firstNameOf(fullName?: string): string {
+  const stored = localStorage.getItem('rafiki_last_user') || '';
+  const source = (fullName || stored).trim();
+  if (!source) return 'there';
+  return source.split(/\s+/)[0];
+}
+
+function initialsOf(fullName?: string): string {
+  const stored = localStorage.getItem('rafiki_last_user') || '';
+  const parts = (fullName || stored).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'R';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function formatActivityDate(value?: string): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Component
+ * ------------------------------------------------------------------ */
 
 export function Dashboard() {
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  
-  // State
-  const [activeNav, setActiveNav] = useState<NavSection>('chat');
-  const [chatInput, setChatInput] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [language, setLanguage] = useState<'en' | 'sw' | null>(null);
-  const [showLanguageSelector, setShowLanguageSelector] = useState(true);
-  const [isLanguageLoading, setIsLanguageLoading] = useState(false);
-  const [transcriptCount] = useState(12); // Mock count for demo
-  
-  // Refs
-  const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  return (
+    <ConversationProvider>
+      <DashboardInner />
+    </ConversationProvider>
+  );
+}
 
-  // Play audio from base64 string
-  const playAudio = useCallback((audioBase64: string, mimeType: string = 'audio/mpeg') => {
-    try {
-      // Stop any currently playing audio
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-      
-      const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
-      audioRef.current = audio;
-      audio.play().catch(err => console.error('Audio playback error:', err));
-    } catch (err) {
-      console.error('Failed to play audio:', err);
-    }
+function DashboardInner() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const pendingService = searchParams.get('service') || readPendingService();
+  const pendingLang = searchParams.get('lang') === 'sw' ? 'sw' : 'en';
+  const { user, logout } = useAuth();
+  const { enable: enableAccessMode } = useAccessMode();
+  const {
+    sessions,
+    transcripts,
+    activeSessionId,
+    createNewSession,
+    loadSession,
+    sendTurn,
+    persistMessage,
+  } = useChatSessions();
+
+  const [view, setView] = useState<ViewId>('dashboard');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(
+    null
+  );
+  const [language, setLanguage] = useState<'en' | 'sw' | null>(pendingLang);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+  const [isLanguageLoading, setIsLanguageLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [lastReply, setLastReply] = useState<string | null>(null);
+  const [voiceConfig, setVoiceConfig] = useState<ElevenLabsRuntimeConfig | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatBubble[]>([]);
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [agencySessionId, setAgencySessionId] = useState<string | null>(() => readAgencySessionId());
+  const [workflowLabel, setWorkflowLabel] = useState<string | null>(null);
+  const [receiptRef, setReceiptRef] = useState<string | null>(null);
+  const [paymentPending, setPaymentPending] = useState(false);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const lastPersistedRef = useRef('');
+  const persistVoiceTurnRef = useRef<(sender: 'user' | 'assistant', text: string) => void>(() => {});
+  const paymentConfirmedNotifiedRef = useRef(false);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [lipSyncClip, setLipSyncClip] = useState<{
+    audioUrl: string;
+    visemeTimeline: VisemeCue[];
+    playId: number;
+  } | null>(null);
+
+  // ElevenLabs Conversational AI — agent id, voice, and prompt come from the
+  // current server API key via GET /elevenlabs/config (not a hardcoded ID).
+  const conversation = useConversation({
+    onConnect: () => {
+      console.log('Voice agent connected');
+      setIsListening(true);
+    },
+    onDisconnect: () => setIsListening(false),
+    onMessage: (message: unknown) => {
+      const parsed = agentMessageText(message);
+      if (!parsed?.text) return;
+      const sender = parsed.source === 'user' ? 'user' : 'assistant';
+      if (sender === 'assistant') setLastReply(parsed.text);
+      persistVoiceTurnRef.current(sender, parsed.text);
+    },
+    onError: (error: unknown) => {
+      console.error('Voice agent error:', error);
+    },
+  });
+
+  const isVoiceConnected = conversation.status === 'connected';
+  const liveAgentId = voiceConfig?.agent_id || '';
+
+  useEffect(() => {
+    persistVoiceTurnRef.current = (sender, text) => {
+      const key = `${sender}:${text}`;
+      if (lastPersistedRef.current === key) return;
+      lastPersistedRef.current = key;
+      setChatMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.sender === sender && last.content === text) return prev;
+        return [
+          ...prev,
+          {
+            id: `live-${Date.now()}`,
+            sender,
+            content: text,
+            created_at: new Date().toISOString(),
+          },
+        ];
+      });
+      void persistMessage(sender, text)
+        .then((updated) => {
+          if (updated) setChatMessages(bubblesFromSession(updated));
+        })
+        .catch((err) => console.error('Failed to save chat turn', err));
+    };
+  }, [persistMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchElevenLabsConfig(API_BASE)
+      .then((config) => {
+        if (!cancelled) setVoiceConfig(config);
+        if (config.success && config.agent_id) {
+          console.log('Using live ElevenLabs agent', config.agent_id, config.name, config.voice_id);
+        } else if (!cancelled) {
+          console.warn('ElevenLabs config unavailable:', config.error);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load ElevenLabs config', err);
+        if (!cancelled) {
+          setVoiceConfig({ success: false, error: 'Could not load voice config' });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Handle language selection and start session
-  const handleLanguageSelect = useCallback(async (selectedLang: 'en' | 'sw') => {
-    setIsLanguageLoading(true);
-    try {
-      // First, start a new chat session
-      const startRes = await fetch(`${API_BASE}/api/agencies/chat/start`, { method: 'POST' });
-      const startData = await startRes.json();
-      setSessionId(startData.session_id);
-      
-      // Play the greeting audio if available
-      if (startData.audio_base64) {
-        playAudio(startData.audio_base64, startData.audio_mime || 'audio/mpeg');
-      }
-      
-      // Now send the language selection
-      const langRes = await fetch(`${API_BASE}/api/agencies/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: startData.session_id,
-          message: selectedLang === 'en' ? '1' : '2',
-        }),
+  const playAudio = useCallback(
+    (
+      audioBase64: string,
+      mimeType: string = 'audio/mpeg',
+      visemeTimeline: VisemeCue[] = []
+    ) => {
+      setLipSyncClip({
+        audioUrl: `data:${mimeType};base64,${audioBase64}`,
+        visemeTimeline,
+        playId: Date.now(),
       });
-      const langData = await langRes.json();
-      
-      // Play the welcome audio
-      if (langData.audio_base64) {
-        playAudio(langData.audio_base64, langData.audio_mime || 'audio/mpeg');
-      }
-      
-      setLanguage(selectedLang);
-      setShowLanguageSelector(false);
-      console.log('Session started with language:', selectedLang);
-      console.log('Rafiki says:', langData.response);
-    } catch (err) {
-      console.error('Failed to start session:', err);
-    } finally {
-      setIsLanguageLoading(false);
+    },
+    []
+  );
+
+  const rememberAgencySession = useCallback((id: string | null) => {
+    setAgencySessionId(id);
+    writeAgencySessionId(id);
+  }, []);
+
+  const applyWorkflowMeta = useCallback((data: AgencyChatResponse) => {
+    if (data.session_id) rememberAgencySession(data.session_id);
+    if (data.service) setWorkflowLabel(data.service);
+    if (data.response) setLastReply(data.response);
+    if (data.application_ref) setReceiptRef(data.application_ref);
+    setPaymentPending(Boolean(data.awaiting_payment));
+    if (data.awaiting_payment) paymentConfirmedNotifiedRef.current = false;
+    if (data.audio_base64) {
+      playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg', data.viseme_timeline || []);
     }
-  }, [playAudio]);
+  }, [playAudio, rememberAgencySession]);
 
-  // Get masked user data
-  const phone = user?.phone_masked || '+254 7** **045';
-  const email = user?.email_masked || 'user@example.com';
+  const startGuidedService = useCallback(
+    async (slug: string, lang: 'en' | 'sw' = 'en') => {
+      if (!isGuidedServiceSlug(slug)) {
+        console.error('Unknown service slug', slug);
+        return;
+      }
 
-  // Handle logout
+      rememberPendingService(slug);
+      setShowLanguageSelector(false);
+      setDrawerOpen(false);
+      setView('chat');
+      setWorkflowLabel(titleForService(slug));
+      setLastReply(`Starting ${titleForService(slug)}…`);
+
+      if (conversation.status === 'connected') {
+        void conversation.endSession();
+      }
+
+      try {
+        let chatId = activeSessionId;
+        if (!chatId) chatId = await createNewSession();
+        const data = await startAgencyService(slug, lang, chatId);
+        applyWorkflowMeta(data);
+        clearPendingService();
+
+        if (data.response) {
+          const updated = await persistMessage('assistant', data.response);
+          if (updated) setChatMessages(bubblesFromSession(updated));
+          else {
+            setChatMessages([
+              {
+                id: `assistant-${Date.now()}`,
+                sender: 'assistant',
+                content: data.response,
+                created_at: new Date().toISOString(),
+              },
+            ]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to start service:', err);
+        setLastReply(`Could not start ${titleForService(slug)}. Check that the assistant is running and try again.`);
+      }
+    },
+    [activeSessionId, applyWorkflowMeta, conversation, createNewSession, persistMessage]
+  );
+
+  const handleLanguageSelect = useCallback(
+    async (selectedLang: 'en' | 'sw') => {
+      setIsLanguageLoading(true);
+      try {
+        const queued = readPendingService() || pendingService;
+        if (queued && isGuidedServiceSlug(queued)) {
+          setLanguage(selectedLang);
+          setShowLanguageSelector(false);
+          await startGuidedService(queued, selectedLang);
+          return;
+        }
+
+        const startRes = await fetch(`${API_BASE}/api/agencies/chat/start`, {
+          method: 'POST',
+        });
+        const startData = await startRes.json();
+
+        if (startData.audio_base64) {
+          playAudio(
+            startData.audio_base64,
+            startData.audio_mime || 'audio/mpeg',
+            startData.viseme_timeline || []
+          );
+        }
+
+        const langRes = await fetch(`${API_BASE}/api/agencies/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: startData.session_id,
+            message: selectedLang === 'en' ? '1' : '2',
+          }),
+        });
+        const langData = await langRes.json();
+
+        if (langData.audio_base64) {
+          playAudio(
+            langData.audio_base64,
+            langData.audio_mime || 'audio/mpeg',
+            langData.viseme_timeline || []
+          );
+        }
+
+        setLastReply(langData.response || null);
+        setLanguage(selectedLang);
+        setShowLanguageSelector(false);
+        if (langData.session_id) rememberAgencySession(langData.session_id);
+        else if (startData.session_id) rememberAgencySession(startData.session_id);
+      } catch (err) {
+        console.error('Failed to start session:', err);
+      } finally {
+        setIsLanguageLoading(false);
+      }
+    },
+    [playAudio, pendingService, rememberAgencySession, startGuidedService]
+  );
+
+  const startedServiceRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingService || startedServiceRef.current === pendingService) return;
+    if (!isGuidedServiceSlug(pendingService)) return;
+    startedServiceRef.current = pendingService;
+    startGuidedService(pendingService, pendingLang);
+  }, [pendingService, pendingLang, startGuidedService]);
+
+  const sendMessage = useCallback(
+    async (message: string) => {
+      const text = message.trim();
+      if (!text) return;
+      setChatInput('');
+      setView('chat');
+
+      try {
+        setIsSendingChat(true);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: `user-${Date.now()}`,
+            sender: 'user',
+            content: text,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+
+        if (agencySessionId) {
+          const data = await continueAgencyChat(agencySessionId, text, activeSessionId);
+          applyWorkflowMeta(data);
+          await persistMessage('user', text);
+          if (data.response) {
+            const updated = await persistMessage('assistant', data.response);
+            if (updated) setChatMessages(bubblesFromSession(updated));
+          }
+          return;
+        }
+
+        const updated = await sendTurn(text, language || 'en');
+        setChatMessages(bubblesFromSession(updated));
+        const reply = bubblesFromSession(updated).filter((item) => item.sender === 'assistant').pop();
+        if (reply?.content) setLastReply(reply.content);
+      } catch (err) {
+        console.error('Failed to send message:', err);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            sender: 'assistant',
+            content: 'Sorry, I could not send that. Please try again.',
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        setIsSendingChat(false);
+      }
+    },
+    [activeSessionId, agencySessionId, applyWorkflowMeta, language, persistMessage, sendTurn]
+  );
+
+  /** Sends a prompt and opens the chat thread so the user sees the reply. */
+  const askRafiki = useCallback(
+    (message: string) => {
+      setView('chat');
+      setDrawerOpen(false);
+      sendMessage(message);
+    },
+    [sendMessage]
+  );
+
+  const openService = useCallback(
+    (slug: string) => {
+      rememberPendingService(slug);
+      setShowLanguageSelector(false);
+      setLastReply(`Starting ${titleForService(slug)}…`);
+      if (searchParams.get('service') === slug) {
+        startedServiceRef.current = slug;
+        startGuidedService(slug, language || 'en');
+        return;
+      }
+      startedServiceRef.current = null;
+      navigate(chatPathForService(slug, language || undefined));
+    },
+    [language, navigate, searchParams, startGuidedService]
+  );
+
+  const handleMicToggle = useCallback(async () => {
+    if (isVoiceConnected) {
+      await conversation.endSession();
+      setIsListening(false);
+      return;
+    }
+
+    setView('voice');
+
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      console.error('Microphone permission denied:', err);
+      alert(
+        'Microphone access is required for voice mode. Please allow microphone permissions.'
+      );
+      setIsListening(false);
+      return;
+    }
+
+    // Always refresh live agent/key from the server before connecting.
+    let conversationToken: string | null = null;
+    let agentId = liveAgentId;
+    try {
+      const config = await fetchElevenLabsConfig(API_BASE);
+      setVoiceConfig(config);
+      if (config.agent_id) agentId = config.agent_id;
+    } catch (err) {
+      console.warn('Could not refresh ElevenLabs config:', err);
+    }
+    try {
+      const res = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.token) conversationToken = data.token;
+        else console.warn('Conversation token unavailable:', data.error);
+        if (data.agent_id) agentId = ensureRafikiAgentId(data.agent_id);
+      }
+    } catch (err) {
+      console.warn('Could not reach the conversation-token endpoint:', err);
+    }
+
+    if (!agentId) {
+      const config = await fetchElevenLabsConfig(API_BASE);
+      setVoiceConfig(config);
+      agentId = config.agent_id || '';
+    }
+
+    agentId = ensureRafikiAgentId(agentId);
+
+    if (!conversationToken && !agentId) {
+      alert(
+        'Voice mode is not configured. Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID on the server.'
+      );
+      return;
+    }
+
+    try {
+      await conversation.startSession(
+        conversationToken
+          ? { conversationToken, connectionType: 'webrtc' }
+          : { agentId, connectionType: 'webrtc' }
+      );
+      setIsListening(true);
+    } catch (tokenErr) {
+      console.warn('Token session failed, trying public agent ID:', tokenErr);
+      try {
+        await conversation.startSession({
+          agentId,
+          connectionType: 'webrtc',
+        });
+        setIsListening(true);
+      } catch (err) {
+        console.error('Failed to start voice conversation:', err);
+        alert('Could not start voice mode. Please try again.');
+        setIsListening(false);
+      }
+    }
+  }, [conversation, isVoiceConnected, liveAgentId]);
+
+  const handleSend = useCallback(() => {
+    if (chatInput.trim()) sendMessage(chatInput);
+  }, [chatInput, sendMessage]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    },
+    [handleSend]
+  );
+
   const handleLogout = useCallback(async () => {
     localStorage.removeItem('rafiki_session_id');
     localStorage.removeItem('rafiki_last_user');
@@ -188,289 +744,702 @@ export function Dashboard() {
     navigate('/login');
   }, [logout, navigate]);
 
-  // Send message to backend
-  const sendMessage = useCallback(async (message: string) => {
-    if (!message.trim()) return;
-    setChatInput('');
-
-    try {
-      const res = await fetch(`${API_BASE}/api/agencies/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          message: message,
-        }),
-      });
-      const data = await res.json();
-      
-      // Log the response
-      console.log('Assistant response:', data.response || data.message);
-      
-      // Play audio response if available
-      if (data.audio_base64) {
-        playAudio(data.audio_base64, data.audio_mime || 'audio/mpeg');
-      }
-    } catch (err) {
-      console.error('Failed to send message:', err);
+  const handleNavClick = useCallback((id: NavId) => {
+    if (id !== 'voice' && conversation.status === 'connected') {
+      void conversation.endSession();
     }
-  }, [sessionId, playAudio]);
+    setView(id);
+    setDrawerOpen(false);
+  }, [conversation]);
 
-  // Handle quick action
-  const handleQuickAction = useCallback((action: QuickAction) => {
-    setChatInput(action.message);
-    sendMessage(action.message);
-  }, [sendMessage]);
-
-  // Handle mic toggle for speech recognition
-  const handleMicToggle = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const win = window as any;
-    
-    if (!win.webkitSpeechRecognition && !win.SpeechRecognition) {
-      alert('Voice input is not supported in your browser. Please use Chrome.');
-      return;
+  const openChat = useCallback(() => {
+    if (conversation.status === 'connected') {
+      void conversation.endSession();
     }
+    setView('chat');
+    setDrawerOpen(false);
+  }, [conversation]);
 
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-
-    const SpeechRecognitionClass = win.SpeechRecognition || win.webkitSpeechRecognition;
-    const recognition = new SpeechRecognitionClass() as SpeechRecognitionInstance;
-    recognition.lang = 'en-KE';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setChatInput(transcript);
-      setIsListening(false);
-      // Auto-send after voice input
-      sendMessage(transcript);
-    };
-
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-
-    recognition.start();
-    recognitionRef.current = recognition;
-    setIsListening(true);
-  }, [isListening, sendMessage]);
-
-  // Handle send
-  const handleSend = useCallback(() => {
-    if (chatInput.trim()) {
-      sendMessage(chatInput);
-    }
-  }, [chatInput, sendMessage]);
-
-  // Handle key press
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }, [handleSend]);
-
-  // Handle nav click
-  const handleNavClick = useCallback((section: NavSection) => {
-    setActiveNav(section);
-    if (section === 'history') {
-      // Navigate to history page if it exists
-      // For now, just set the active state
-    } else if (section === 'transcripts') {
-      // Navigate to transcripts page if it exists
-    }
+  const openVoice = useCallback(() => {
+    setView('voice');
+    setDrawerOpen(false);
   }, []);
+
+  const handleNewChat = useCallback(async () => {
+    rememberAgencySession(null);
+    setWorkflowLabel(null);
+    setReceiptRef(null);
+    setPaymentPending(false);
+    const id = await createNewSession();
+    if (id) {
+      const session = await loadSession(id);
+      setSelectedConversation(session);
+      setChatMessages(bubblesFromSession(session));
+    } else {
+      setChatMessages([]);
+    }
+    setView('chat');
+    setDrawerOpen(false);
+  }, [createNewSession, loadSession, rememberAgencySession]);
+
+  const handleSelectChatSession = useCallback(
+    async (id: string) => {
+      const session = await loadSession(id);
+      setSelectedConversation(session);
+      setChatMessages(bubblesFromSession(session));
+      setView('chat');
+      rememberAgencySession(null);
+      setWorkflowLabel(null);
+      setReceiptRef(null);
+      setPaymentPending(false);
+    },
+    [loadSession, rememberAgencySession]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      if (!activeSessionId) return;
+      try {
+        const restored = await loadSession(activeSessionId);
+        if (cancelled || !restored) return;
+        setSelectedConversation(restored);
+        setChatMessages(bubblesFromSession(restored));
+      } catch (err) {
+        console.error('Failed to restore chat history', err);
+      }
+    };
+    restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, loadSession]);
+
+  useEffect(() => {
+    if (location.pathname === '/chat' && !searchParams.get('service')) {
+      setView('chat');
+    }
+  }, [location.pathname, searchParams]);
+
+  useEffect(() => {
+    if (!agencySessionId || !paymentPending) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const status = await checkAgencyPayment(agencySessionId);
+        if (cancelled) return;
+        if (status.application_ref) setReceiptRef(status.application_ref);
+        if (status.paid) {
+          setPaymentPending(false);
+          if (!paymentConfirmedNotifiedRef.current) {
+            paymentConfirmedNotifiedRef.current = true;
+            const confirmation =
+              'Payment confirmed. A confirmation SMS has been sent to your phone. You can download the receipt below.';
+            setLastReply(confirmation);
+            try {
+              const updated = await persistMessage('assistant', confirmation);
+              if (!cancelled && updated) setChatMessages(bubblesFromSession(updated));
+            } catch (persistErr) {
+              console.warn('Could not persist payment confirmation:', persistErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Payment status check failed:', err);
+      }
+    };
+    void tick();
+    const timer = window.setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [agencySessionId, paymentPending, persistMessage]);
+
+  const handleDownloadReceipt = useCallback(async () => {
+    if (!receiptRef) return;
+    setDownloadingReceipt(true);
+    try {
+      const blob = await downloadReceipt(receiptRef);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rafiki_receipt_${receiptRef}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download receipt:', err);
+      alert('Could not download the receipt yet. Open My Documents after payment is confirmed.');
+    } finally {
+      setDownloadingReceipt(false);
+    }
+  }, [receiptRef]);
+
+  // Close the mobile drawer with Escape.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+
+  const firstName = firstNameOf(user?.full_name);
+  const initials = initialsOf(user?.full_name);
+
+  /** Real conversations, newest first — no invented activity. */
+  const recentActivity = useMemo(
+    () =>
+      ((sessions || []) as SessionSummary[])
+        .slice()
+        .sort((a, b) => {
+          const at = new Date(a?.updated_at || a?.created_at || 0).getTime();
+          const bt = new Date(b?.updated_at || b?.created_at || 0).getTime();
+          return bt - at;
+        })
+        .slice(0, 4)
+        .map((s, i) => ({
+          id: s?.id || s?.conversation_id || `activity-${i}`,
+          label: s?.title || s?.preview || 'Conversation with Rafiki',
+          date: formatActivityDate(s?.updated_at || s?.created_at),
+        })),
+    [sessions]
+  );
+
+  const showRail = view === 'dashboard';
+
+  const talkingAvatar = (
+    <div className="rd-assistant-figure rd-assistant-figure--live">
+      <TalkingAvatar
+        imageUrl={rafikiAvatar}
+        audioUrl={lipSyncClip?.audioUrl}
+        visemeTimeline={lipSyncClip?.visemeTimeline}
+        playId={lipSyncClip?.playId}
+        isSpeaking={!lipSyncClip && Boolean(conversation.isSpeaking || isSpeaking)}
+        className={isListening ? 'talking-avatar--listening' : undefined}
+        autoPlay
+        onPlay={() => setIsSpeaking(true)}
+        onEnded={() => {
+          setIsSpeaking(false);
+          setLipSyncClip(null);
+        }}
+        onError={() => {
+          setIsSpeaking(false);
+          setLipSyncClip(null);
+        }}
+      />
+    </div>
+  );
 
   return (
     <>
-      {/* Language Selector Modal */}
       {showLanguageSelector && (
         <LanguageSelector
           onSelectLanguage={handleLanguageSelect}
           isLoading={isLanguageLoading}
         />
       )}
-      
-    <div className="dashboard-root">
-      {/* ============ ZONE 1: LEFT SIDEBAR ============ */}
-      <aside className="sidebar">
-        {/* Logo / Brand Block */}
-        <div className="sidebar-brand">
-          <div className="brand-logo">
-            <span>R</span>
-          </div>
-          <div className="brand-text">
-            <span className="brand-name">RAFIKI</span>
-            <span className="brand-sub">AI ASSISTANT</span>
-          </div>
-        </div>
 
-        {/* Navigation Items */}
-        <nav className="sidebar-nav">
-          <button
-            className={`nav-item ${activeNav === 'chat' ? 'nav-item--active' : ''}`}
-            onClick={() => handleNavClick('chat')}
-            aria-current={activeNav === 'chat' ? 'page' : undefined}
-          >
-            <PlusIcon aria-hidden="true" />
-            <span>New Chat</span>
-          </button>
-          <button
-            className={`nav-item ${activeNav === 'history' ? 'nav-item--active' : ''}`}
-            onClick={() => handleNavClick('history')}
-            aria-current={activeNav === 'history' ? 'page' : undefined}
-          >
-            <ClockIcon aria-hidden="true" />
-            <span>History</span>
-          </button>
-          <button
-            className={`nav-item ${activeNav === 'transcripts' ? 'nav-item--active' : ''}`}
-            onClick={() => handleNavClick('transcripts')}
-            aria-current={activeNav === 'transcripts' ? 'page' : undefined}
-          >
-            <DocumentTextIcon aria-hidden="true" />
-            <span>Transcripts</span>
-            <span className="nav-badge">{transcriptCount}</span>
-          </button>
-        </nav>
-
-        {/* User Info Block */}
-        <div className="sidebar-user">
-          <div className="user-info-row">
-            <span className="flag-icon" aria-label="Kenya">🇰🇪</span>
-            <span className="user-phone">{phone}</span>
-          </div>
-          <div className="user-info-row">
-            <EnvelopeIcon aria-hidden="true" />
-            <span className="user-email">{email}</span>
-          </div>
-        </div>
-
-        {/* Logout Button */}
-        <div className="sidebar-footer">
-          <button className="logout-btn" onClick={handleLogout}>
-            <PowerIcon aria-hidden="true" />
-            <span>Log out</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* ============ ZONE 2: MAIN CONTENT AREA ============ */}
-      <main className="main-content">
-        {/* Avatar Card */}
-        <div className="avatar-card">
-          {/* Avatar with glow ring */}
-          <div className="avatar-wrapper">
-            <img
-              src={rafikiAvatar}
-              alt="Rafiki AI Assistant"
-              className="avatar-img"
-            />
-            <div className="avatar-glow-ring" aria-hidden="true" />
+      <div className={`rd-app${drawerOpen ? ' rd-app--drawer' : ''}`}>
+        {/* ---------------- Sidebar ---------------- */}
+        <aside className="rd-sidebar" aria-label="Main navigation">
+          <div className="rd-brand">
+            <RafikiLogo size={28} />
           </div>
 
-          {/* Ready status badge */}
-          <div className="status-badge" role="status">
-            <span className="status-dot" aria-hidden="true" />
-            <span>Ready</span>
-          </div>
-
-          {/* Heading */}
-          <h1 className="avatar-heading">How can I assist you today?</h1>
-
-          {/* Microphone button */}
-          <div className="mic-container">
-            <button
-              className={`mic-btn ${isListening ? 'mic-btn--listening' : ''}`}
-              onClick={handleMicToggle}
-              aria-label={isListening ? 'Stop listening' : 'Tap to speak'}
-            >
-              {/* Pulse rings — animated when listening */}
-              <span className="mic-pulse mic-pulse--1" aria-hidden="true" />
-              <span className="mic-pulse mic-pulse--2" aria-hidden="true" />
-              <MicrophoneIcon aria-hidden="true" />
-              <span className="mic-label">Tap to Speak</span>
-            </button>
-          </div>
-
-          {/* Instruction text */}
-          <p className="avatar-instruction">Tap to Speak or Type Below</p>
-        </div>
-
-        {/* Quick Actions Section */}
-        <section className="quick-actions" aria-labelledby="quick-actions-title">
-          <h2 id="quick-actions-title" className="quick-actions-title">Quick Actions</h2>
-          <div className="actions-grid">
-            {QUICK_ACTIONS.map((action) => (
+          <nav className="rd-nav" aria-label="Sections">
+            {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
               <button
-                key={action.id}
-                className="action-card"
-                onClick={() => handleQuickAction(action)}
-                aria-label={`${action.title}: ${action.desc}`}
+                key={id}
+                type="button"
+                className={`rd-nav-item${view === id ? ' rd-nav-item--active' : ''}`}
+                onClick={() => handleNavClick(id)}
+                aria-current={view === id ? 'page' : undefined}
               >
-                <div className="action-icon-wrap" aria-hidden="true">
-                  {action.icon}
-                </div>
-                <div className="action-text">
-                  <span className="action-title">{action.title}</span>
-                  <span className="action-desc">{action.desc}</span>
-                </div>
+                <Icon size={19} strokeWidth={1.75} aria-hidden="true" />
+                <span>{label}</span>
+                {id === 'documents' && transcripts.length > 0 && (
+                  <span className="rd-nav-count">{transcripts.length}</span>
+                )}
               </button>
             ))}
+          </nav>
+
+          <div className="rd-sidebar-foot">
+            <div className="rd-user">
+              <span className="rd-user-avatar" aria-hidden="true">
+                {initials}
+              </span>
+              <span className="rd-user-copy">
+                <span className="rd-user-name">{user?.full_name || 'Your account'}</span>
+                <span className="rd-user-role">
+                  {user?.phone_masked || user?.email_masked || 'Signed in'}
+                </span>
+              </span>
+            </div>
+            <button type="button" className="rd-signout" onClick={handleLogout}>
+              <LogOut size={17} strokeWidth={1.75} aria-hidden="true" />
+              <span>Sign out</span>
+            </button>
           </div>
-        </section>
+        </aside>
 
-        {/* Footer */}
-        <footer className="main-footer">
-          <span>🔒 Secure</span>
-          <span className="footer-divider" aria-hidden="true">|</span>
-          <span>End-to-End Encrypted</span>
-          <span className="footer-divider" aria-hidden="true">|</span>
-          <span>Powered by Kenyan AI</span>
-          <button className="footer-dropdown" aria-label="More info">▾</button>
+        {drawerOpen && (
+          <button
+            type="button"
+            className="rd-backdrop"
+            aria-label="Close navigation"
+            onClick={() => setDrawerOpen(false)}
+          />
+        )}
+
+        {/* ---------------- Main ---------------- */}
+        <div className={`rd-main${showRail ? '' : ' rd-main--full'}`}>
+          <div className="rd-content">
+            <div className="rd-topbar">
+              <button
+                type="button"
+                className="rd-menu-btn"
+                onClick={() => setDrawerOpen((open) => !open)}
+                aria-label="Open navigation"
+                aria-expanded={drawerOpen}
+              >
+                <Menu size={20} aria-hidden="true" />
+              </button>
+            </div>
+
+            {view === 'dashboard' && (
+              <>
+                <h1 className="rd-greeting">
+                  Hello, {firstName}
+                  <span className="rd-greeting-wave" aria-hidden="true">
+                    👋
+                  </span>
+                </h1>
+                <p className="rd-subgreeting">How can I help you today?</p>
+
+                <div className="rd-mode-pick">
+                  <button type="button" className="rd-mode-pick-btn" onClick={openChat}>
+                    <MessagesSquare size={18} strokeWidth={1.75} aria-hidden="true" />
+                    Chat with Rafiki
+                  </button>
+                  <button type="button" className="rd-mode-pick-btn" onClick={openVoice}>
+                    <Mic size={18} strokeWidth={1.75} aria-hidden="true" />
+                    Talk to Rafiki
+                  </button>
+                </div>
+
+                <div className="rd-ask">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    className="rd-ask-input"
+                    placeholder="e.g. Renew driving licence, KRA PIN, Business registration…"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    aria-label="Ask Rafiki"
+                  />
+                  <button
+                    type="button"
+                    className="rd-ask-btn rd-ask-send"
+                    onClick={handleSend}
+                    disabled={!chatInput.trim()}
+                    aria-label="Send"
+                  >
+                    <Send size={18} strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                </div>
+
+                <h2 className="rd-section-title">Popular Services</h2>
+                <ServiceGrid onSelect={openService} />
+              </>
+            )}
+
+            {view === 'chat' && (
+              <ChatSection
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                messages={chatMessages}
+                isSending={isSendingChat}
+                voiceConfig={voiceConfig}
+                composerValue={chatInput}
+                onComposerChange={setChatInput}
+                onSend={() => sendMessage(chatInput)}
+                onNewChat={handleNewChat}
+                onSelectSession={handleSelectChatSession}
+                onOpenVoice={openVoice}
+                avatar={talkingAvatar}
+                serviceLabel={workflowLabel}
+                receiptRef={receiptRef}
+                paymentPending={paymentPending}
+                downloadingReceipt={downloadingReceipt}
+                onDownloadReceipt={handleDownloadReceipt}
+                onOpenDocuments={() => setView('documents')}
+              />
+            )}
+
+            {view === 'voice' && (
+              <VoiceSection
+                avatar={talkingAvatar}
+                connected={isVoiceConnected}
+                speaking={Boolean(conversation.isSpeaking || isSpeaking)}
+                lastReply={lastReply}
+                agentName={voiceConfig?.name || 'Rafiki'}
+                onStart={handleMicToggle}
+                onStop={handleMicToggle}
+                onOpenChat={openChat}
+              />
+            )}
+
+            {view === 'services' && (
+              <section className="rd-panel" aria-labelledby="services-heading">
+                <div className="rd-panel-head">
+                  <h1 id="services-heading" className="rd-panel-title">
+                    My Services
+                  </h1>
+                  <p className="rd-panel-sub">
+                    Pick a service and Rafiki starts it immediately — no eCitizen login,
+                    no extra menus.
+                  </p>
+                </div>
+                <div style={{ marginTop: 18 }}>
+                  <ServiceGrid onSelect={openService} />
+                </div>
+              </section>
+            )}
+
+            {view === 'documents' && (
+              <section className="rd-panel">
+                <TranscriptDownload preSelectedConversation={selectedConversation} />
+              </section>
+            )}
+
+            {view === 'history' && (
+              <section className="rd-panel">
+                <ConversationHistory
+                  onSelectConversation={(conversation) => {
+                    setSelectedConversation(conversation);
+                    setChatMessages(bubblesFromSession(conversation));
+                    setView('chat');
+                  }}
+                  selectedId={selectedConversation?.id}
+                  onNewConversation={handleNewChat}
+                />
+              </section>
+            )}
+
+            {view === 'settings' && (
+              <SettingsPanel
+                language={language}
+                voiceConfigured={Boolean(liveAgentId) || voiceConfig?.success !== false}
+                voiceConnected={isVoiceConnected}
+                phone={user?.phone_masked}
+                email={user?.email_masked}
+                onChangeLanguage={() => setShowLanguageSelector(true)}
+                onToggleVoice={() => {
+                  if (!isVoiceConnected) setView('voice');
+                  void handleMicToggle();
+                }}
+                onSignOut={handleLogout}
+                onOpenAccess={() => {
+                  enableAccessMode();
+                  navigate('/access');
+                }}
+              />
+            )}
+
+            {(view === 'appointments' ||
+              view === 'payments' ||
+              view === 'reports' ||
+              view === 'feedback') && (
+              <PlaceholderPanel
+                spec={PLACEHOLDERS[view]}
+                onAsk={askRafiki}
+                onOpenService={openService}
+              />
+            )}
+          </div>
+
+          {/* ---------------- Right rail ---------------- */}
+          {showRail && (
+            <aside className="rd-rail" aria-label="Assistant and recent activity">
+              <section className="rd-card">
+                <div className="rd-card-head">
+                  <Sparkles
+                    size={17}
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                    color="#15803d"
+                  />
+                  <h2 className="rd-card-title">Rafiki Assistant</h2>
+                </div>
+                <div className="rd-card-body">
+                  {talkingAvatar}
+
+                  <div
+                    className={`rd-assistant-state${
+                      isVoiceConnected || isSpeaking ? ' rd-assistant-state--live' : ''
+                    }`}
+                    role="status"
+                  >
+                    <span className="rd-assistant-dot" aria-hidden="true" />
+                    <span>
+                      {conversation.isSpeaking || isSpeaking
+                        ? 'Speaking'
+                        : isVoiceConnected
+                          ? 'Listening'
+                          : 'Ready'}
+                    </span>
+                  </div>
+
+                  <p className="rd-assistant-copy">
+                    {lastReply || "I'm here to help you access government services easily."}
+                  </p>
+
+                  <div className="rd-rail-actions">
+                    <button type="button" className="rd-btn-primary" onClick={openChat}>
+                      <MessagesSquare size={17} strokeWidth={1.75} aria-hidden="true" />
+                      Open chat
+                    </button>
+                    <button type="button" className="rd-btn-secondary" onClick={openVoice}>
+                      <Mic size={17} strokeWidth={1.75} aria-hidden="true" />
+                      Talk to Rafiki
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rd-card">
+                <div className="rd-card-head">
+                  <h2 className="rd-card-title">Recent Activities</h2>
+                </div>
+
+                {recentActivity.length > 0 ? (
+                  <ul className="rd-activity">
+                    {recentActivity.map((item) => (
+                      <li key={item.id} className="rd-activity-item">
+                        <button
+                          type="button"
+                          className="rd-activity-open"
+                          onClick={() => handleSelectChatSession(item.id)}
+                        >
+                          <span className="rd-activity-icon" aria-hidden="true">
+                            <CircleCheck size={15} strokeWidth={2} />
+                          </span>
+                          <span className="rd-activity-label">{item.label}</span>
+                          {item.date && <span className="rd-activity-date">{item.date}</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="rd-activity-empty">
+                    No activity yet. Anything you do with Rafiki will show up here.
+                  </p>
+                )}
+
+                <div className="rd-card-foot">
+                  <button
+                    type="button"
+                    className="rd-link-btn"
+                    onClick={() => setView('chat')}
+                  >
+                    View All
+                  </button>
+                </div>
+              </section>
+            </aside>
+          )}
+        </div>
+
+        {/* ---------------- Trust band ---------------- */}
+        <footer className="rd-trust">
+          <ul className="rd-trust-list">
+            {TRUST_ITEMS.map(({ icon: Icon, title, sub }) => (
+              <li key={title} className="rd-trust-item">
+                <span className="rd-trust-icon" aria-hidden="true">
+                  <Icon size={22} strokeWidth={1.75} />
+                </span>
+                <span className="rd-trust-copy">
+                  <span className="rd-trust-title">{title}</span>
+                  <span className="rd-trust-sub">{sub}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </footer>
-      </main>
+      </div>
+    </>
+  );
+}
 
-      {/* ============ ZONE 3: BOTTOM INPUT BAR ============ */}
-      <div className="input-bar">
-        {/* Voice toggle button */}
+/* ------------------------------------------------------------------ *
+ * Sub-components
+ * ------------------------------------------------------------------ */
+
+function ServiceGrid({ onSelect }: { onSelect: (slug: string) => void }) {
+  return (
+    <ul className="rd-services">
+      {SERVICES.map(({ id, name, desc, icon: Icon, image, slug }) => (
+        <li key={id}>
+          <button
+            type="button"
+            className="rd-service"
+            onClick={() => onSelect(slug)}
+            aria-label={`${name}: ${desc}`}
+          >
+            {image ? (
+              <span className="rd-service-logo-wrap" aria-hidden="true">
+                <img src={image} alt="" className="rd-service-logo" />
+              </span>
+            ) : (
+              Icon && (
+                <span className="rd-service-icon" aria-hidden="true">
+                  <Icon size={22} strokeWidth={1.75} />
+                </span>
+              )
+            )}
+            <span>
+              <span className="rd-service-name">{name}</span>
+              <span className="rd-service-desc">{desc}</span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PlaceholderPanel({
+  spec,
+  onAsk,
+  onOpenService,
+}: {
+  spec: (typeof PLACEHOLDERS)[keyof typeof PLACEHOLDERS];
+  onAsk: (message: string) => void;
+  onOpenService: (slug: string) => void;
+}) {
+  const Icon = spec.icon;
+  return (
+    <section className="rd-panel">
+      <div className="rd-placeholder">
+        <span className="rd-placeholder-icon" aria-hidden="true">
+          <Icon size={28} strokeWidth={1.75} />
+        </span>
+        <h1 className="rd-placeholder-title">{spec.title}</h1>
+        <p className="rd-placeholder-text">{spec.text}</p>
         <button
-          className={`input-mic-btn ${isListening ? 'input-mic-btn--active' : ''}`}
-          onClick={handleMicToggle}
-          aria-label="Voice input"
+          type="button"
+          className="rd-btn-secondary"
+          onClick={() => {
+            if (spec.slug) onOpenService(spec.slug);
+            else if (spec.message) onAsk(spec.message);
+          }}
         >
-          <MicrophoneIcon aria-hidden="true" />
-        </button>
-
-        {/* Text input */}
-        <input
-          ref={inputRef}
-          type="text"
-          className="input-field"
-          placeholder="Type your message..."
-          value={chatInput}
-          onChange={e => setChatInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          aria-label="Chat message input"
-        />
-
-        {/* Send button */}
-        <button
-          className="input-send-btn"
-          onClick={handleSend}
-          disabled={!chatInput.trim() && !isListening}
-          aria-label="Send message"
-        >
-          <PaperAirplaneIcon aria-hidden="true" />
+          <Mic size={17} strokeWidth={1.75} aria-hidden="true" />
+          {spec.cta}
         </button>
       </div>
-    </div>
-    </>
+    </section>
+  );
+}
+
+function SettingsPanel({
+  language,
+  voiceConfigured,
+  voiceConnected,
+  phone,
+  email,
+  onChangeLanguage,
+  onToggleVoice,
+  onSignOut,
+  onOpenAccess,
+}: {
+  language: 'en' | 'sw' | null;
+  voiceConfigured: boolean;
+  voiceConnected: boolean;
+  phone?: string;
+  email?: string;
+  onChangeLanguage: () => void;
+  onToggleVoice: () => void;
+  onSignOut: () => void;
+  onOpenAccess: () => void;
+}) {
+  return (
+    <section className="rd-panel" aria-labelledby="settings-heading">
+      <div className="rd-panel-head">
+        <h1 id="settings-heading" className="rd-panel-title">
+          Settings
+        </h1>
+        <p className="rd-panel-sub">Your language, voice and account preferences.</p>
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <div className="rd-setting">
+          <span className="rd-setting-copy">
+            <span className="rd-setting-name">Conversation language</span>
+            <span className="rd-setting-desc">
+              {language === 'sw'
+                ? 'Kiswahili'
+                : language === 'en'
+                  ? 'English'
+                  : 'Not selected yet'}
+            </span>
+          </span>
+          <button type="button" className="rd-btn-secondary" onClick={onChangeLanguage}>
+            Change
+          </button>
+        </div>
+
+        <div className="rd-setting">
+          <span className="rd-setting-copy">
+            <span className="rd-setting-name">Voice mode</span>
+            <span className="rd-setting-desc">
+              {!voiceConfigured
+                ? 'Not configured on this deployment'
+                : voiceConnected
+                  ? 'Connected — Rafiki is listening'
+                  : 'Speak to Rafiki instead of typing'}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="rd-btn-secondary"
+            onClick={onToggleVoice}
+            disabled={!voiceConfigured}
+          >
+            {voiceConnected ? 'End' : 'Start'}
+          </button>
+        </div>
+
+        <div className="rd-setting">
+          <span className="rd-setting-copy">
+            <span className="rd-setting-name">Rafiki Access</span>
+            <span className="rd-setting-desc">
+              Large green keypad with read-aloud, built for low vision
+            </span>
+          </span>
+          <button type="button" className="rd-btn-secondary" onClick={onOpenAccess}>
+            Open
+          </button>
+        </div>
+
+        <div className="rd-setting">
+          <span className="rd-setting-copy">
+            <span className="rd-setting-name">Account</span>
+            <span className="rd-setting-desc">
+              {[phone, email].filter(Boolean).join(' · ') || 'Signed in'}
+            </span>
+          </span>
+          <button type="button" className="rd-btn-secondary" onClick={onSignOut}>
+            <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
+            Sign out
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 

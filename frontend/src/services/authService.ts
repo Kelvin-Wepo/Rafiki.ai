@@ -56,6 +56,7 @@ export interface User {
   status?: string;
   created_at?: string;
   last_login?: string | null;
+  has_disability?: boolean;
 }
 
 export interface AuthResponse {
@@ -88,6 +89,32 @@ export interface Message {
   content: string;
   timestamp: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface ReceiptHistoryEntry {
+  receipt_ref: string;
+  payment_reference?: string;
+  type: string;
+  agency: string;
+  service: string;
+  status: string;
+  amount?: number;
+  name: string;
+  id_number: string;
+  phone: string;
+  email?: string;
+  created_at: string;
+  paid_at?: string;
+  appointment?: {
+    date?: string;
+    time?: string;
+    office?: string;
+  };
+}
+
+export interface UserHistory {
+  conversations: Conversation[];
+  receipts: ReceiptHistoryEntry[];
 }
 
 /**
@@ -251,6 +278,25 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
+export async function getUserHistory(): Promise<UserHistory> {
+  return apiRequest<UserHistory>('/auth/history');
+}
+
+export async function downloadReceipt(receiptRef: string): Promise<Blob> {
+  const token = getStoredToken();
+  const response = await fetch(`${API_BASE_URL}/auth/receipts/${receiptRef}/download`, {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : '',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to download receipt');
+  }
+
+  return response.blob();
+}
+
 // ============== Conversation API ==============
 
 /**
@@ -315,7 +361,7 @@ export async function deleteConversation(
  */
 export async function exportTranscript(
   conversationId: string,
-  format: 'txt' | 'json' = 'txt'
+  format: 'txt' | 'json' | 'pdf' = 'txt'
 ): Promise<Blob> {
   const token = getStoredToken();
   
@@ -343,7 +389,7 @@ export async function exportTranscript(
  */
 export async function downloadTranscript(
   conversationId: string,
-  format: 'txt' | 'json' = 'txt'
+  format: 'txt' | 'json' | 'pdf' = 'txt'
 ): Promise<void> {
   const blob = await exportTranscript(conversationId, format);
   

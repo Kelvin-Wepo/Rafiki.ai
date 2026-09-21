@@ -1,0 +1,424 @@
+/**
+ * LandingPage — public marketing home ("/" for unauthenticated visitors).
+ * eCitizen-green redesign: hero + service grid + trust footer.
+ */
+
+import { Link } from 'react-router-dom';
+import { chatPathForService, rememberPendingService } from '../lib/guidedServices';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Mic,
+  Keyboard,
+  ShieldCheck,
+  BookUser,
+  IdCard,
+  Home,
+  LayoutGrid,
+  Headset,
+  Globe,
+  ChevronDown,
+  Accessibility,
+  Lock,
+  Heart,
+  Sun,
+  Moon,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { RafikiLogo } from '../components/RafikiLogo';
+import { LinkedInIcon, XIcon, TikTokIcon } from '../components/SocialIcons';
+import '../styles/auth.css';
+import '../styles/landing.css';
+
+type ServiceItem = {
+  name: string;
+  slug: string;
+  icon?: LucideIcon;
+  image?: string;
+};
+
+const SERVICES: ServiceItem[] = [
+  { name: 'Apply for Passport', slug: 'passport-apply', icon: BookUser },
+  { name: 'Renew Driving Licence', slug: 'ntsa-renew', image: '/images/agencies/ntsa.png' },
+  { name: 'Replace Lost ID', slug: 'id-replace', icon: IdCard },
+  { name: 'Register a Business', slug: 'brs-register', image: '/images/agencies/brs.png' },
+  { name: 'Police Clearance', slug: 'dci-good-conduct', image: '/images/agencies/dci.jpeg' },
+  { name: 'KRA iTax', slug: 'kra-itax', image: '/images/agencies/kra.jpeg' },
+  { name: 'Land Services', slug: 'land-rates', icon: Home },
+  { name: 'More Services', slug: 'agencies', icon: LayoutGrid },
+];
+
+const TRUST_ITEMS = [
+  {
+    icon: Accessibility,
+    title: 'Accessible for Everyone',
+    sub: 'Voice, text, screen reader and more.',
+  },
+  {
+    icon: Lock,
+    title: 'Secure & Private',
+    sub: 'Your information is protected at all times.',
+  },
+  {
+    icon: Heart,
+    title: 'Built for Kenyans',
+    sub: 'Designed with you in mind, for a better experience.',
+  },
+];
+
+const FOOTER_COLUMNS: Array<{
+  heading: string;
+  items: Array<{ label: string; href?: string }>;
+}> = [
+  {
+    heading: 'Rafiki',
+    items: [
+      { label: 'About Rafiki' },
+      { label: 'How it Works' },
+      { label: 'Accessibility', href: '/access' },
+      { label: 'Our Impact' },
+    ],
+  },
+  {
+    heading: 'Support',
+    items: [
+      { label: 'Help Center' },
+      { label: 'FAQs' },
+      { label: 'Contact Us', href: 'mailto:support@rafiki.ai' },
+      { label: 'Feedback' },
+    ],
+  },
+  {
+    heading: 'Legal',
+    items: [
+      { label: 'Privacy Policy' },
+      { label: 'Terms of Use' },
+      { label: 'Security' },
+    ],
+  },
+];
+
+const THEME_STORAGE_KEY = 'rafiki_landing_theme';
+
+type LandingTheme = 'light' | 'dark';
+
+function getInitialTheme(): LandingTheme {
+  if (typeof window === 'undefined') return 'light';
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'light' || stored === 'dark') return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+export function LandingPage() {
+  const [theme, setTheme] = useState<LandingTheme>(getInitialTheme);
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => (current === 'light' ? 'dark' : 'light'));
+  }, []);
+
+  return (
+    <div
+      className="rl-page min-h-screen flex flex-col font-dm-sans"
+      data-theme={theme}
+    >
+      <header className="rl-header">
+        <div className="rl-header-inner">
+          <Link to="/" className="rl-brand" aria-label="Rafiki — AI Government Assistant, home">
+            <RafikiLogo size={30} />
+            <span className="rl-brand-tagline">AI Government Assistant</span>
+          </Link>
+
+          <nav className="rl-controls" aria-label="Site">
+            <button type="button" className="rl-control" aria-label="Language: English">
+              <Globe size={19} aria-hidden="true" />
+              <span className="rl-control-label">English</span>
+              <ChevronDown size={16} aria-hidden="true" className="rl-control-chevron" />
+            </button>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <button
+              type="button"
+              className="rl-control rl-control-muted rl-control-kiswahili"
+              aria-label="Language: Kiswahili"
+            >
+              <span className="rl-control-label">Kiswahili</span>
+            </button>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <Link
+              to="/access"
+              className="rl-control"
+              aria-label="Open Rafiki Access, a large-print talking keypad for visually impaired people"
+            >
+              <Accessibility size={19} aria-hidden="true" />
+              <span className="rl-control-label">Accessibility</span>
+            </Link>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <button
+              type="button"
+              className="rl-control rl-theme-toggle"
+              onClick={toggleTheme}
+              aria-pressed={theme === 'dark'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            >
+              {theme === 'dark' ? (
+                <Sun size={19} aria-hidden="true" />
+              ) : (
+                <Moon size={19} aria-hidden="true" />
+              )}
+              <span className="rl-control-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            </button>
+
+            <span className="rl-divider" aria-hidden="true" />
+
+            <Link to="/login" className="rl-voice">
+              <span className="rl-voice-label">Sign up</span>
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      <main className="flex-1">
+        <section className="rl-hero" aria-labelledby="hero-heading">
+          <div className="rl-hero-inner">
+            <div className="rl-hero-copy">
+              <p className="rl-hero-pill">
+                <ShieldCheck size={18} aria-hidden="true" />
+                Rafiki is a secure assistant that helps you access government services without eCitizen login.
+              </p>
+
+              <h1 id="hero-heading" className="rl-hero-title">
+                Hello, I'm Rafiki.
+                <span className="rl-hero-title-accent">How can I help you today?</span>
+              </h1>
+
+              <p className="rl-hero-lede">
+                I make it easy to access government services. Just tell me what you need,
+                and I'll take care of the rest.
+              </p>
+
+              <div className="rl-hero-actions">
+                <Link to="/login" className="rl-hero-cta rl-hero-cta-primary">
+                  <Mic size={26} strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="rl-hero-cta-title">Speak to Rafiki</span>
+                    <span className="rl-hero-cta-sub">(Voice Input)</span>
+                  </span>
+                </Link>
+                <Link to="/login" className="rl-hero-cta rl-hero-cta-secondary">
+                  <Keyboard size={26} strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="rl-hero-cta-title">Type your request</span>
+                    <span className="rl-hero-cta-sub">(Text Input)</span>
+                  </span>
+                </Link>
+              </div>
+
+              <p className="rl-hero-assure">
+                <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
+                <span>
+                  Your data is private and secure.
+                  <br />
+                  You're always in control.
+                </span>
+              </p>
+            </div>
+
+            <figure className="rl-hero-figure">
+              <img
+                src="/images/hero-citizens.png"
+                alt="Four Kenyan citizens using Rafiki on their phones — an older man in a flat cap, a young woman in glasses, a man seated in a wheelchair, and a woman in a patterned headwrap — in front of the Kenyan flag."
+                className="rl-hero-art"
+                width={612}
+                height={408}
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  img.style.display = 'none';
+                  img.nextElementSibling?.classList.replace('hidden', 'flex');
+                }}
+              />
+              <div
+                className="hidden w-72 h-72 lg:w-80 lg:h-80 rounded-full items-center justify-center"
+                style={{
+                  background:
+                    'radial-gradient(circle at 50% 40%, rgba(45,106,79,0.14), rgba(200,134,10,0.08) 70%, transparent)',
+                }}
+              >
+                <RafikiLogo size={56} />
+              </div>
+            </figure>
+          </div>
+        </section>
+
+        <section className="rl-services" aria-labelledby="services-heading">
+          <div className="rl-services-inner">
+            <div className="rl-services-head">
+              <h2 id="services-heading" className="rl-services-title">
+                Popular Services
+              </h2>
+              <p className="rl-services-sub">Tell me which service you need help with.</p>
+            </div>
+
+            <ul className="rl-services-grid">
+              {SERVICES.map(({ name, slug, icon: Icon, image }) => (
+                <li key={slug}>
+                  <Link
+                    to={chatPathForService(slug)}
+                    className="rl-service-card"
+                    onClick={() => rememberPendingService(slug)}
+                  >
+                    {image ? (
+                      <span className="rl-service-logo-wrap" aria-hidden="true">
+                        <img src={image} alt="" className="rl-service-logo" />
+                      </span>
+                    ) : (
+                      Icon && <Icon size={32} strokeWidth={1.75} aria-hidden="true" />
+                    )}
+                    <span className="rl-service-name">{name}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            <p className="rl-services-more">
+              <Headset size={22} strokeWidth={1.75} aria-hidden="true" />
+              <span className="rl-services-more-text">
+                Rafiki can also help you with NHIF (SHA), HELB, eAIMS, and more.
+              </span>
+              <span className="rl-services-more-cue">Just ask.</span>
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <footer className="rl-footer">
+        <div className="rl-trust">
+          <div className="rl-trust-inner">
+            <ul className="rl-trust-list">
+              {TRUST_ITEMS.map(({ icon: Icon, title, sub }) => (
+                <li key={title} className="rl-trust-item">
+                  <span className="rl-trust-icon">
+                    <Icon size={28} strokeWidth={1.75} aria-hidden="true" />
+                  </span>
+                  <span className="rl-trust-copy">
+                    <span className="rl-trust-title">{title}</span>
+                    <span className="rl-trust-sub">{sub}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="rl-footer-main">
+          <div className="rl-footer-stripe" aria-hidden="true" />
+
+          <div className="rl-footer-inner">
+            <div className="rl-footer-grid">
+              <div className="rl-footer-brand">
+                <span className="rl-footer-logo">
+                  <RafikiLogo size={44} />
+                </span>
+                <span className="rl-footer-tagline">AI Government Assistant</span>
+                <p className="rl-footer-about">
+                  Rafiki is your AI companion for navigating Kenya's government services with ease.
+                </p>
+
+                <ul className="rl-footer-social" aria-label="Rafiki on social media">
+                  <li>
+                    <a
+                      href="https://www.linkedin.com/company/rafikiai"
+                      className="rl-footer-social-link"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Rafiki on LinkedIn"
+                    >
+                      <LinkedInIcon size={19} />
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://x.com/rafikiai"
+                      className="rl-footer-social-link"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Rafiki on X"
+                    >
+                      <XIcon size={18} />
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://www.tiktok.com/@rafikiai"
+                      className="rl-footer-social-link"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Rafiki on TikTok"
+                    >
+                      <TikTokIcon size={19} />
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              {FOOTER_COLUMNS.map(({ heading, items }) => (
+                <div key={heading} className="rl-footer-col">
+                  <h2 className="rl-footer-col-title">{heading}</h2>
+                  <ul className="rl-footer-col-list">
+                    {items.map(({ label, href }) => (
+                      <li key={label}>
+                        {href ? (
+                          <a href={href} className="rl-footer-link">
+                            {label}
+                          </a>
+                        ) : (
+                          <span className="rl-footer-label">{label}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div className="rl-footer-bottom">
+              <p className="rl-footer-assurance">
+                <ShieldCheck size={21} strokeWidth={1.75} aria-hidden="true" />
+                Trusted. Secure. Always here for you.
+              </p>
+
+              <p className="rl-footer-copyright">
+                © {new Date().getFullYear()} Rafiki. All rights reserved.
+              </p>
+
+              <div className="rl-footer-lang">
+                <Globe size={19} aria-hidden="true" />
+                <button type="button" className="rl-footer-lang-btn" aria-label="Language: English">
+                  English
+                </button>
+                <span className="rl-footer-lang-sep" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="rl-footer-lang-btn rl-footer-lang-btn-muted"
+                  aria-label="Language: Kiswahili"
+                >
+                  Kiswahili
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+export default LandingPage;

@@ -76,10 +76,10 @@ class LanguageDetector:
             confidence_score: 0.0 to 1.0
         """
         try:
-            # Check session language preference first
-            if session_context and session_context.get('preferred_language'):
-                return session_context['preferred_language'], 1.0
-            
+            # Note: we intentionally do NOT short-circuit on a session's stored
+            # 'preferred_language' here — doing so would permanently lock a session
+            # to one language and prevent users from switching languages mid-conversation.
+            # Always re-detect from the current message.
             normalized_text = text.lower().strip()
             
             # Score Kiswahili indicators

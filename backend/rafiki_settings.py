@@ -6,11 +6,13 @@ All sensitive credentials are loaded from environment variables.
 import os
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseSettings
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
-# Get the path to the .env file (in parent directory)
-ENV_FILE = Path(__file__).parent.parent / ".env"
+# Repo-root .env and backend/.env (local keys live in the latter).
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+BACKEND_ENV_FILE = Path(__file__).resolve().parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -27,7 +29,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # CORS Settings
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    # Include the Vite frontend default (5173) and the common React default (3000).
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
     
     # Google Gemini API
     GEMINI_API_KEY: str = ""
@@ -35,10 +38,23 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-2.5-flash"
     
     # ElevenLabs Conversational AI
-    ELEVENLABS_API_KEY: str = "sk_465aa135c1708e66c2467d3f9af49cf18a205fd759c591fc"
-    ELEVENLABS_AGENT_ID: str = "agent_8201ke4b56ysfce8kaz9ymxjxrvx"
-    ELEVENLABS_BRANCH_ID: str = "agtbrch_0501ke4b57pzf70va7bqn3jd86a0"
-    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice (default)
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_AGENT_ID: str = ""
+    ELEVENLABS_BRANCH_ID: str = ""
+    ELEVENLABS_VOICE_ID: str = ""
+
+    # WhatsApp Business Cloud API
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_VERIFY_TOKEN: str = ""
+    WHATSAPP_APP_SECRET: str = ""
+    WHATSAPP_GRAPH_API_VERSION: str = "v21.0"
+    WHATSAPP_TEMPLATE_NAME: str = ""
+    WHATSAPP_TEMPLATE_LANGUAGE: str = "en"
+    WHATSAPP_REQUIRE_SIGNATURE: bool = True
+
+    # Redis (sessions, idempotency). Empty = in-memory TTL fallback.
+    REDIS_URL: str = ""
     
     # Dialogflow Settings
     DIALOGFLOW_PROJECT_ID: str = ""
@@ -51,14 +67,28 @@ class Settings(BaseSettings):
     AFRICASTALKING_SENDER_ID: Optional[str] = None
     AFRICASTALKING_VIRTUAL_NUMBER: str = "+254711082025"  # Virtual number for voice calls
 
+    @field_validator("AFRICASTALKING_SENDER_ID", mode="before")
+    def coerce_africastalking_sender_id(cls, value):
+        if value is None:
+            return None
+        return str(value).strip()
+
     # Email/SMTP settings for OTP delivery
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM_EMAIL: str = "noreply@rafiki.ai"
-    SMTP_FROM_NAME: str = "Rafiki AI"
-    EMAIL_ENABLED: bool = False  # Set to True when SMTP is configured
+    SMTP_FROM_EMAIL: str = "kelvinwepo7710@gmail.com"
+    SMTP_FROM_NAME: str = "Kelvin Wepo"
+    EMAIL_ENABLED: bool = True
+
+    @field_validator("SMTP_PASSWORD", mode="before")
+    @classmethod
+    def strip_smtp_password(cls, value):
+        # Gmail app passwords are often copied with spaces ("xxxx xxxx xxxx xxxx").
+        if value is None:
+            return ""
+        return str(value).replace(" ", "").strip()
 
     # OTP/SMS simulation (dev only)
     OTP_SIMULATE: bool = False
@@ -95,6 +125,8 @@ class Settings(BaseSettings):
     
     # Paystack Payment Integration (M-PESA)
     PAYSTACK_SECRET_KEY: str = ""
+    # Public webhook URL, e.g. https://your-host/api/agencies/payments/webhook
+    PAYSTACK_CALLBACK_URL: str = ""
     
     # Database Settings
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rafiki"
@@ -120,22 +152,90 @@ class Settings(BaseSettings):
         """Get the base directory of the project"""
         return Path(__file__).parent.parent
     
-    class Config:
-        env_file = str(Path(__file__).parent.parent / ".env")
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra fields from .env
+    model_config = SettingsConfigDict(
+        env_file=(str(ENV_FILE), str(BACKEND_ENV_FILE)),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=True,
+    )
     
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
+    @property
+    def email_configured(self) -> bool:
+        return bool(
+            self.EMAIL_ENABLED
+            and self.SMTP_USERNAME
+            and self.SMTP_PASSWORD
+            and self.SMTP_HOST
+        )
+
+
+_settings_mtime: float = -1.0
+
+
+def _env_mtime() -> float:
+    stamp = 0.0
+    for path in (ENV_FILE, BACKEND_ENV_FILE):
+        try:
+            stamp = max(stamp, path.stat().st_mtime)
+        except OSError:
+            continue
+    return stamp
+
 
 @lru_cache()
+def _load_settings() -> Settings:
+    settings = Settings()
+    overlay = _elevenlabs_from_dotenv_files()
+    if overlay:
+        if hasattr(settings, "model_copy"):
+            settings = settings.model_copy(update=overlay)
+        else:
+            for key, value in overlay.items():
+                object.__setattr__(settings, key, value)
+    return settings
+
+
+def _elevenlabs_from_dotenv_files() -> dict:
+    """Prefer committed-local .env values over a stale exported shell key."""
+    try:
+        from dotenv import dotenv_values
+    except ImportError:
+        return {}
+
+    merged: dict[str, str] = {}
+    for path in (ENV_FILE, BACKEND_ENV_FILE):
+        if not path.exists():
+            continue
+        values = dotenv_values(path)
+        for key in (
+            "ELEVENLABS_API_KEY",
+            "ELEVENLABS_AGENT_ID",
+            "ELEVENLABS_BRANCH_ID",
+            "ELEVENLABS_VOICE_ID",
+        ):
+            raw = values.get(key)
+            value = str(raw).strip() if raw else ""
+            if not value or value.startswith("your-") or "your-" in value:
+                continue
+            if key == "ELEVENLABS_API_KEY" and not value.startswith("sk_"):
+                continue
+            merged[key] = value
+    return merged
+
+
 def get_settings() -> Settings:
-    """Get cached settings instance."""
-    return Settings()
+    """Reload .env when it changes so a new ElevenLabs key/agent/voice is picked up."""
+    global _settings_mtime
+    current = _env_mtime()
+    if current != _settings_mtime:
+        _load_settings.cache_clear()
+        _settings_mtime = current
+    return _load_settings()
 
 
 # Supported agencies (top-level)

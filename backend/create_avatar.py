@@ -25,7 +25,7 @@ draw.ellipse(
     [(circle_center - circle_radius, circle_center - circle_radius - 30),
      (circle_center + circle_radius, circle_center + circle_radius - 30)],
     fill='#C9825F'  # Warm brown Kenyan skin tone
-)
+)               
 
 # Draw eyes
 eye_y = 180

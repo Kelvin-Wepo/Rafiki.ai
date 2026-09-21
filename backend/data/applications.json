@@ -60,5 +60,247 @@
     },
     "created_at": "2026-03-03T21:11:52.383997",
     "updated_at": "2026-03-03T21:11:52.384010"
+  },
+  "NTS-20260628034354-7F4CA276": {
+    "application_ref": "NTS-20260628034354-7F4CA276",
+    "session_id": "511ac630-046a-4c99-9419-82e4140ab228",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Application",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "Kelvin Wepo",
+      "id_number": "",
+      "phone": "0799489045",
+      "email": "",
+      "county": "Kiambu",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1782607434-E7FA96DA",
+      "amount": 3280,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "name": "Kelvin Wepo",
+      "id_number": "33193060",
+      "phone": "0799489045",
+      "county": "Kiambu",
+      "license_class": "Class A \u2013 Motorcycles",
+      "fee": 3250,
+      "service_fee": 30,
+      "total": 3280,
+      "mpesa": "0799489045"
+    },
+    "created_at": "2026-06-28T03:43:54.346074",
+    "updated_at": "2026-06-28T03:43:54.346086"
+  },
+  "NTS-20260628040128-5A9FF3D6": {
+    "application_ref": "NTS-20260628040128-5A9FF3D6",
+    "session_id": "e5af0164-aeb6-4e57-b8cd-df3609600ce6",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Application",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "Kelvin Wepo",
+      "id_number": "",
+      "phone": "+254799489045",
+      "email": "",
+      "county": "Kiambu",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1782608488-9E3ABB32",
+      "amount": 3280,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "name": "Kelvin Wepo",
+      "id_number": "33193060",
+      "phone": "+254799489045",
+      "county": "Kiambu",
+      "license_class": "Class A \u2013 Motorcycles",
+      "fee": 3250,
+      "service_fee": 30,
+      "total": 3280,
+      "mpesa": "+254799489045"
+    },
+    "created_at": "2026-06-28T04:01:28.789129",
+    "updated_at": "2026-06-28T04:01:28.789140"
+  },
+  "NTS-20260711035454-5FF565FD": {
+    "application_ref": "NTS-20260711035454-5FF565FD",
+    "session_id": "1437e560-5ee2-4d28-9c63-183ad602275e",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Renewal",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "",
+      "id_number": "",
+      "phone": "0799489045",
+      "email": "",
+      "county": "",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1783731294-5EB6C7F9",
+      "amount": 1200,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "id_or_dl": "33193060",
+      "mpesa": "0799489045",
+      "total": 1200
+    },
+    "created_at": "2026-07-11T03:54:54.645087",
+    "updated_at": "2026-07-11T03:54:54.645096"
+  },
+  "NTS-20260711041132-B6A1CA33": {
+    "application_ref": "NTS-20260711041132-B6A1CA33",
+    "session_id": "f0ee2d13-c840-4b37-bf5c-50a4398203a7",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Application",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "Kelvin Wepo",
+      "id_number": "",
+      "phone": "0799489045",
+      "email": "",
+      "county": "Nairobi",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1783732292-648381F6",
+      "amount": 3280,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "name": "Kelvin Wepo",
+      "id_number": "33193060",
+      "phone": "0799489045",
+      "county": "Nairobi",
+      "license_class": "Class A \u2013 Motorcycles",
+      "fee": 3250,
+      "service_fee": 30,
+      "total": 3280,
+      "mpesa": "0799489045"
+    },
+    "created_at": "2026-07-11T04:11:32.846965",
+    "updated_at": "2026-07-11T04:11:32.846978"
+  },
+  "NTS-20260711041959-63970117": {
+    "application_ref": "NTS-20260711041959-63970117",
+    "session_id": "4feaca1e-8e09-4f07-a47a-790375d70606",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Renewal",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "",
+      "id_number": "",
+      "phone": "+254799489045",
+      "email": "",
+      "county": "",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1783732799-3618B048",
+      "amount": 1200,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "id_or_dl": "33193060",
+      "mpesa": "+254799489045",
+      "total": 1200
+    },
+    "created_at": "2026-07-11T04:19:59.977516",
+    "updated_at": "2026-07-11T04:19:59.977528"
+  },
+  "NTS-20260711044024-D7620FED": {
+    "application_ref": "NTS-20260711044024-D7620FED",
+    "session_id": "4feaca1e-8e09-4f07-a47a-790375d70606",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Renewal",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "",
+      "id_number": "",
+      "phone": "0799489045",
+      "email": "",
+      "county": "",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1783734024-0ADF0D17",
+      "amount": 1200,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "id_or_dl": "33193060",
+      "mpesa": "0799489045",
+      "total": 1200
+    },
+    "created_at": "2026-07-11T04:40:24.635990",
+    "updated_at": "2026-07-11T04:40:24.636000"
+  },
+  "NTS-20260712132843-DFFA09E9": {
+    "application_ref": "NTS-20260712132843-DFFA09E9",
+    "session_id": "e9db0bdf-7981-4122-a5f8-1c3cd34cc1d7",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Renewal",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "",
+      "id_number": "",
+      "phone": "0705471075",
+      "email": "",
+      "county": "",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1783852123-5B5FD2FF",
+      "amount": 1200,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "id_or_dl": "33193060",
+      "mpesa": "0705471075",
+      "total": 1200
+    },
+    "created_at": "2026-07-12T13:28:43.638964",
+    "updated_at": "2026-07-12T13:28:43.638976"
+  },
+  "NTS-20260714014223-98709007": {
+    "application_ref": "NTS-20260714014223-98709007",
+    "session_id": "ec200cd7-9a7b-419d-bf81-3051a20d59f9",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Renewal",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "",
+      "id_number": "",
+      "phone": "0799489045",
+      "email": "",
+      "county": "",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1783982543-4A72AEA1",
+      "amount": 1200,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "id_or_dl": "33193060",
+      "mpesa": "0799489045",
+      "total": 1200
+    },
+    "created_at": "2026-07-14T01:42:23.502938",
+    "updated_at": "2026-07-14T01:42:23.502954"
   }
 }

@@ -6,7 +6,11 @@ Implements National Security compliance with audit logging.
 
 import secrets
 import hashlib
+import io
+import json
+import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from jose import jwt, JWTError
 
@@ -18,8 +22,18 @@ except ImportError:
     BCRYPT_AVAILABLE = False
     import hashlib as fallback_hash
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from rafiki_settings import get_settings
 from utils.logger import get_logger
+from database import AsyncSessionLocal
+from models.db_models import (
+    User as DBUser,
+    Session as DBSession,
+    UserStatus as DBUserStatus,
+    AuthProvider as DBAuthProvider,
+)
 from models.user import (
     User, Session, Conversation, UserStatus, AuthProvider,
     UserProfile, ConversationSummary, AuthAuditLog,
@@ -79,17 +93,70 @@ class AuthService:
         # Initialize OTP service lazily to allow tests to patch get_otp_service()
         self.otp_service = None
         
-        # In-memory stores (replace with database in production)
-        self._users: Dict[str, User] = {}  # user_id -> User
-        self._users_by_phone: Dict[str, str] = {}  # phone_hash -> user_id
-        self._users_by_email: Dict[str, str] = {}  # email_hash -> user_id
-        self._users_by_id_number: Dict[str, str] = {}  # id_number_hash -> user_id
+        # Users, sessions and OTP verification state are persisted in Postgres
+        # via the SQLAlchemy models in models/db_models.py (see _db_* helpers
+        # below). Only genuinely ephemeral, short-lived data stays in-memory:
+        #   - _pending_registrations: unverified registration form data. If a
+        #     redeploy wipes this mid-flow, the user just has to register
+        #     again (no OTP schema field exists to stash arbitrary form data,
+        #     and OTPs themselves expire in 5 minutes anyway, so the blast
+        #     radius is tiny compared to losing completed accounts forever).
+        #   - _conversations / _generated_transcripts / _audit_logs: not part
+        #     of this fix; left untouched.
         self._pending_registrations: Dict[str, Dict] = {}  # email_hash -> registration data
-        self._sessions: Dict[str, Session] = {}  # session_id -> Session
         self._conversations: Dict[str, Conversation] = {}  # conv_id -> Conversation
         self._user_conversations: Dict[str, List[str]] = {}  # user_id -> [conv_ids]
         self._audit_logs: List[AuthAuditLog] = []
+        # Generated transcripts storage (in-memory mapping)
+        # key: transcript_id, value: {conversation_id, user_id, file_path, filename, content_type, is_read, generated_at}
+        self._generated_transcripts: Dict[str, Dict[str, Any]] = {}
+        self._conversations_path = Path(__file__).resolve().parent.parent / "data" / "chat_sessions.json"
+        self._load_conversations()
     
+    def _load_conversations(self) -> None:
+        """Restore chat history from disk so threads survive restarts."""
+        path = self._conversations_path
+        if not path.exists():
+            return
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(f"Could not load chat sessions: {exc}")
+            return
+
+        conversations = payload.get("conversations") or []
+        for item in conversations:
+            try:
+                if hasattr(Conversation, "model_validate"):
+                    conv = Conversation.model_validate(item)
+                else:
+                    conv = Conversation.parse_obj(item)
+            except Exception as exc:
+                logger.warning(f"Skipping corrupt conversation record: {exc}")
+                continue
+            self._conversations[conv.id] = conv
+            self._user_conversations.setdefault(conv.user_id, [])
+            if conv.id not in self._user_conversations[conv.user_id]:
+                self._user_conversations[conv.user_id].append(conv.id)
+        logger.info(f"Loaded {len(self._conversations)} persisted chat sessions")
+
+    def _save_conversations(self) -> None:
+        path = self._conversations_path
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            records = []
+            for conv in self._conversations.values():
+                if hasattr(conv, "model_dump"):
+                    records.append(conv.model_dump(mode="json"))
+                else:
+                    records.append(json.loads(conv.json()))
+            path.write_text(
+                json.dumps({"conversations": records}, indent=2, default=str),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            logger.warning(f"Could not persist chat sessions: {exc}")
+
     def _get_jwt_secret(self) -> str:
         """Get JWT secret key."""
         return self.settings.SECRET_KEY or self.settings.SESSION_SECRET_KEY
@@ -157,7 +224,56 @@ class AuthService:
             logger.info(f"Auth event: {event_type} - User: {user_id}")
         else:
             logger.warning(f"Auth event: {event_type} - Failed: {failure_reason}")
-    
+
+    # ============== Database-backed User/Session helpers ==============
+    # These replace the old in-memory dicts (self._users, self._sessions, etc.)
+    # so accounts survive process restarts / redeploys.
+
+    async def _get_user_by_id(self, db: AsyncSession, user_id: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.id == user_id))
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_phone_hash(self, db: AsyncSession, phone_hash: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.phone_number_hash == phone_hash))
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_email_hash(self, db: AsyncSession, email_hash: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.email_hash == email_hash))
+        return result.scalar_one_or_none()
+
+    async def _get_user_by_id_number_hash(self, db: AsyncSession, id_hash: str) -> Optional[DBUser]:
+        result = await db.execute(select(DBUser).where(DBUser.id_number_hash == id_hash))
+        return result.scalar_one_or_none()
+
+    async def _create_session(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        access_token: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> DBSession:
+        session = DBSession(
+            user_id=user_id,
+            token_hash=hash_value(access_token),
+            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        db.add(session)
+        await db.flush()
+        return session
+
+    def _user_to_dict(self, user: DBUser) -> Dict[str, Any]:
+        return {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email_masked": user.email_masked,
+            "phone_masked": user.phone_number_masked,
+            "status": user.status,
+            "has_disability": bool(getattr(user, "has_disability", False)),
+        }
+
     async def initiate_login(
         self,
         phone_number: str,
@@ -179,10 +295,12 @@ class AuthService:
             Result with OTP request status
         """
         phone_hash = hash_value(phone_number)
-        
+
         # Check if user exists
-        is_new_user = phone_hash not in self._users_by_phone
-        
+        async with AsyncSessionLocal() as db:
+            existing_user = await self._get_user_by_phone_hash(db, phone_hash)
+        is_new_user = existing_user is None
+
         # Fraud checks (rate limit OTP requests)
         from services.fraud_service import get_fraud_service as _get_fraud_service
         fraud = _get_fraud_service()
@@ -306,45 +424,42 @@ class AuthService:
             return verify_result
         
         phone_hash = hash_value(phone_number)
-        
-        # Get or create user
-        if phone_hash in self._users_by_phone:
-            # Existing user
-            user_id = self._users_by_phone[phone_hash]
-            user = self._users[user_id]
-            user.last_login = datetime.utcnow()
-            user.failed_attempts = 0
-            is_new_user = False
-        else:
-            # New user registration
-            user_id = generate_user_id()
-            user = User(
-                id=user_id,
-                phone_number_hash=phone_hash,
-                phone_number_masked=mask_phone_number(phone_number),
-                auth_provider=AuthProvider.PHONE,
-                status=UserStatus.ACTIVE,
-                last_login=datetime.utcnow()
+
+        async with AsyncSessionLocal() as db:
+            # Get or create user
+            user = await self._get_user_by_phone_hash(db, phone_hash)
+            if user:
+                user.last_login = datetime.utcnow()
+                user.failed_attempts = 0
+                is_new_user = False
+            else:
+                user = DBUser(
+                    phone_number_hash=phone_hash,
+                    phone_number_masked=mask_phone_number(phone_number),
+                    auth_provider=DBAuthProvider.PHONE,
+                    status=DBUserStatus.ACTIVE,
+                    last_login=datetime.utcnow()
+                )
+                db.add(user)
+                await db.flush()
+                is_new_user = True
+
+            user_id = user.id
+
+            # Create session
+            access_token = self._create_access_token(user_id)
+            session = await self._create_session(
+                db, user_id, access_token, ip_address=ip_address, user_agent=user_agent
             )
-            self._users[user_id] = user
-            self._users_by_phone[phone_hash] = user_id
-            self._user_conversations[user_id] = []
-            is_new_user = True
-        
-        # Create session
-        access_token = self._create_access_token(user_id)
-        session_id = generate_session_id()
-        
-        session = Session(
-            id=session_id,
-            user_id=user_id,
-            token_hash=hash_value(access_token),
-            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        self._sessions[session_id] = session
-        
+            session_id = session.id
+
+            created_at = user.created_at
+            last_login = user.last_login
+            phone_masked = user.phone_number_masked
+            status = user.status
+
+            await db.commit()
+
         self._log_audit_event(
             "login_success",
             user_id=user_id,
@@ -354,7 +469,7 @@ class AuthService:
             user_agent=user_agent,
             metadata={"is_new_user": is_new_user, "session_id": session_id}
         )
-        
+
         return {
             "success": True,
             "message": "Login successful",
@@ -365,10 +480,10 @@ class AuthService:
             "is_new_user": is_new_user,
             "user": {
                 "id": user_id,
-                "phone_masked": user.phone_number_masked,
-                "status": user.status,
-                "created_at": user.created_at.isoformat(),
-                "last_login": user.last_login.isoformat() if user.last_login else None
+                "phone_masked": phone_masked,
+                "status": status,
+                "created_at": created_at.isoformat(),
+                "last_login": last_login.isoformat() if last_login else None
             }
         }
     
@@ -386,16 +501,18 @@ class AuthService:
             return None
         
         user_id = payload.get("sub")
-        
+
         if not user_id:
             return None
-        
+
         # If user exists, confirm status; otherwise allow token-based validation
-        user = self._users.get(user_id)
-        if user and user.status != UserStatus.ACTIVE:
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
+
+        if user and user.status != DBUserStatus.ACTIVE:
             logger.warning(f"User {user_id} has non-active status: {user.status}")
             return None
-        
+
         return {
             "user_id": user_id,
             "phone_masked": user.phone_number_masked if user else None,
@@ -427,17 +544,15 @@ class AuthService:
         
         user_id = payload.get("sub")
         token_hash = hash_value(token)
-        
+
         # Find and invalidate session
-        session_to_remove = None
-        for session_id, session in self._sessions.items():
-            if session.token_hash == token_hash:
-                session_to_remove = session_id
-                break
-        
-        if session_to_remove:
-            del self._sessions[session_to_remove]
-        
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(DBSession).where(DBSession.token_hash == token_hash))
+            session = result.scalar_one_or_none()
+            if session:
+                await db.delete(session)
+                await db.commit()
+
         self._log_audit_event(
             "logout",
             user_id=user_id,
@@ -458,22 +573,22 @@ class AuthService:
         id_number: str,
         password: str,
         has_disability: bool = False,
-        otp_delivery: str = "sms",
+        otp_delivery: str = "email",
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Register a new user with full profile data.
-        Sends OTP for verification.
+        Sends a verification OTP to the user's email.
         
         Args:
             full_name: User's full name
-            email: Email address
+            email: Email address (OTP is sent here)
             phone: Phone number (normalized to +254)
             id_number: National ID number
             password: Plain text password (will be hashed)
             has_disability: Disability flag
-            otp_delivery: OTP delivery method
+            otp_delivery: Kept for API compatibility; codes are always emailed
             ip_address: Client IP
             user_agent: Client user agent
         
@@ -485,26 +600,27 @@ class AuthService:
         id_hash = hash_value(id_number)
         
         # Check for existing accounts
-        if email_hash in self._users_by_email:
-            return {
-                "success": False,
-                "error": "email_exists",
-                "message": "An account with this email already exists."
-            }
-        
-        if phone_hash in self._users_by_phone:
-            return {
-                "success": False,
-                "error": "phone_exists",
-                "message": "An account with this phone number already exists."
-            }
-        
-        if id_hash in self._users_by_id_number:
-            return {
-                "success": False,
-                "error": "id_exists",
-                "message": "An account with this ID number already exists."
-            }
+        async with AsyncSessionLocal() as db:
+            if await self._get_user_by_email_hash(db, email_hash):
+                return {
+                    "success": False,
+                    "error": "email_exists",
+                    "message": "An account with this email already exists."
+                }
+
+            if await self._get_user_by_phone_hash(db, phone_hash):
+                return {
+                    "success": False,
+                    "error": "phone_exists",
+                    "message": "An account with this phone number already exists."
+                }
+
+            if await self._get_user_by_id_number_hash(db, id_hash):
+                return {
+                    "success": False,
+                    "error": "id_exists",
+                    "message": "An account with this ID number already exists."
+                }
         
         # Hash password
         password_hashed = hash_password(password)
@@ -524,64 +640,17 @@ class AuthService:
             "user_agent": user_agent
         }
         
-        # Send OTP based on delivery method
-        from services.otp_service import get_otp_service as _get_otp_service, OTPDeliveryMethod
+        # Verification codes are emailed. Phone is stored on the account
+        # but is no longer used to deliver OTPs.
+        from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
-        
-        delivery_method = otp_delivery.lower()
-        otp_result = None
-        
-        if delivery_method == "email":
-            # Send OTP via email only
-            otp_result = await otp_service.request_otp_for_email(
-                email,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        elif delivery_method in ["sms", "voice", "both"]:
-            # Send OTP via phone
-            try:
-                dm = OTPDeliveryMethod(delivery_method)
-            except ValueError:
-                dm = OTPDeliveryMethod.SMS
-            
-            otp_result = await otp_service.request_otp(
-                phone,
-                delivery_method=dm,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        elif delivery_method == "all":
-            # Send via both phone and email
-            phone_result = await otp_service.request_otp(
-                phone,
-                delivery_method=OTPDeliveryMethod.BOTH,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            email_result = await otp_service.request_otp_for_email(
-                email,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            otp_result = {
-                "success": phone_result.get("success", False) or email_result.get("success", False),
-                "message": "OTP sent via SMS, voice, and email.",
-                "phone_sent": phone_result.get("success", False),
-                "email_sent": email_result.get("success", False),
-                "expires_in": phone_result.get("expires_in", 300)
-            }
-            if phone_result.get("otp"):
-                otp_result["otp"] = phone_result["otp"]
-                otp_result["test_mode"] = True
-        else:
-            # Default to SMS
-            otp_result = await otp_service.request_otp(
-                phone,
-                delivery_method=OTPDeliveryMethod.SMS,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
+
+        otp_result = await otp_service.request_otp_for_email(
+            email,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        otp_delivery = "email"
         
         if otp_result and otp_result.get("success"):
             self._log_audit_event(
@@ -649,22 +718,21 @@ class AuthService:
                 "message": "No pending registration found. Please register again."
             }
         
-        # Verify OTP (try both phone and email verification)
+        # Verify the emailed OTP first, then fall back to a phone OTP
+        # in case an older pending registration is still in memory.
         from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
-        
-        # Try phone OTP first
-        otp_result = await otp_service.verify_otp(
-            phone,
+
+        otp_result = await otp_service.verify_otp_for_email(
+            email,
             otp,
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
-        # If phone OTP failed, try email OTP
-        if not otp_result.get("success"):
-            otp_result = await otp_service.verify_otp_for_email(
-                email,
+
+        if not otp_result.get("success") and otp_result.get("error") == "no_otp":
+            otp_result = await otp_service.verify_otp(
+                phone,
                 otp,
                 ip_address=ip_address,
                 user_agent=user_agent
@@ -674,49 +742,42 @@ class AuthService:
             return otp_result
         
         # Create user account
-        user_id = generate_user_id()
-        
-        user = User(
-            id=user_id,
-            phone_number_hash=pending["phone_hash"],
-            phone_number_masked=mask_phone_number(pending["phone"]),
-            email_hash=pending["email_hash"],
-            email_masked=mask_email(pending["email"]),
-            password_hash=pending["password_hash"],
-            full_name=pending["full_name"],
-            id_number_hash=pending["id_number_hash"],
-            has_disability=pending["has_disability"],
-            auth_provider=AuthProvider.PHONE,
-            status=UserStatus.ACTIVE,
-            email_verified=True,
-            phone_verified=True,
-            last_login=datetime.utcnow()
-        )
-        
-        # Store user
-        self._users[user_id] = user
-        self._users_by_phone[pending["phone_hash"]] = user_id
-        self._users_by_email[pending["email_hash"]] = user_id
-        self._users_by_id_number[pending["id_number_hash"]] = user_id
+        async with AsyncSessionLocal() as db:
+            user = DBUser(
+                phone_number_hash=pending["phone_hash"],
+                phone_number_masked=mask_phone_number(pending["phone"]),
+                email_hash=pending["email_hash"],
+                email_masked=mask_email(pending["email"]),
+                password_hash=pending["password_hash"],
+                full_name=pending["full_name"],
+                id_number_hash=pending["id_number_hash"],
+                has_disability=pending["has_disability"],
+                auth_provider=DBAuthProvider.PHONE,
+                status=DBUserStatus.ACTIVE,
+                email_verified=True,
+                phone_verified=True,
+                last_login=datetime.utcnow()
+            )
+            db.add(user)
+            await db.flush()
+            user_id = user.id
+
+            # Create session
+            access_token = self._create_access_token(user_id)
+            session = await self._create_session(
+                db, user_id, access_token, ip_address=ip_address, user_agent=user_agent
+            )
+            session_id = session.id
+
+            user_dict = self._user_to_dict(user)
+
+            await db.commit()
+
         self._user_conversations[user_id] = []
-        
+
         # Clean up pending registration
         del self._pending_registrations[email_hash]
-        
-        # Create session
-        access_token = self._create_access_token(user_id)
-        session_id = generate_session_id()
-        
-        session = Session(
-            id=session_id,
-            user_id=user_id,
-            token_hash=hash_value(access_token),
-            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        self._sessions[session_id] = session
-        
+
         self._log_audit_event(
             "registration_complete",
             user_id=user_id,
@@ -742,15 +803,9 @@ class AuthService:
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "id": user_id,
-                "full_name": user.full_name,
-                "email_masked": user.email_masked,
-                "phone_masked": user.phone_number_masked,
-                "status": user.status
-            }
+            "user": user_dict
         }
-    
+
     async def login_with_password(
         self,
         identifier: str,
@@ -772,125 +827,118 @@ class AuthService:
         """
         # Determine if identifier is email or phone
         is_email = "@" in identifier
-        
-        if is_email:
-            identifier_hash = hash_value(identifier.lower())
-            user_id = self._users_by_email.get(identifier_hash)
-        else:
-            identifier_hash = hash_value(identifier)
-            user_id = self._users_by_phone.get(identifier_hash)
-        
-        # User not found
-        if not user_id:
-            self._log_audit_event(
-                "login_password_failed",
-                phone_hash=identifier_hash,
-                success=False,
-                failure_reason="user_not_found",
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            return {
-                "success": False,
-                "error": "invalid_credentials",
-                "message": "Invalid email/phone or password."
-            }
-        
-        user = self._users.get(user_id)
-        
-        if not user:
-            return {
-                "success": False,
-                "error": "invalid_credentials",
-                "message": "Invalid email/phone or password."
-            }
-        
-        # Check account status
-        if user.status == UserStatus.PENDING:
-            return {
-                "success": False,
-                "error": "account_pending",
-                "message": "Please verify your account first."
-            }
-        
-        if user.status in [UserStatus.BLOCKED, UserStatus.SUSPENDED]:
-            return {
-                "success": False,
-                "error": "account_blocked",
-                "message": "Your account has been suspended."
-            }
-        
-        # Check lockout
-        if user.locked_until and datetime.utcnow() < user.locked_until:
-            remaining = int((user.locked_until - datetime.utcnow()).total_seconds())
-            return {
-                "success": False,
-                "error": "account_locked",
-                "message": f"Account locked. Try again in {remaining} seconds.",
-                "retry_after": remaining
-            }
-        
-        # Verify password
-        if not user.password_hash or not verify_password(password, user.password_hash):
-            user.failed_attempts += 1
-            
-            # Lock after 5 failed attempts
-            if user.failed_attempts >= 5:
-                user.locked_until = datetime.utcnow() + timedelta(minutes=15)
-                user.failed_attempts = 0
-                
+
+        async with AsyncSessionLocal() as db:
+            if is_email:
+                identifier_hash = hash_value(identifier.lower())
+                user = await self._get_user_by_email_hash(db, identifier_hash)
+            else:
+                identifier_hash = hash_value(identifier)
+                user = await self._get_user_by_phone_hash(db, identifier_hash)
+
+            # User not found
+            if not user:
                 self._log_audit_event(
-                    "login_password_locked",
-                    user_id=user_id,
+                    "login_password_failed",
                     phone_hash=identifier_hash,
                     success=False,
-                    failure_reason="max_attempts",
+                    failure_reason="user_not_found",
                     ip_address=ip_address,
                     user_agent=user_agent
                 )
-                
+                return {
+                    "success": False,
+                    "error": "invalid_credentials",
+                    "message": "Invalid email/phone or password."
+                }
+
+            user_id = user.id
+
+            # Check account status
+            if user.status == DBUserStatus.PENDING:
+                return {
+                    "success": False,
+                    "error": "account_pending",
+                    "message": "Please verify your account first."
+                }
+
+            if user.status in [DBUserStatus.BLOCKED, DBUserStatus.SUSPENDED]:
+                return {
+                    "success": False,
+                    "error": "account_blocked",
+                    "message": "Your account has been suspended."
+                }
+
+            # Check lockout
+            if user.locked_until and datetime.utcnow() < user.locked_until:
+                remaining = int((user.locked_until - datetime.utcnow()).total_seconds())
                 return {
                     "success": False,
                     "error": "account_locked",
-                    "message": "Too many failed attempts. Account locked for 15 minutes."
+                    "message": f"Account locked. Try again in {remaining} seconds.",
+                    "retry_after": remaining
                 }
-            
-            self._log_audit_event(
-                "login_password_failed",
-                user_id=user_id,
-                phone_hash=identifier_hash,
-                success=False,
-                failure_reason="wrong_password",
-                ip_address=ip_address,
-                user_agent=user_agent
+
+            # Verify password
+            if not user.password_hash or not verify_password(password, user.password_hash):
+                user.failed_attempts += 1
+
+                # Lock after 5 failed attempts
+                if user.failed_attempts >= 5:
+                    user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+                    user.failed_attempts = 0
+                    await db.commit()
+
+                    self._log_audit_event(
+                        "login_password_locked",
+                        user_id=user_id,
+                        phone_hash=identifier_hash,
+                        success=False,
+                        failure_reason="max_attempts",
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+
+                    return {
+                        "success": False,
+                        "error": "account_locked",
+                        "message": "Too many failed attempts. Account locked for 15 minutes."
+                    }
+
+                remaining = 5 - user.failed_attempts
+                await db.commit()
+
+                self._log_audit_event(
+                    "login_password_failed",
+                    user_id=user_id,
+                    phone_hash=identifier_hash,
+                    success=False,
+                    failure_reason="wrong_password",
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+
+                return {
+                    "success": False,
+                    "error": "invalid_credentials",
+                    "message": f"Invalid password. {remaining} attempts remaining."
+                }
+
+            # Success - reset failed attempts and update last login
+            user.failed_attempts = 0
+            user.locked_until = None
+            user.last_login = datetime.utcnow()
+
+            # Create session
+            access_token = self._create_access_token(user_id)
+            session = await self._create_session(
+                db, user_id, access_token, ip_address=ip_address, user_agent=user_agent
             )
-            
-            remaining = 5 - user.failed_attempts
-            return {
-                "success": False,
-                "error": "invalid_credentials",
-                "message": f"Invalid password. {remaining} attempts remaining."
-            }
-        
-        # Success - reset failed attempts and update last login
-        user.failed_attempts = 0
-        user.locked_until = None
-        user.last_login = datetime.utcnow()
-        
-        # Create session
-        access_token = self._create_access_token(user_id)
-        session_id = generate_session_id()
-        
-        session = Session(
-            id=session_id,
-            user_id=user_id,
-            token_hash=hash_value(access_token),
-            expires_at=datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES),
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        self._sessions[session_id] = session
-        
+            session_id = session.id
+            user_dict = self._user_to_dict(user)
+
+            await db.commit()
+
         self._log_audit_event(
             "login_password_success",
             user_id=user_id,
@@ -899,7 +947,7 @@ class AuthService:
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
+
         return {
             "success": True,
             "message": "Login successful!",
@@ -908,71 +956,54 @@ class AuthService:
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "id": user_id,
-                "full_name": user.full_name,
-                "email_masked": user.email_masked,
-                "phone_masked": user.phone_number_masked,
-                "status": user.status
-            }
+            "user": user_dict
         }
     
     async def resend_otp(
         self,
         email: Optional[str] = None,
         phone: Optional[str] = None,
-        delivery_method: str = "sms",
+        delivery_method: str = "email",
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Resend OTP for verification.
+        Resend the verification OTP to email.
         
         Args:
             email: Email address
-            phone: Phone number
-            delivery_method: How to send OTP
+            phone: Phone number (unused; kept for API compatibility)
+            delivery_method: Kept for API compatibility; codes are always emailed
             ip_address: Client IP
             user_agent: Client user agent
         
         Returns:
             OTP send result
         """
-        from services.otp_service import get_otp_service as _get_otp_service, OTPDeliveryMethod
+        from services.otp_service import get_otp_service as _get_otp_service
         otp_service = _get_otp_service()
-        
-        if delivery_method == "email" and email:
-            return await otp_service.request_otp_for_email(
-                email,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        elif phone:
-            try:
-                dm = OTPDeliveryMethod(delivery_method.lower())
-            except ValueError:
-                dm = OTPDeliveryMethod.SMS
-            
-            return await otp_service.request_otp(
-                phone,
-                delivery_method=dm,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-        else:
+
+        if not email:
             return {
                 "success": False,
                 "error": "missing_contact",
-                "message": "Please provide email or phone number."
+                "message": "Please provide an email address."
             }
 
-    def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
+        return await otp_service.request_otp_for_email(
+            email,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+
+    async def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
         """Get user profile by ID."""
-        user = self._users.get(user_id)
-        
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
+
         if not user:
             return None
-        
+
         return UserProfile(
             user_id=user.id,
             full_name=user.full_name,
@@ -1003,7 +1034,14 @@ class AuthService:
         self._user_conversations[user_id].append(conv_id)
         
         logger.info(f"Created conversation {conv_id} for user {user_id}")
-        return {"success": True, "conversation_id": conv_id, "title": title}    
+        self._save_conversations()
+        return {
+            "success": True,
+            "conversation_id": conv_id,
+            "id": conv_id,
+            "title": title,
+            "created_at": conversation.created_at.isoformat()
+        }
 
     
     async def add_message(
@@ -1034,6 +1072,7 @@ class AuthService:
         if conversation.title == "New Conversation" and role == "user":
             conversation.title = content[:50] + ("..." if len(content) > 50 else "")
         
+        self._save_conversations()
         return {"success": True, "message_id": message["id"]}    
 
     
@@ -1066,16 +1105,17 @@ class AuthService:
             if conv and (include_archived or not conv.is_archived):
                 preview = ""
                 if conv.messages:
-                    first_msg = conv.messages[0]
-                    preview = first_msg["content"][:100] + ("..." if len(first_msg["content"]) > 100 else "")
+                    last_msg = conv.messages[-1]
+                    preview = last_msg["content"][:100] + ("..." if len(last_msg["content"]) > 100 else "")
                 
                 summaries.append({
                     "id": conv.id,
                     "title": conv.title,
                     "preview": preview,
+                    "last_message_preview": preview,
                     "message_count": len(conv.messages),
                     "created_at": conv.created_at.isoformat(),
-                    "updated_at": conv.updated_at.isoformat()
+                    "updated_at": conv.updated_at.isoformat(),
                 })
         
         # Sort by updated_at descending
@@ -1092,12 +1132,14 @@ class AuthService:
         conv_obj = self._conversations.get(conversation_id)
         if conv_obj:
             conv_obj.is_archived = True
+            self._save_conversations()
             return {"success": True}
         return {"success": False, "error": "Conversation could not be archived"}
     
-    def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
+    async def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
         """Delete a conversation (soft delete - just archive)."""
-        return self.archive_conversation(conversation_id, user_id)
+        result = await self.archive_conversation(conversation_id, user_id)
+        return result.get("success", False)
     
     async def export_transcript(
         self,
@@ -1123,6 +1165,10 @@ class AuthService:
             }, indent=2)
             filename = f"rafiki_transcript_{conversation['id']}.json"
             content_type = "application/json"
+        elif format == "pdf":
+            content = self._build_conversation_pdf(conversation)
+            filename = f"rafiki_transcript_{conversation['id']}.pdf"
+            content_type = "application/pdf"
         else:
             # Plain text format
             lines = [
@@ -1145,6 +1191,298 @@ class AuthService:
             content_type = "text/plain"
         
         return {"success": True, "content": content, "filename": filename, "content_type": content_type}
+
+    async def generate_and_store_transcript(self, conversation_id: str, user_id: str, format: str = "txt") -> Optional[Dict[str, Any]]:
+        """
+        Generate a transcript for a conversation and store metadata in-memory.
+        Returns metadata including a transcript_id.
+        """
+        result = await self.export_transcript(conversation_id, user_id, format=format) if hasattr(self, 'export_transcript') else None
+        if not result or not result.get('success'):
+            return {"success": False, "error": "not_found"}
+
+        # Generate a transcript id and save the content to a temp file
+        tid = secrets.token_hex(12)
+        import tempfile, os
+        suffix = ".pdf" if result.get('content_type') == 'application/pdf' else ('.txt' if (result.get('content_type') or '').startswith('text') else '.dat')
+        fd, path = tempfile.mkstemp(suffix=suffix, prefix=f"rafiki_transcript_{conversation_id}_")
+        os.close(fd)
+
+        content = result['content']
+        # If bytes, write directly
+        mode = 'wb' if isinstance(content, (bytes, bytearray)) else 'w'
+        with open(path, mode) as f:
+            if mode == 'wb':
+                f.write(content)
+            else:
+                f.write(content)
+
+        meta = {
+            'transcript_id': tid,
+            'conversation_id': conversation_id,
+            'user_id': user_id,
+            'file_path': path,
+            'filename': result.get('filename'),
+            'content_type': result.get('content_type'),
+            'is_read': False,
+            'generated_at': datetime.utcnow().isoformat()
+        }
+        self._generated_transcripts[tid] = meta
+        return {"success": True, "transcript": meta}
+
+    def list_transcripts_for_user(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return list of transcript metadata for a user."""
+        items = [v for v in self._generated_transcripts.values() if v.get('user_id') == user_id]
+        items_sorted = sorted(items, key=lambda x: x.get('generated_at', ''), reverse=True)
+        return items_sorted
+
+    def get_transcript(self, transcript_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        t = self._generated_transcripts.get(transcript_id)
+        if not t or t.get('user_id') != user_id:
+            return None
+        return t
+
+    def mark_transcript_read(self, transcript_id: str, user_id: str) -> bool:
+        t = self._generated_transcripts.get(transcript_id)
+        if not t or t.get('user_id') != user_id:
+            return False
+        t['is_read'] = True
+        return True
+
+    def unread_transcripts_count(self, user_id: str) -> int:
+        return sum(1 for v in self._generated_transcripts.values() if v.get('user_id') == user_id and not v.get('is_read'))
+
+    def _build_conversation_pdf(self, conversation: Dict[str, Any]) -> bytes:
+        """Build a PDF document for a conversation transcript."""
+        from fpdf import FPDF
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+
+        pdf.set_font('Helvetica', 'B', 18)
+        pdf.set_text_color(0, 49, 83)
+        pdf.cell(0, 10, 'Rafiki.ai Conversation Transcript', ln=True)
+        pdf.ln(2)
+
+        pdf.set_font('Helvetica', '', 11)
+        pdf.set_text_color(50, 50, 50)
+        pdf.multi_cell(0, 6, f"Title: {conversation['title']}")
+        pdf.multi_cell(0, 6, f"Date: {conversation['created_at']}")
+        pdf.ln(4)
+
+        for msg in conversation['messages']:
+            role = 'You' if msg['role'] == 'user' else 'Rafiki'
+            timestamp = msg.get('timestamp', '')
+            pdf.set_font('Helvetica', 'B', 11)
+            pdf.multi_cell(0, 6, f"[{timestamp}] {role}")
+            pdf.set_font('Helvetica', '', 11)
+            pdf.multi_cell(0, 6, msg.get('content', ''))
+            pdf.ln(2)
+
+        return pdf.output(dest='S').encode('latin-1')
+
+    def _normalize_kenyan_phone(self, phone: str) -> str:
+        phone = re.sub(r'[\s\-]', '', str(phone or ''))
+        if not phone:
+            return ''
+        if phone.startswith('0'):
+            phone = '+254' + phone[1:]
+        elif phone.startswith('254'):
+            phone = '+' + phone
+        elif not phone.startswith('+'):
+            phone = '+254' + phone
+        return phone
+
+    def _matches_user_record(self, user: User, applicant: Dict[str, Any]) -> bool:
+        phone = applicant.get('phone', '') if applicant else ''
+        email = applicant.get('email', '') if applicant else ''
+
+        if phone:
+            try:
+                normalized_phone = self._normalize_kenyan_phone(phone)
+                if hash_value(normalized_phone) == user.phone_number_hash:
+                    return True
+            except Exception:
+                pass
+
+        if email and user.email_hash:
+            if hash_value(email.lower()) == user.email_hash:
+                return True
+
+        return False
+
+    def _receipt_summary(self, record: Dict[str, Any], record_type: str) -> Dict[str, Any]:
+        applicant = record.get('applicant', {})
+        payment = record.get('payment', {})
+        receipt_ref = record.get('application_ref') if record_type == 'application' else record.get('booking_ref')
+
+        summary = {
+            'receipt_ref': receipt_ref,
+            'payment_reference': payment.get('reference'),
+            'type': record_type,
+            'agency': record.get('agency', ''),
+            'service': record.get('service', ''),
+            'status': payment.get('status') or record.get('status', ''),
+            'amount': payment.get('amount'),
+            'name': applicant.get('name', ''),
+            'id_number': applicant.get('id_number', ''),
+            'phone': self._normalize_kenyan_phone(applicant.get('phone', '') or applicant.get('mpesa', '') or ''),
+            'email': applicant.get('email', ''),
+            'created_at': record.get('created_at'),
+            'paid_at': payment.get('paid_at'),
+            'appointment': record.get('appointment') if record_type == 'booking' else None,
+        }
+        return summary
+
+    async def get_user_history(self, user_id: str) -> Dict[str, Any]:
+        """Return conversation history and receipts for a user."""
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
+        if not user:
+            return {'conversations': [], 'receipts': []}
+
+        from services.application_service import _load_applications
+        from services.booking_service import _load_agency_bookings
+
+        applications = _load_applications().values()
+        bookings = _load_agency_bookings().values()
+
+        receipts = []
+        for application in applications:
+            if application.get("user_id") == user.id or self._matches_user_record(user, application.get("applicant", {})):
+                receipts.append(self._receipt_summary(application, "application"))
+        for booking in bookings:
+            if booking.get("user_id") == user.id or self._matches_user_record(user, booking.get("applicant", {})):
+                receipts.append(self._receipt_summary(booking, "booking"))
+
+        receipts.sort(key=lambda item: item.get('created_at', ''), reverse=True)
+
+        return {
+            'conversations': self._sync_get_user_conversations(user_id),
+            'receipts': receipts
+        }
+
+    def _sync_get_user_conversations(self, user_id: str) -> List[Dict[str, Any]]:
+        """Sync wrapper for get_user_conversations so route can return immediately."""
+        # Reuse internal conversation store for type-safe history
+        conv_ids = self._user_conversations.get(user_id, [])
+        summaries = []
+        for conv_id in conv_ids:
+            conv = self._conversations.get(conv_id)
+            if conv and not conv.is_archived:
+                preview = ''
+                if conv.messages:
+                    first_msg = conv.messages[0]
+                    preview = first_msg['content'][:100] + ('...' if len(first_msg['content']) > 100 else '')
+                summaries.append({
+                    'id': conv.id,
+                    'title': conv.title,
+                    'preview': preview,
+                    'message_count': len(conv.messages),
+                    'created_at': conv.created_at.isoformat(),
+                    'updated_at': conv.updated_at.isoformat()
+                })
+        return sorted(summaries, key=lambda x: x['updated_at'], reverse=True)
+
+    async def export_receipt(self, user_id: str, receipt_ref: str) -> Optional[Dict[str, Any]]:
+        """Export a payment or booking receipt as PDF for a user."""
+        async with AsyncSessionLocal() as db:
+            user = await self._get_user_by_id(db, user_id)
+        if not user:
+            return {'success': False, 'error': 'User not found'}
+
+        from services.application_service import get_application, get_application_by_payment_ref
+        from services.booking_service import get_agency_booking, get_agency_booking_by_payment_ref
+
+        record = get_application(receipt_ref)
+        record_type = 'application'
+        if not record:
+            record = get_agency_booking(receipt_ref)
+            record_type = 'booking'
+        if not record:
+            record = get_application_by_payment_ref(receipt_ref)
+            record_type = 'application'
+        if not record:
+            record = get_agency_booking_by_payment_ref(receipt_ref)
+            record_type = 'booking'
+        if not record:
+            return {'success': False, 'error': 'Receipt not found'}
+
+        if record.get("user_id") != user.id and not self._matches_user_record(user, record.get("applicant", {})):
+            return {"success": False, "error": "Receipt not found"}
+
+        content = self._build_receipt_pdf(record, record_type)
+        filename = f"rafiki_receipt_{receipt_ref}.pdf"
+
+        return {'success': True, 'content': content, 'filename': filename, 'content_type': 'application/pdf'}
+
+    def _build_receipt_pdf(self, record: Dict[str, Any], record_type: str) -> bytes:
+        """Build a branded PDF receipt for a booking or application."""
+        from fpdf import FPDF
+
+        applicant = record.get('applicant', {})
+        payment = record.get('payment', {})
+        appointment = record.get('appointment', {}) if record_type == 'booking' else None
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+
+        pdf.set_font('Helvetica', 'B', 22)
+        pdf.set_text_color(3, 37, 76)
+        pdf.cell(0, 10, 'Rafiki.ai', ln=True)
+        pdf.set_font('Helvetica', '', 12)
+        pdf.cell(0, 6, 'Government services made simple.', ln=True)
+        pdf.ln(8)
+
+        pdf.set_font('Helvetica', 'B', 16)
+        title = 'Payment Receipt' if payment.get('reference') else 'Service Receipt'
+        pdf.cell(0, 8, title, ln=True)
+        pdf.set_draw_color(3, 37, 76)
+        pdf.set_line_width(0.5)
+        pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
+        pdf.ln(6)
+
+        pdf.set_font('Helvetica', '', 11)
+        pdf.multi_cell(0, 6, f"Receipt ID: {record.get('application_ref') or record.get('booking_ref')}")
+        pdf.multi_cell(0, 6, f"Payment Reference: {payment.get('reference', 'N/A')}")
+        pdf.multi_cell(0, 6, f"Status: {payment.get('status', 'pending')}")
+        pdf.multi_cell(0, 6, f"Date Issued: {record.get('created_at', '')}")
+        pdf.ln(4)
+
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.cell(0, 6, 'Citizen Details', ln=True)
+        pdf.set_font('Helvetica', '', 11)
+        pdf.multi_cell(0, 6, f"Name: {applicant.get('name', '')}")
+        pdf.multi_cell(0, 6, f"National ID: {applicant.get('id_number', '')}")
+        pdf.multi_cell(0, 6, f"Phone: {self._normalize_kenyan_phone(applicant.get('phone') or applicant.get('mpesa') or '')}")
+        if applicant.get('email'):
+            pdf.multi_cell(0, 6, f"Email: {applicant.get('email')}")
+        pdf.ln(4)
+
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.cell(0, 6, 'Service Summary', ln=True)
+        pdf.set_font('Helvetica', '', 11)
+        pdf.multi_cell(0, 6, f"Agency: {record.get('agency', '')}")
+        pdf.multi_cell(0, 6, f"Service: {record.get('service', '')}")
+        pdf.multi_cell(0, 6, f"Amount: KES {payment.get('amount'):,}" if payment.get('amount') else 'Amount: N/A')
+        pdf.multi_cell(0, 6, f"Payment Confirmed: {payment.get('paid_at') or 'Pending'}")
+
+        if appointment:
+            pdf.ln(4)
+            pdf.set_font('Helvetica', 'B', 12)
+            pdf.cell(0, 6, 'Appointment Details', ln=True)
+            pdf.set_font('Helvetica', '', 11)
+            pdf.multi_cell(0, 6, f"Date: {appointment.get('date', '')}")
+            pdf.multi_cell(0, 6, f"Time: {appointment.get('time', '')}")
+            pdf.multi_cell(0, 6, f"Office: {appointment.get('office', '')}")
+
+        pdf.ln(6)
+        pdf.set_font('Helvetica', 'I', 10)
+        pdf.multi_cell(0, 6, 'Thank you for using Rafiki.ai. Please keep this receipt for your records.')
+
+        return pdf.output(dest='S').encode('latin-1')
     
     # ============== Audit & Admin ==============
     

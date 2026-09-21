@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 412 492" role="presentation" aria-hidden="true">
+  <!--
+    Simplified silhouette of Kenya, used as a faint watermark behind the
+    hero artwork. Vertices are plotted from approximate national boundary
+    coordinates with x = (lon - 33.8) * 48 and y = (5.0 - lat) * 48, so the
+    proportions read correctly: pointed Mandera corner in the north east,
+    the Indian Ocean coast running south west to the Tanzania border, the
+    long straight Tanzania border, and the Lake Victoria notch in the west.
+    Decorative only - never announced to assistive technology.
+  -->
+  <path
+    fill="none"
+    stroke="#2F6B4A"
+    stroke-width="4"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+    d="M 14 18
+       L 72 0
+       L 98 18
+       L 149 28
+       L 206 66
+       L 274 76
+       L 342 54
+       L 389 50
+       L 346 106
+       L 345 163
+       L 355 226
+       L 372 293
+       L 372 320
+       L 341 350
+       L 312 382
+       L 304 394
+       L 290 425
+       L 282 434
+       L 261 465
+       L 205 424
+       L 182 404
+       L 150 375
+       L 100 340
+       L 52 308
+       L 10 289
+       L 19 266
+       L 45 257
+       L 24 242
+       L 6 235
+       L 14 211
+       L 23 187
+       L 47 173
+       L 53 134
+       L 38 86
+       L 31 38
+       Z" />
+</svg>

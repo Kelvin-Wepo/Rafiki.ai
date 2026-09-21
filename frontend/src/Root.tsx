@@ -3,21 +3,31 @@
  * Wraps the main app with AuthProvider and handles auth routing.
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OTPVerification } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
-import { SignUpPage, LoginPage } from './pages';
+import { SignUpPage, LoginPage, LandingPage, ForgotPasswordPage } from './pages';
+import LipSyncDemoPage from './pages/LipSyncDemoPage';
+import { destinationAfterAuth, isGuidedServiceSlug, rememberPendingService } from './lib/guidedServices';
+import { isAccessModeEnabled } from './lib/accessMode';
+import { AccessModeProvider } from './contexts/AccessModeContext';
+import { AccessPage } from './pages/AccessPage';
 
 /**
  * Loading Screen Component
  */
 function LoadingScreen() {
+  // Cream/gold to match both the pre-React splash (index.html) and the
+  // auth pages, so session validation reads as one continuous load
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#FAF3E0' }}>
       <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-cyan-400 border-t-transparent animate-spin" />
-        <p className="text-slate-400">Verifying session...</p>
+        <div
+          className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin"
+          style={{ borderColor: 'rgba(200, 134, 10, 0.25)', borderTopColor: '#C8860A' }}
+        />
+        <p style={{ color: '#6B7280' }}>Verifying session...</p>
       </div>
     </div>
   );
@@ -28,15 +38,25 @@ function LoadingScreen() {
  */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  
+  const location = useLocation();
+  if (import.meta.env.VITE_DEV_SCREENSHOT) return <>{children}</>;
+
   if (isLoading) {
     return <LoadingScreen />;
   }
-  
+
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    const incoming = new URLSearchParams(location.search);
+    const service = incoming.get('service');
+    if (service && isGuidedServiceSlug(service)) {
+      rememberPendingService(service);
+    }
+    const params = new URLSearchParams();
+    if (service) params.set('service', service);
+    params.set('next', `${location.pathname}${location.search}`);
+    return <Navigate to={`/login?${params.toString()}`} replace />;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -45,16 +65,38 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
  */
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  
+  const location = useLocation();
+
   if (isLoading) {
     return <LoadingScreen />;
   }
-  
+
   if (isAuthenticated) {
-    return <Navigate to="/chat" replace />;
+    return <Navigate to={destinationAfterAuth(new URLSearchParams(location.search))} replace />;
   }
-  
+
   return <>{children}</>;
+}
+
+/**
+ * Home Route — marketing landing for visitors, Dashboard once signed in
+ */
+function HomeRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!isAuthenticated) {
+    return <LandingPage />;
+  }
+
+  if (isAccessModeEnabled()) {
+    return <Navigate to="/access" replace />;
+  }
+
+  return <Dashboard />;
 }
 
 /**
@@ -87,16 +129,21 @@ function AppRouter() {
           </AuthRoute>
         }
       />
-
-      {/* Protected Routes */}
       <Route
-        path="/"
+        path="/forgot-password"
         element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
+          <AuthRoute>
+            <ForgotPasswordPage />
+          </AuthRoute>
         }
       />
+
+      {/* Public Landing Page and home route */}
+      <Route path="/" element={<HomeRoute />} />
+      <Route path="/access" element={<AccessPage />} />
+      <Route path="/lipsync-demo" element={<LipSyncDemoPage />} />
+
+      {/* Protected Routes */}
       <Route
         path="/chat"
         element={
@@ -119,7 +166,9 @@ function Root() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRouter />
+        <AccessModeProvider>
+          <AppRouter />
+        </AccessModeProvider>
       </AuthProvider>
     </BrowserRouter>
   );

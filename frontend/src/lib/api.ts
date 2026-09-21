@@ -7,7 +7,7 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
 
 // Get the base URL from environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const apiClient: AxiosInstance = axios.create({
@@ -38,7 +38,9 @@ apiClient.interceptors.response.use(
       // Clear token and redirect to login
       localStorage.removeItem('rafiki_access_token');
       localStorage.removeItem('rafiki_user');
-      window.location.href = '/login';
+      const here = `${window.location.pathname}${window.location.search}`;
+      const next = here.startsWith('/chat') ? `?next=${encodeURIComponent(here)}` : '';
+      window.location.href = `/login${next}`;
     }
     return Promise.reject(error);
   }
@@ -283,6 +285,7 @@ export interface TTSResponse {
   success: boolean;
   audio_data?: string; // Base64 encoded audio
   content_type?: string;
+  viseme_timeline?: Array<{ time: number; viseme: string; duration: number }>;
   error?: string;
 }
 
@@ -300,13 +303,50 @@ export interface Voice {
   labels?: Record<string, string>;
 }
 
+export interface ElevenLabsConfig {
+  success: boolean;
+  configured?: boolean;
+  agent_id?: string;
+  name?: string;
+  voice_id?: string;
+  branch_id?: string;
+  first_message?: string;
+  language?: string;
+  api_key_hint?: string;
+  error?: string;
+}
+
 export const ttsApi = {
+  /**
+   * Live agent/voice/branch from the current server API key.
+   * GET /elevenlabs/config
+   */
+  getConfig: async (): Promise<ElevenLabsConfig> => {
+    const response = await apiClient.get('/elevenlabs/config');
+    return response.data;
+  },
   /**
    * Get signed URL for ElevenLabs agent WebSocket
    * GET /elevenlabs/signed-url
    */
   getSignedUrl: async (agentId?: string): Promise<SignedUrlResponse> => {
     const response = await apiClient.get('/elevenlabs/signed-url', {
+      params: agentId ? { agent_id: agentId } : undefined,
+    });
+    return response.data;
+  },
+
+  /**
+   * Mint a WebRTC conversation token for the Rafiki agent
+   * GET /elevenlabs/conversation-token
+   */
+  getConversationToken: async (agentId?: string): Promise<{
+    success: boolean;
+    token?: string;
+    agent_id?: string;
+    error?: string;
+  }> => {
+    const response = await apiClient.get('/elevenlabs/conversation-token', {
       params: agentId ? { agent_id: agentId } : undefined,
     });
     return response.data;
@@ -514,8 +554,20 @@ export interface AgenciesChatResponse {
   step: string;
   agency: string | null;
   service: string | null;
+  language?: string;
   awaiting_payment: boolean;
   payment_amount: number | null;
+  payment_description?: string | null;
+  payment_mpesa?: string | null;
+  audio_base64?: string | null;
+  audio_mime?: string;
+  viseme_timeline?: Array<{ time: number; viseme: string; duration: number }>;
+}
+
+export interface StartServiceRequest {
+  service: string;
+  language?: string;
+  session_id?: string;
 }
 
 export interface PaymentInitRequest {
@@ -541,6 +593,15 @@ export const agenciesApi = {
    */
   startChat: async (): Promise<AgenciesChatResponse> => {
     const response = await apiClient.post('/api/agencies/chat/start');
+    return response.data;
+  },
+
+  /**
+   * Start a session already on a specific agency service
+   * POST /api/agencies/chat/start-service
+   */
+  startService: async (request: StartServiceRequest): Promise<AgenciesChatResponse> => {
+    const response = await apiClient.post('/api/agencies/chat/start-service', request);
     return response.data;
   },
 

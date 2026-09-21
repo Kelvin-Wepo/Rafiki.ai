@@ -18,7 +18,11 @@ interface AuthInputProps {
   showPasswordToggle?: boolean;
   autoComplete?: string;
   required?: boolean;
+  /** Render the label above the input (redesign style) instead of floating */
+  staticLabel?: boolean;
   'aria-describedby'?: string;
+  /** Ref to the underlying input, e.g. for moving focus to the first invalid field */
+  inputRef?: React.Ref<HTMLInputElement>;
 }
 
 export function AuthInput({
@@ -33,7 +37,9 @@ export function AuthInput({
   showPasswordToggle = false,
   autoComplete,
   required = false,
+  staticLabel = false,
   'aria-describedby': ariaDescribedBy,
+  inputRef,
 }: AuthInputProps) {
   const [showPassword, setShowPassword] = useState(false);
   const inputId = useId();
@@ -47,8 +53,14 @@ export function AuthInput({
 
   return (
     <div className="w-full">
-      <div className="auth-input-wrapper">
+      {staticLabel && (
+        <label htmlFor={inputId} className="auth-field-label">
+          {label}
+        </label>
+      )}
+      <div className={`auth-input-wrapper ${staticLabel ? 'static-label' : ''}`}>
         <input
+          ref={inputRef}
           id={inputId}
           type={inputType}
           value={value}
@@ -67,9 +79,11 @@ export function AuthInput({
           </span>
         )}
         
-        <label htmlFor={inputId} className="auth-label">
-          {label}
-        </label>
+        {!staticLabel && (
+          <label htmlFor={inputId} className="auth-label">
+            {label}
+          </label>
+        )}
 
         {showPasswordToggle && (
           <button

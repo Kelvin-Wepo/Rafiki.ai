@@ -365,47 +365,52 @@ class DialogflowService:
         self,
         text: str,
         session_id: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Detect intent from user text.
-        
+
         Args:
             text: User input text
             session_id: Session identifier for conversation tracking
             context: Current conversation context
-        
+            language: Detected response language ('en' or 'sw'); falls back to the
+                configured default when not supplied
+
         Returns:
             Dict with intent, entities, response, and context
         """
         if not self._initialized:
             self.initialize()
-        
+
         # Try Dialogflow first if available and configured
         if DIALOGFLOW_AVAILABLE and self._session_client and self.settings.DIALOGFLOW_PROJECT_ID:
             try:
-                return await self._detect_intent_dialogflow(text, session_id, context)
+                return await self._detect_intent_dialogflow(text, session_id, context, language)
             except Exception as e:
                 logger.error(f"Dialogflow detection failed, using fallback: {e}")
-        
+
         # Fallback to pattern matching
         return self._detect_intent_fallback(text, context)
-    
+
     async def _detect_intent_dialogflow(
         self,
         text: str,
         session_id: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = None
     ) -> Dict[str, Any]:
         """Detect intent using Dialogflow."""
         session = self._session_client.session_path(
             self.settings.DIALOGFLOW_PROJECT_ID,
             session_id
         )
-        
+
+        language_code = "sw" if language == "sw" else (language or self.settings.DIALOGFLOW_LANGUAGE_CODE)
         text_input = dialogflow.TextInput(
             text=text,
-            language_code=self.settings.DIALOGFLOW_LANGUAGE_CODE
+            language_code=language_code
         )
         
         query_input = dialogflow.QueryInput(text=text_input)

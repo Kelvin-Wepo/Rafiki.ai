@@ -126,14 +126,12 @@ class VoiceService:
         # Check for magic numbers
         if audio_bytes[:4] == b'RIFF' and audio_bytes[8:12] == b'WAVE':
             return 'wav'
-        elif audio_bytes[:4] == b'\x1aELF':  # Note: FLAC header is 0xfLaC
+        elif audio_bytes[:4] == b'fLaC':
             return 'flac'
         elif audio_bytes[:3] == b'ID3' or audio_bytes[:2] == b'\xff\xfb':
             return 'mp3'
         elif audio_bytes[:4] == b'\x1a\x45\xdf\xa3':  # EBML header (WebM)
             return 'webm'
-        elif audio_bytes[:4] == b'fLaC':
-            return 'flac'
         else:
             # Log first bytes for debugging
             logger.warning(f"Unknown audio format. First 16 bytes: {audio_bytes[:16].hex()}")
@@ -423,7 +421,13 @@ class VoiceService:
                 "success": False,
                 "error": "Text-to-speech not available"
             }
-        
+
+        if not text or not text.strip():
+            return {
+                "success": False,
+                "error": "No text provided for speech synthesis"
+            }
+
         try:
             # Create temp file for audio output
             with tempfile.NamedTemporaryFile(
@@ -483,10 +487,14 @@ class VoiceService:
         Returns:
             True if successful
         """
-        if not PYTTSX3_AVAILABLE:
+        if not PYTTSX3_AVAILABLE or not self._tts_engine:
             logger.warning("TTS not available for speaking")
             return False
-        
+
+        if not text or not text.strip():
+            logger.warning("No text provided for speaking")
+            return False
+
         try:
             # Create fresh engine to avoid weak reference issues
             engine = pyttsx3.init('espeak')

@@ -28,6 +28,8 @@ import {
   getStoredUser,
   clearAuthData,
   passwordLogin as passwordLoginApi,
+  storeToken,
+  storeUser,
 } from '../services/authService';
 
 // Auth state interface
@@ -44,8 +46,11 @@ interface AuthContextType extends AuthState {
   login: (phoneNumber: string, deliveryMethod?: OTPDeliveryMethod) => Promise<AuthResponse>;
   passwordLogin: (identifier: string, password: string) => Promise<PasswordLoginResponse>;
   verify: (phoneNumber: string, otp: string) => Promise<AuthResponse>;
+
+  completeAuth: (user?: User | null) => void;
   logout: () => Promise<void>;
   clearError: () => void;
+  completeSession: (user: User, token: string, sessionId?: string) => void;
   
   // Auth state helpers
   pendingPhone: string | null;
@@ -71,7 +76,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Core auth state
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const [isLoading, setIsLoading] = useState(() => Boolean(getStoredToken()));
   const [error, setError] = useState<string | null>(null);
   
   // OTP flow state
@@ -130,11 +136,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     deliveryMethod: OTPDeliveryMethod = 'both'
   ): Promise<AuthResponse> => {
     setError(null);
-    setIsLoading(true);
-    
+
     try {
       const response = await initiateLogin(phoneNumber, deliveryMethod);
-      
+
       if (response.success) {
         setPendingPhone(phoneNumber);
         setLastDeliveryMethod(deliveryMethod);
@@ -142,16 +147,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else {
         setError(response.message || 'Failed to send OTP');
       }
-      
+
       return response;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error 
-        ? err.message 
+      const errorMessage = err instanceof Error
+        ? err.message
         : (err as { message?: string })?.message || 'Failed to initiate login';
       setError(errorMessage);
       throw err;
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -163,11 +166,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     otp: string
   ): Promise<AuthResponse> => {
     setError(null);
-    setIsLoading(true);
-    
+
     try {
       const response = await verifyOTP(phoneNumber, otp);
-      
+
       if (response.success && response.user) {
         setUser(response.user);
         setIsAuthenticated(true);
@@ -176,15 +178,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else {
         setError(response.message || 'Invalid OTP');
       }
-      
+
       return response;
     } catch (err: unknown) {
       const errorObj = err as { message?: string; error?: string };
       const errorMessage = errorObj?.message || errorObj?.error || 'Verification failed';
       setError(errorMessage);
       throw err;
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -192,8 +192,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Logout and clear session.
    */
   const logout = useCallback(async (): Promise<void> => {
-    setIsLoading(true);
-    
     try {
       await logoutApi();
     } finally {
@@ -202,7 +200,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setPendingPhone(null);
       setIsVerifying(false);
       setError(null);
-      setIsLoading(false);
     }
   }, []);
 
@@ -214,11 +211,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     password: string
   ): Promise<PasswordLoginResponse> => {
     setError(null);
-    setIsLoading(true);
-    
+
     try {
       const response = await passwordLoginApi(identifier, password);
-      
+
       if (response.success && response.user) {
         setUser(response.user);
         setIsAuthenticated(true);
@@ -228,16 +224,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else {
         setError(response.message || 'Login failed');
       }
-      
+
       return response;
     } catch (err: unknown) {
       const errorObj = err as { message?: string; error?: string; detail?: string };
       const errorMessage = errorObj?.message || errorObj?.detail || errorObj?.error || 'Login failed';
       setError(errorMessage);
       throw err;
-    } finally {
-      setIsLoading(false);
     }
+  }, []);
+
+  const completeAuth = useCallback((newUser?: User | null) => {
+    if (newUser) {
+      setUser(newUser);
+    }
+    setIsAuthenticated(true);
+    setError(null);
   }, []);
 
   /**
@@ -245,6 +247,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const clearError = useCallback(() => {
     setError(null);
+  }, []);
+
+  /**
+   * Complete an authenticated session started outside the normal login flows
+   * (e.g. after signup + OTP verification). Persists the token/user and
+   * updates context state so ProtectedRoute recognizes the session.
+   */
+  const completeSession = useCallback((newUser: User, token: string, sessionId?: string) => {
+    storeToken(token);
+    storeUser(newUser);
+    if (sessionId) {
+      localStorage.setItem('rafiki_session_id', sessionId);
+    }
+    setUser(newUser);
+    setIsAuthenticated(true);
   }, []);
 
   // Context value
@@ -256,8 +273,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     passwordLogin,
     verify,
+    completeAuth,
     logout,
     clearError,
+    completeSession,
     pendingPhone,
     setPendingPhone,
     isVerifying,

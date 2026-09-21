@@ -41,6 +41,7 @@ class SessionState:
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     step: str = "LANGUAGE_SELECT"           # Start with language selection
     language: str = "en"                    # 'en' for English, 'sw' for Kiswahili
+    voice_id: Optional[str] = None
     agency: Optional[str] = None
     service: Optional[str] = None
     sub_service: Optional[str] = None
@@ -51,6 +52,7 @@ class SessionState:
     payment_amount: Optional[int] = None    # Amount in KES for payment
     payment_description: Optional[str] = None  # Service description for payment
     payment_mpesa: Optional[str] = None     # M-PESA number for STK push
+    application_ref: Optional[str] = None   # Saved application / booking reference
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +65,35 @@ def t(state: SessionState, en: str, sw: str) -> str:
 
 # In-memory session store (replace with Redis/DB in production)
 _sessions: Dict[str, SessionState] = {}
+# Dashboard typed-chat id → agency workflow session
+_chat_bindings: Dict[str, str] = {}
+
+
+def bind_chat_to_agency(chat_session_id: str, agency_session_id: str) -> None:
+    if chat_session_id and agency_session_id:
+        _chat_bindings[chat_session_id] = agency_session_id
+
+
+def agency_session_for_chat(chat_session_id: str) -> Optional[str]:
+    return _chat_bindings.get(chat_session_id or "")
+
+
+def begin_payment(state: SessionState, amount: int, description: str, after: str = "") -> str:
+    """Mark the session ready for on-platform M-PESA. Never sends the user to eCitizen."""
+    state.awaiting_payment = True
+    state.payment_amount = int(amount or 0)
+    state.payment_description = description
+    state.payment_mpesa = str(state.data.get("mpesa") or state.data.get("phone") or "").strip()
+    state.data["total"] = state.payment_amount
+    state.step = "PAYMENT_PENDING"
+    parts = [
+        (after or "").strip(),
+        "I have started payment on Rafiki.",
+        "You will receive an **M-PESA STK push**. Enter your PIN to complete it.",
+        "When payment is confirmed, download your receipt in this chat or under **My Documents**.",
+        "Rafiki completes this service here — you do not need a government portal login.",
+    ]
+    return "\n\n".join(part for part in parts if part)
 
 
 def get_or_create_session(session_id: str) -> SessionState:
@@ -215,7 +246,7 @@ def handle_message(session_id: str, user_input: str) -> str:
     # ── AGENCY MENU ──────────────────────────────────────────────────────────
     if state.step == "AGENCY_MENU":
         AGENCIES = ["NTSA", "NCPWD", "KRA", "DCI", "BRS", "Immigration",
-                    "Boma Yangu", "Ministry of Health", "County Services"]
+                    "Boma Yangu", "Ministry of Health", "County Services", "NRB"]
         pick = _numbered_pick(text, AGENCIES)
         if pick is None:
             return _agency_menu()
@@ -269,7 +300,8 @@ def _agency_menu() -> str:
         "6  Immigration – Passports & Permits\n"
         "7  Boma Yangu – Affordable Housing\n"
         "8  Ministry of Health\n"
-        "9  County Services\n\n"
+        "9  County Services\n"
+        "10 NRB – National Registration Bureau (IDs)\n\n"
         "Reply with a number or agency name."
     )
 
@@ -350,6 +382,12 @@ def _agency_service_menu(agency: str) -> str:
             "5  County Bursary Application\n\n"
             "Which one would you like?"
         ),
+        "NRB": (
+            "Welcome to NRB – National Registration Bureau\n\nThe available services are:\n\n"
+            "1  Replace a Lost ID\n"
+            "2  Check Application Status\n\n"
+            "Which one would you like?"
+        ),
     }
     return menus.get(agency, "Service menu not found.")
 
@@ -369,6 +407,7 @@ def _agency_router(state: SessionState, text: str) -> str:
     if a == "Boma Yangu":  return _boma_yangu(state, text)
     if a == "Ministry of Health": return _moh(state, text)
     if a == "County Services":    return _county(state, text)
+    if a == "NRB":         return _nrb(state, text)
     if a == "EMERGENCY":   return _emergency_handler(state, text)
     return "I'm sorry, I didn't understand that. Type **menu** to start over."
 
@@ -424,7 +463,7 @@ def _ntsa(state: SessionState, text: str) -> str:
             state.step = "NTSA_RENEW_CONFIRM"
             return (
                 "I will help you Renew your Driving Licence.\n\n"
-                "You will be required to pay a renewal fee of **Ksh. 1,200**.\n\n"
+                "You will be required to pay a renewal fee of **Ksh. 1**.\n\n"
                 "Would you like me to proceed? (Yes / No)"
             )
 
@@ -565,8 +604,8 @@ def _ntsa(state: SessionState, text: str) -> str:
         if yn is False:
             state.step = "SESSION_END"
             return (
-                "To download your payment receipt kindly navigate on the platform "
-                "under the **Transcripts** section and download your receipt as proof of payment.\n\n"
+                "To download your payment receipt, open **My Documents** "
+                "or use the download button in this chat.\n\n"
                 " Provide this receipt at NTSA offices and **do not pay any additional amount**.\n\n"
                 "Thank you for using Rafiki AI!"
             )
@@ -604,20 +643,13 @@ def _ntsa(state: SessionState, text: str) -> str:
             return "Please enter a valid M-PESA number."
         state.data["mpesa"] = text
         state.data["total"] = 1200
-        # Set payment flags for frontend to trigger Paystack STK push
-        state.awaiting_payment = True
-        state.payment_amount = 1200
-        state.payment_description = "NTSA Driving Licence Renewal"
-        state.payment_mpesa = text
-        state.step = "NTSA_RENEW_DONE"
-        return (
-            "Your payment has been initiated.\n\n"
-            "You will receive an **STK push** – input your PIN.\n\n"
-            "Once your payment has been processed and verified, you will receive an "
-            "**SMS notification**.\n\n"
-            "To download your licence navigate on the platform in the **Transcripts** section. "
-            "You will be able to see your licence and payment receipt – click on it to download.\n\n"
-        ) + _anything_else()
+        return begin_payment(
+            state,
+            1200,
+            "NTSA Driving Licence Renewal",
+            "Once payment is verified you will receive an SMS.\n\n"
+            "Download your licence and receipt from **My Documents**.",
+        )
 
     if step == "NTSA_RENEW_DONE":
         yn = _yn(text)
@@ -1173,13 +1205,14 @@ def _dci(state: SessionState, text: str) -> str:
             state.step = "DCI_APPLY_NAME"
             state.data = {}
             return "Let's start over. Please provide your full name."
-        state.step = "ANYTHING_ELSE"
-        return (
-            "Payment initiated! You will receive an STK push shortly.\n\n"
-            "Once payment is confirmed, your application will be submitted for processing.\n\n"
+        return begin_payment(
+            state,
+            1050,
+            "DCI Good Conduct Certificate",
+            "Once payment is confirmed, your application is submitted for processing.\n\n"
             "The certificate takes 10–15 working days. You will be notified via SMS.\n\n"
-            " You will need to visit a DCI office for fingerprint capture.\n\n"
-        ) + _anything_else()
+            "You will need to visit a DCI office for fingerprint capture.",
+        )
 
     if step == "DCI_STATUS_REF":
         state.step = "ANYTHING_ELSE"
@@ -1243,8 +1276,13 @@ def _brs(state: SessionState, text: str) -> str:
     if step == "BRS_RENEW_MPESA":
         if not valid_mpesa(text):
             return "Please enter a valid M-PESA number."
-        state.step = "ANYTHING_ELSE"
-        return " Renewal payment initiated. You will receive an STK push shortly.\n\n" + _anything_else()
+        state.data["mpesa"] = text
+        return begin_payment(
+            state,
+            950,
+            "BRS Business Registration Renewal",
+            "Your business registration will be renewed after payment is confirmed.",
+        )
 
     if step == "BRS_REG_BUSINESS_NAME":
         state.data["business_name"] = text
@@ -1289,12 +1327,13 @@ def _brs(state: SessionState, text: str) -> str:
         if not valid_mpesa(text):
             return "Please enter a valid M-PESA number."
         state.data["mpesa"] = text
-        state.step = "ANYTHING_ELSE"
-        return (
-            " Payment initiated! Enter your M-PESA PIN when you receive the STK push.\n\n"
-            "Your business will be registered within 3 working days.\n\n"
-            "You will receive your **Certificate of Registration** via email and SMS.\n\n"
-        ) + _anything_else()
+        return begin_payment(
+            state,
+            int(state.data.get("fee") or 950),
+            state.service or "BRS Business Registration",
+            "Your business will be registered within 3 working days after payment.\n\n"
+            "You will receive your Certificate of Registration via email and SMS.",
+        )
 
     return _unknown(state)
 
@@ -1382,13 +1421,14 @@ def _immigration(state: SessionState, text: str) -> str:
             state.step = "IMMIGRATION_NAME"
             state.data = {}
             return "Let's start over. Please provide your **full name**."
-        state.step = "ANYTHING_ELSE"
-        return (
-            " Payment initiated! You will receive an STK push shortly.\n\n"
-            "Once payment is confirmed, you will receive an **appointment date** via SMS.\n\n"
-            " You must visit the Immigration offices in person for biometrics and document verification.\n\n"
-            "Processing time: 10–21 working days.\n\n"
-        ) + _anything_else()
+        return begin_payment(
+            state,
+            int(state.data.get("fee") or 4550),
+            state.service or "Immigration Application",
+            "Once payment is confirmed, you will receive an appointment date via SMS.\n\n"
+            "You must visit Immigration in person for biometrics and document verification.\n\n"
+            "Processing time: 10–21 working days.",
+        )
 
     if step == "IMMIGRATION_STATUS_REF":
         state.step = "ANYTHING_ELSE"
@@ -1397,6 +1437,109 @@ def _immigration(state: SessionState, text: str) -> str:
             "Approved – Your document is ready for collection.\n"
             "Please visit the Immigration office with your receipt.\n\n"
         ) + _anything_else()
+
+    return _unknown(state)
+
+
+# ===========================================================================
+# NRB – National Registration Bureau (National ID)
+# ===========================================================================
+
+def _nrb(state: SessionState, text: str) -> str:
+    step = state.step
+
+    if step == "NRB_MENU":
+        SERVICES = ["Replace a Lost ID", "Check Application Status"]
+        pick = _numbered_pick(text, SERVICES)
+        if pick is None:
+            return _agency_service_menu("NRB")
+        state.service = pick
+        state.data = {}
+
+        if pick == "Check Application Status":
+            state.step = "NRB_STATUS_REF"
+            return "Please enter your **application reference number** or **National ID Number**."
+
+        state.step = "NRB_REPLACE_NAME"
+        return (
+            "I will help you replace a lost National ID.\n\n"
+            "You will need a **police abstract**. The replacement fee is **Ksh. 1,000**.\n\n"
+            "Please provide your **full name** as it appears on your previous ID."
+        )
+
+    if step == "NRB_STATUS_REF":
+        state.step = "ANYTHING_ELSE"
+        return (
+            f"Status for {text}:\n\n"
+            "Under processing – documents received.\n"
+            "Expected collection: 14–21 working days at your Huduma Centre.\n\n"
+        ) + _anything_else()
+
+    if step == "NRB_REPLACE_NAME":
+        if len(text.split()) < 2:
+            return "Please enter your full name (at least two names)."
+        state.data["name"] = text
+        state.step = "NRB_REPLACE_ID"
+        return "What was your **previous National ID Number**?"
+
+    if step == "NRB_REPLACE_ID":
+        if not valid_id(text):
+            return "Please enter a valid 7–8 digit National ID."
+        state.data["id_number"] = text
+        state.step = "NRB_REPLACE_ABSTRACT"
+        return "Please enter your **police abstract / OB number**."
+
+    if step == "NRB_REPLACE_ABSTRACT":
+        state.data["abstract"] = text
+        state.step = "NRB_REPLACE_COUNTY"
+        return "In which **county** should the replacement ID be collected?"
+
+    if step == "NRB_REPLACE_COUNTY":
+        state.data["county"] = text
+        state.step = "NRB_REPLACE_PHONE"
+        return "What is your **Phone Number**? (e.g. 0712345678)"
+
+    if step == "NRB_REPLACE_PHONE":
+        if not valid_phone(text):
+            return "Please enter a valid Kenyan phone number (e.g. 0712345678)."
+        state.data["phone"] = text
+        state.step = "NRB_REPLACE_MPESA"
+        return "Please provide your **M-PESA number** to pay the Ksh. 1,000 replacement fee."
+
+    if step == "NRB_REPLACE_MPESA":
+        if not valid_mpesa(text):
+            return "Please enter a valid M-PESA number."
+        state.data["mpesa"] = text
+        state.step = "NRB_REPLACE_CONFIRM"
+        d = state.data
+        return (
+            "Please confirm your details:\n\n"
+            f"   • Name: {d['name']}\n"
+            f"   • Previous ID: {d['id_number']}\n"
+            f"   • Police abstract: {d['abstract']}\n"
+            f"   • County: {d['county']}\n"
+            f"   • Phone: {d['phone']}\n"
+            f"   • M-PESA: {d['mpesa']}\n"
+            f"   • Fee: Ksh. 1,000\n\n"
+            "Is that correct? (Yes / No)"
+        )
+
+    if step == "NRB_REPLACE_CONFIRM":
+        yn = _yn(text)
+        if yn is None:
+            return "Please reply **Yes** or **No**."
+        if not yn:
+            state.step = "NRB_REPLACE_NAME"
+            state.data = {}
+            return "No problem. Let's start over.\n\nPlease provide your **full name** as it appears on your previous ID."
+        return begin_payment(
+            state,
+            1000,
+            "NRB Lost ID Replacement",
+            "Once payment is confirmed, take your police abstract and payment receipt "
+            "to the Huduma Centre in your county for biometrics.\n\n"
+            "Processing time: 14–21 working days. You will be notified by SMS.",
+        )
 
     return _unknown(state)
 
@@ -1674,8 +1817,14 @@ def _county(state: SessionState, text: str) -> str:
     if step == "COUNTY_RATES_AMOUNT":
         if not valid_mpesa(text):
             return "Please enter a valid M-PESA number."
-        state.step = "ANYTHING_ELSE"
-        return " Land rates payment initiated. You will receive an STK push shortly.\n\n" + _anything_else()
+        state.data["mpesa"] = text
+        state.data["total"] = 12500
+        return begin_payment(
+            state,
+            12500,
+            "County Land Rates",
+            f"This covers outstanding land rates for plot {state.data.get('plot', '')}.",
+        )
 
     if step == "COUNTY_BURSARY_NAME":
         state.data["student_name"] = text
@@ -1728,11 +1877,12 @@ def _county(state: SessionState, text: str) -> str:
         if not valid_mpesa(text):
             return "Please enter a valid M-PESA number."
         state.data["mpesa"] = text
-        state.step = "ANYTHING_ELSE"
-        return (
-            "Payment initiated! You will receive an STK push shortly.\n\n"
-            "Your application will be processed within 5 working days.\n\n"
-        ) + _anything_else()
+        return begin_payment(
+            state,
+            int(state.data.get("fee") or 0),
+            state.service or "County Service",
+            "Your application will be processed within 5 working days after payment.",
+        )
 
     return _unknown(state)
 
@@ -1875,6 +2025,20 @@ def handle_message(session_id: str, user_input: str) -> str:  # type: ignore[no-
 
     # Handle "anything else" prompt
     state = get_or_create_session(session_id)
+    if state.step == "PAYMENT_PENDING":
+        yn = _yn(user_input)
+        state.awaiting_payment = False
+        if yn is False:
+            state.step = "SESSION_END"
+            return (
+                "Thank you for using Rafiki.\n\n"
+                "Download your receipt under **My Documents** whenever you need proof of payment."
+            )
+        state.step = "ANYTHING_ELSE"
+        return (
+            "Keep your Rafiki receipt as proof of payment. Take it to the agency office "
+            "if they need to see it in person, and do not pay anyone extra.\n\n"
+        ) + _anything_else()
     if state.step == "ANYTHING_ELSE":
         yn = _yn(user_input)
         if yn is True:
@@ -1885,11 +2049,141 @@ def handle_message(session_id: str, user_input: str) -> str:  # type: ignore[no-
             return _main_menu()
         if yn is False:
             return (
-                "Thank you for using Rafiki AI! 🙏\n\n"
-                "To download your payment receipt or documents navigate to the "
-                "**Transcripts** section of this platform.\n\n"
-                "Have a wonderful day! 🇰🇪"
+                "Thank you for using Rafiki AI!\n\n"
+                "Download your payment receipt or documents from **My Documents**.\n\n"
+                "Have a wonderful day."
             )
         return _anything_else()
 
     return _ORIGINAL_HANDLE(session_id, user_input)
+
+
+# ---------------------------------------------------------------------------
+# Guided service deep-links (frontend cards skip language / agency menus)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class GuidedService:
+    slug: str
+    title: str
+    agency: Optional[str] = None
+    pick: Optional[str] = None
+
+
+GUIDED_SERVICES: Dict[str, GuidedService] = {
+    "passport-apply": GuidedService("passport-apply", "Apply for a Passport", "Immigration", "Apply for a Passport"),
+    "passport-renew": GuidedService("passport-renew", "Renew a Passport", "Immigration", "Renew a Passport"),
+    "ntsa-apply": GuidedService("ntsa-apply", "Apply for a Driving Licence", "NTSA", "Apply for a Driving Licence"),
+    "ntsa-renew": GuidedService("ntsa-renew", "Renew a Driving Licence", "NTSA", "Renew a Driving Licence"),
+    "ntsa-appointment": GuidedService("ntsa-appointment", "Book an NTSA Appointment", "NTSA", "Book an Appointment"),
+    "id-replace": GuidedService("id-replace", "Replace a Lost ID", "NRB", "Replace a Lost ID"),
+    "brs-register": GuidedService("brs-register", "Register a Business Name", "BRS", "Register a Business Name"),
+    "dci-good-conduct": GuidedService("dci-good-conduct", "Police Clearance", "DCI", "Apply for a Good Conduct Certificate"),
+    "kra-pin": GuidedService("kra-pin", "Register for a KRA PIN", "KRA", "Register for a KRA PIN"),
+    "kra-itax": GuidedService("kra-itax", "KRA iTax / File Returns", "KRA", "File Income Tax Returns"),
+    "kra-nil": GuidedService("kra-nil", "File Nil Returns", "KRA", "File Nil Returns"),
+    "land-rates": GuidedService("land-rates", "Land Rates Payment", "County Services", "Land Rates Payment"),
+    "nhif": GuidedService("nhif", "NHIF Registration", "Ministry of Health", "NHIF Registration"),
+    "ncpwd": GuidedService("ncpwd", "NCPWD Services", "NCPWD", None),
+    "ntsa": GuidedService("ntsa", "NTSA Services", "NTSA", None),
+    "kra": GuidedService("kra", "KRA Services", "KRA", None),
+    "brs": GuidedService("brs", "BRS Services", "BRS", None),
+    "dci": GuidedService("dci", "DCI Services", "DCI", None),
+    "immigration": GuidedService("immigration", "Immigration Services", "Immigration", None),
+    "health": GuidedService("health", "Ministry of Health", "Ministry of Health", None),
+    "boma-yangu": GuidedService("boma-yangu", "Boma Yangu", "Boma Yangu", None),
+    "county": GuidedService("county", "County Services", "County Services", None),
+    "nrb": GuidedService("nrb", "National Registration Bureau", "NRB", None),
+    "agencies": GuidedService("agencies", "All Agencies", None, None),
+    "huduma": GuidedService("huduma", "Huduma Centre Lookup", None, None),
+    "emergency": GuidedService("emergency", "Emergency Reporting", None, None),
+}
+
+
+def list_guided_services() -> list:
+    return [
+        {"slug": spec.slug, "title": spec.title, "agency": spec.agency, "service": spec.pick}
+        for spec in GUIDED_SERVICES.values()
+    ]
+
+
+def match_guided_service(text: str) -> Optional[str]:
+    """Map a free-text request onto a standalone Rafiki workflow slug."""
+    blob = (text or "").strip().lower()
+    if not blob:
+        return None
+    if "renew" in blob and any(word in blob for word in ("licence", "license", "driving", "dl")):
+        return "ntsa-renew"
+    rules = (
+        ("id-replace", ("lost id", "replace id", "replace a lost", "national id replacement", "kitambulisho kilichopotea")),
+        ("ntsa-appointment", ("ntsa appointment", "book ntsa", "driving test appointment")),
+        ("ntsa-apply", ("apply for a driving", "new driving licence", "new driving license", "first driving licence")),
+        ("passport-renew", ("renew passport", "passport renewal")),
+        ("passport-apply", ("apply for a passport", "new passport", "passport")),
+        ("dci-good-conduct", ("good conduct", "police clearance", "certificate of good")),
+        ("brs-register", ("register a business", "business name", "incorporate")),
+        ("kra-nil", ("nil return", "file nil")),
+        ("kra-pin", ("kra pin", "pin registration", "register for a pin")),
+        ("kra-itax", ("itax", "file return", "file returns", "income tax")),
+        ("land-rates", ("land rates", "land services", "plot rates")),
+        ("nhif", ("nhif", "sha registration", "shif")),
+        ("ncpwd", ("ncpwd", "disability card", "pwd card")),
+        ("huduma", ("huduma centre", "huduma center")),
+        ("emergency", ("emergency", "dharura")),
+    )
+    for slug, needles in rules:
+        if any(needle in blob for needle in needles):
+            return slug
+    return None
+
+
+def _agency_menu_step(agency: str) -> str:
+    return f"{agency.upper().replace(' ', '_')}_MENU"
+
+
+def start_service(
+    slug: str,
+    language: str = "en",
+    session_id: Optional[str] = None,
+) -> tuple:
+    """Open a specific agency service, skipping language and eCitizen login."""
+    key = (slug or "").strip().lower()
+    spec = GUIDED_SERVICES.get(key)
+    if spec is None:
+        raise ValueError(f"Unknown service: {slug}")
+
+    language = "sw" if language in ("sw", "kiswahili", "swahili") else "en"
+    session_id = session_id or str(uuid.uuid4())
+    _sessions[session_id] = SessionState(
+        session_id=session_id,
+        language=language,
+        has_disability=False,
+        step="MAIN_MENU",
+    )
+    state = _sessions[session_id]
+
+    if key == "agencies":
+        state.step = "AGENCY_MENU"
+        return session_id, _agency_menu()
+
+    if key == "huduma":
+        state.step = "HUDUMA"
+        return session_id, (
+            "Huduma Centre Lookup\n\n"
+            "Please enter the county or town you are in and I will find the "
+            "nearest Huduma Centre for you."
+        )
+
+    if key == "emergency":
+        state.step = "EMERGENCY"
+        return session_id, _emergency_handler(state, "")
+
+    if not spec.agency:
+        state.step = "MAIN_MENU"
+        return session_id, _main_menu(state)
+
+    state.agency = spec.agency
+    state.step = _agency_menu_step(spec.agency)
+    if spec.pick:
+        return session_id, handle_message(session_id, spec.pick)
+    return session_id, _agency_service_menu(spec.agency)

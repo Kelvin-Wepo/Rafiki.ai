@@ -1,0 +1,38 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "254700000000",
+              "phone_number_id": "123456123"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Amina Otieno" },
+                "wa_id": "254712345678"
+              }
+            ],
+            "messages": [
+              {
+                "from": "254712345678",
+                "id": "wamid.HBgMMjU0NzEyMzQ1Njc4FQIAERgSVk9JQ0U",
+                "timestamp": "1710000001",
+                "type": "audio",
+                "audio": {
+                  "id": "MEDIA_ID_VOICE_NOTE",
+                  "mime_type": "audio/ogg; codecs=opus"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,368 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+
+/**
+ * Rafiki Access — low-vision kiosk UI.
+ * Same forest-green / ivory palette as the landing page, with huge targets
+ * and Atkinson Hyperlegible type.
+ */
+
+.ra-page {
+  --ra-bg: #f8f3e7;
+  --ra-ink: #16191c;
+  --ra-gold: #14532d;
+  --ra-gold-deep: #0f3d21;
+  --ra-muted: #5b6470;
+  --ra-danger: #bb0000;
+  --ra-ok: #15803d;
+  --ra-panel: #ffffff;
+  --ra-line: #14532d;
+  --ra-focus: #15803d;
+  --ra-on-accent: #ffffff;
+  --ra-header: #14532d;
+  --ra-header-ink: #f7f9f6;
+  --ra-header-muted: #cfe5d6;
+  --ra-tint: #eef3ee;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ra-bg);
+  color: var(--ra-ink);
+  font-family: 'Atkinson Hyperlegible', 'DM Sans', system-ui, sans-serif;
+  font-size: 1.35rem;
+  line-height: 1.45;
+}
+
+.ra-skip {
+  position: absolute;
+  left: 12px;
+  top: -80px;
+  z-index: 20;
+  padding: 12px 18px;
+  background: var(--ra-gold);
+  color: var(--ra-on-accent);
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.ra-skip:focus {
+  top: 12px;
+}
+
+.ra-flag {
+  display: grid;
+  grid-template-rows: 8px 8px 8px;
+  height: 24px;
+}
+
+.ra-flag span:nth-child(1) {
+  background: #000;
+}
+
+.ra-flag span:nth-child(2) {
+  background: #bb0000;
+}
+
+.ra-flag span:nth-child(3) {
+  background: #006600;
+}
+
+.ra-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 4px solid var(--ra-gold-deep);
+  background: var(--ra-header);
+}
+
+.ra-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ra-header-ink);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.ra-brand-name {
+  font-size: 1.7rem;
+  letter-spacing: 0.02em;
+}
+
+.ra-brand-tag {
+  font-size: 1rem;
+  color: var(--ra-header-muted);
+  font-weight: 400;
+}
+
+.ra-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ra-chip,
+.ra-key {
+  appearance: none;
+  border: 3px solid var(--ra-gold);
+  background: var(--ra-panel);
+  color: var(--ra-gold);
+  font: inherit;
+  font-weight: 700;
+  min-height: 56px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ra-header .ra-chip {
+  border-color: var(--ra-header-ink);
+  background: transparent;
+  color: var(--ra-header-ink);
+}
+
+.ra-chip[aria-pressed='true'],
+.ra-chip.is-on {
+  background: var(--ra-gold);
+  color: var(--ra-on-accent);
+}
+
+.ra-header .ra-chip[aria-pressed='true'],
+.ra-header .ra-chip.is-on {
+  background: var(--ra-header-ink);
+  color: var(--ra-header);
+  border-color: var(--ra-header-ink);
+}
+
+.ra-chip:focus-visible,
+.ra-key:focus-visible,
+.ra-input:focus-visible,
+.ra-composer:focus-visible {
+  outline: 4px solid var(--ra-focus);
+  outline-offset: 3px;
+}
+
+.ra-main {
+  flex: 1;
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+}
+
+.ra-kicker {
+  color: var(--ra-gold);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.95rem;
+  margin: 0 0 10px;
+}
+
+.ra-title {
+  margin: 0 0 14px;
+  font-size: clamp(2.2rem, 6vw, 3.6rem);
+  line-height: 1.1;
+  color: var(--ra-gold);
+}
+
+.ra-lede {
+  margin: 0 0 28px;
+  max-width: 38rem;
+  font-size: 1.45rem;
+  color: var(--ra-ink);
+}
+
+.ra-keys {
+  display: grid;
+  gap: 14px;
+}
+
+.ra-key {
+  width: 100%;
+  min-height: 92px;
+  padding: 18px 20px;
+  text-align: left;
+  gap: 18px;
+  font-size: 1.55rem;
+}
+
+.ra-key-num {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--ra-gold);
+  color: var(--ra-on-accent);
+  display: grid;
+  place-items: center;
+  font-size: 1.8rem;
+}
+
+.ra-key-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ra-key-sub {
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--ra-muted);
+}
+
+.ra-key--primary {
+  background: var(--ra-gold);
+  color: var(--ra-on-accent);
+}
+
+.ra-key--primary .ra-key-num {
+  background: var(--ra-on-accent);
+  color: var(--ra-gold);
+}
+
+.ra-key--primary .ra-key-sub {
+  color: var(--ra-header-muted);
+}
+
+.ra-hint {
+  margin: 22px 0 0;
+  color: var(--ra-muted);
+  font-size: 1.15rem;
+}
+
+.ra-say {
+  margin-top: auto;
+  padding: 16px 20px 22px;
+  border-top: 4px solid var(--ra-gold);
+  background: var(--ra-header);
+  color: var(--ra-header-ink);
+}
+
+.ra-say-label {
+  color: var(--ra-header-muted);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+
+.ra-say-text {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.ra-stage {
+  display: grid;
+  gap: 18px;
+}
+
+.ra-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  color: var(--ra-gold);
+}
+
+.ra-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #555;
+}
+
+.ra-status.is-live .ra-dot {
+  background: var(--ra-ok);
+  box-shadow: 0 0 0 6px rgba(21, 128, 61, 0.2);
+}
+
+.ra-transcript {
+  min-height: 8rem;
+  padding: 20px;
+  background: var(--ra-panel);
+  border: 3px solid var(--ra-gold);
+  border-radius: 16px;
+  font-size: 1.5rem;
+}
+
+.ra-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 48vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.ra-bubble {
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 3px solid var(--ra-gold);
+}
+
+.ra-bubble--assistant {
+  background: var(--ra-tint);
+  color: var(--ra-gold);
+}
+
+.ra-bubble--user {
+  background: var(--ra-gold);
+  color: var(--ra-on-accent);
+}
+
+.ra-composer-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.ra-composer,
+.ra-input {
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 3px solid var(--ra-gold);
+  border-radius: 12px;
+  background: var(--ra-panel);
+  color: var(--ra-ink);
+  font: inherit;
+  font-size: 1.4rem;
+}
+
+.ra-error {
+  color: var(--ra-danger);
+  font-weight: 700;
+}
+
+.ra-back {
+  margin-bottom: 18px;
+}
+
+@media (max-width: 640px) {
+  .ra-page {
+    font-size: 1.2rem;
+  }
+
+  .ra-key {
+    font-size: 1.3rem;
+    min-height: 84px;
+  }
+
+  .ra-composer-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ra-status.is-live .ra-dot {
+    box-shadow: none;
+  }
+}
