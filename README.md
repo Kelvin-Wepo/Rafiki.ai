@@ -100,8 +100,8 @@ cd Rafiki.ai
 
 ```bash
 # Create virtual environment
-python3 -m venv sadtalker
-source sadtalker/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 # Install dependencies
 cd backend
@@ -152,10 +152,24 @@ DEBUG=true
 #### 4. Start Backend Server
 
 ```bash
-cd backend
-source ../sadtalker/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+./start-uvicorn.sh
 ```
+
+This activates the venv inside `backend/` and runs `uvicorn main:app` from the `backend/` directory. If you'd rather do it manually:
+
+```bash
+cd backend
+source virtual/bin/activate   # or: source venv/bin/activate
+ -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+> Run uvicorn as `main:app` from inside `backend/`, not `backend.main:app` from the repo root — `backend/main.py` supports both import styles, but `main:app` is the maintained convention (matches `app.py` and the shell scripts).
+>
+> If you see `ModuleNotFoundError: No module named 'jose'`, reinstall the backend dependencies inside the same venv:
+>
+> ```bash
+> pip install -r backend/requirements.txt
+> ```
 
 #### 5. Frontend Setup
 
@@ -169,7 +183,7 @@ The application will be available at:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
-
+python
 ### Option 3: Google Colab GPU Setup (Fastest)
 
 For 50-100x faster video generation, set up a free GPU backend:
@@ -670,7 +684,7 @@ Bot: ✅ Appointment booked! You'll receive SMS confirmation shortly.
 
 ```bash
 cd backend
-source venv/bin/activate
+source ../.venv/bin/activate
 
 # Run all tests
 python -m pytest tests/ -v

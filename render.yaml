@@ -1,11 +1,17 @@
+# NOTE: the live deployment (service "Rafiki.ai", https://rafiki-ai-1w68.onrender.com)
+# was provisioned manually via the Render API using the native Python runtime below
+# (buildCommand/startCommand), not the Docker runtime. Both are valid; this file
+# documents the native-Python path actually in use. Update names/URLs here if you
+# ever adopt Render's Blueprint sync for this repo.
 services:
   # Backend API Service
   - type: web
     name: rafiki-backend
-    runtime: docker
+    runtime: python
     region: oregon
     plan: free
-    dockerfilePath: ./Dockerfile
+    buildCommand: pip install --upgrade pip && pip install -r backend/requirements-prod.txt
+    startCommand: bash start-render.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
@@ -20,7 +26,7 @@ services:
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_VOICE_ID
-        value: 21m00Tcm4TlvDq8ikWAM
+        value: WZlYpi1yf6zJhNWXih74
       - key: ELEVENLABS_AGENT_ID
         sync: false
       - key: ELEVENLABS_BRANCH_ID
@@ -29,19 +35,33 @@ services:
         value: sandbox
       - key: AFRICASTALKING_API_KEY
         sync: false
+      # OTP emails. Password must be set in the Render dashboard — never commit it.
+      - key: EMAIL_ENABLED
+        value: "true"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Rafiki
       - key: COLAB_SADTALKER_URL
         sync: false
       - key: HOST
         value: 0.0.0.0
-      - key: PORT
-        fromService:
-          type: web
-          name: rafiki-backend
-          property: port
       - key: DEBUG
         value: false
       - key: CORS_ORIGINS
-        value: https://rafiki-frontend.onrender.com,http://localhost:5173
+        value: https://rafiki-frontend-gbp1.onrender.com,https://rafikiai.co.ke,https://www.rafikiai.co.ke,http://localhost:5173
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_SECRET_KEY
+        generateValue: true
     healthCheckPath: /health
 
   # Frontend Static Site
@@ -55,9 +75,11 @@ services:
     staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
-        value: 18
-      - key: VITE_API_BASE_URL
-        value: https://rafiki-backend.onrender.com
+        value: 20
+      - key: VITE_API_URL
+        value: https://rafiki-ai-1w68.onrender.com
+      - key: VITE_ELEVENLABS_AGENT_ID
+        sync: false
     routes:
       - type: rewrite
         source: /*

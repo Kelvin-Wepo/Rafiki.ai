@@ -64,7 +64,7 @@ This method uses the `render.yaml` file for automated setup.
    Branch: main
    Runtime: Python 3
    Build Command: pip install --upgrade pip && pip install -r backend/requirements.txt
-   Start Command: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+   Start Command: cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
    Plan: Free
    ```
 
