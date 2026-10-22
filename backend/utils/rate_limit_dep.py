@@ -6,7 +6,19 @@ from utils.rate_limiter import RateLimiter
 
 
 def client_ip(request: Request) -> str:
-    """Real caller IP (uvicorn resolves X-Forwarded-For when --proxy-headers is on)."""
+    """Caller IP that a client cannot choose.
+
+    Render serves traffic through Cloudflare, which overwrites CF-Connecting-IP on
+    every request, so it is trustworthy there. X-Forwarded-For is not: clients can
+    prepend anything, so only its last entry (appended by our own proxy) is used,
+    and only when the Cloudflare header is absent. Falls back to the socket peer.
+    """
+    cf_ip = request.headers.get("cf-connecting-ip", "").strip()
+    if cf_ip:
+        return cf_ip
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[-1].strip() or "unknown"
     return request.client.host if request.client else "unknown"
 
 

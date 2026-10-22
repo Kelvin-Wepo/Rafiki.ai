@@ -24,6 +24,7 @@ from services.workflow_integration import get_workflow_integration
 from services.auth_service import get_auth_service
 from utils.session_manager import session_manager
 from utils.rate_limiter import rate_limiter
+from utils.rate_limit_dep import client_ip as get_client_ip
 from utils.logger import get_logger, RequestLogger
 from rafiki_settings import ASSISTANT_RESPONSES
 
@@ -94,7 +95,7 @@ async def _save_transcript_for_user(session_identifier, user: dict):
 
 async def check_rate_limit(request: Request):
     """Dependency to check rate limit."""
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     result = await rate_limiter.check_rate_limit(client_ip)
     
     if not result.allowed:

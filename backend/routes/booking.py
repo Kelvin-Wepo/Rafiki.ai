@@ -15,6 +15,7 @@ from models.schemas import (
 )
 from services.booking_service import booking_service
 from utils.rate_limiter import rate_limiter
+from utils.rate_limit_dep import client_ip as get_client_ip
 from utils.logger import get_logger, RequestLogger
 
 logger = get_logger(__name__)
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/booking", tags=["Booking"])
 
 async def check_rate_limit(request: Request):
     """Dependency to check rate limit."""
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     result = await rate_limiter.check_rate_limit(client_ip)
     
     if not result.allowed:
