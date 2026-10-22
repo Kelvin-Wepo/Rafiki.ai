@@ -31,7 +31,7 @@
 ### 1. **Root `.env` file** (`/home/subchief/5TECH/.env`)
 ```env
 # ElevenLabs (Updated with new API key)
-ELEVENLABS_API_KEY=4ba6e3098c5a21cf661eafd8fd4689f9403e67bea4f214d989010e9bafb71589
+ELEVENLABS_API_KEY=sk_your-elevenlabs-api-key-here
 ELEVENLABS_VOICE_ID=iEwEUVNDPmshU0IJrWmj  # Noah voice (Kenyan accent)
 
 # Dialogflow (Enabled)
@@ -108,7 +108,7 @@ INFO     | Application startup complete.
 ### Issue 1: ElevenLabs Free Tier Disabled
 **Problem:** Previous API key was flagged for "unusual activity"
 
-**Solution:** New API key configured: `4ba6e3098c5a21cf661eafd8fd4689f9403e67bea4f214d989010e9bafb71589`
+**Solution:** New API key configured: `sk_your-elevenlabs-api-key-here`
 
 **If still robotic:**
 1. Test the API key: `cd backend && python test_elevenlabs_api.py`
