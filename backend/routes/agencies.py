@@ -876,12 +876,17 @@ async def paystack_webhook(request: Request):
         payload = await request.body()
         paystack_signature = request.headers.get("x-paystack-signature", "")
         
-        # Verify signature (optional but recommended for production)
+        # Always verify: a missing header must not skip the check, or anyone
+        # could POST a fake charge.success and mark an application paid.
         paystack_secret = (get_settings().PAYSTACK_SECRET_KEY or "").strip()
-        if paystack_secret and paystack_signature:
-            if not verify_paystack_signature(payload, paystack_signature, paystack_secret):
-                logger.warning("Invalid Paystack webhook signature")
-                raise HTTPException(status_code=401, detail="Invalid signature")
+        if not paystack_secret:
+            logger.error("Paystack webhook received but PAYSTACK_SECRET_KEY is not set")
+            raise HTTPException(status_code=503, detail="Payments not configured")
+        if not paystack_signature or not verify_paystack_signature(
+            payload, paystack_signature, paystack_secret
+        ):
+            logger.warning("Invalid or missing Paystack webhook signature")
+            raise HTTPException(status_code=401, detail="Invalid signature")
         
         data = json.loads(payload)
         
@@ -914,6 +919,8 @@ async def paystack_webhook(request: Request):
         
         return {"status": "ok"}
         
+    except HTTPException:
+        raise
     except json.JSONDecodeError:
         logger.error("Invalid JSON in Paystack webhook payload")
         raise HTTPException(status_code=400, detail="Invalid JSON")
