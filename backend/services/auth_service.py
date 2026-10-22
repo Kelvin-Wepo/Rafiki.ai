@@ -104,6 +104,7 @@ class AuthService:
         #   - _conversations / _generated_transcripts / _audit_logs: not part
         #     of this fix; left untouched.
         self._pending_registrations: Dict[str, Dict] = {}  # email_hash -> registration data
+        self._pending_voice_registrations: Dict[str, Dict] = {}  # phone_hash -> spoken signup data
         self._conversations: Dict[str, Conversation] = {}  # conv_id -> Conversation
         self._user_conversations: Dict[str, List[str]] = {}  # user_id -> [conv_ids]
         self._audit_logs: List[AuthAuditLog] = []
@@ -804,6 +805,270 @@ class AuthService:
             "token_type": "bearer",
             "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             "user": user_dict
+        }
+
+    async def start_voice_registration(
+        self,
+        full_name: str,
+        phone: str,
+        id_number: str,
+        language: str = "en",
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Spoken Access signup: store name/ID/phone, then SMS an OTP via Africa's Talking.
+        No email or password is required — the phone is the account.
+        """
+        full_name = " ".join(full_name.split()).strip()
+        if len(full_name) < 3:
+            return {
+                "success": False,
+                "error": "invalid_name",
+                "message": "Please say your full name.",
+            }
+
+        phone_hash = hash_value(phone)
+        id_hash = hash_value(id_number)
+        lang = "sw" if language == "sw" else "en"
+
+        async with AsyncSessionLocal() as db:
+            if await self._get_user_by_phone_hash(db, phone_hash):
+                return {
+                    "success": False,
+                    "error": "phone_exists",
+                    "message": (
+                        "Akaunti ya nambari hii ya simu tayari ipo. Ingia kwa sauti."
+                        if lang == "sw"
+                        else "An account with this phone number already exists. Sign in by voice."
+                    ),
+                }
+            if await self._get_user_by_id_number_hash(db, id_hash):
+                return {
+                    "success": False,
+                    "error": "id_exists",
+                    "message": (
+                        "Akaunti ya kitambulisho hiki tayari ipo."
+                        if lang == "sw"
+                        else "An account with this ID number already exists."
+                    ),
+                }
+
+        self._pending_voice_registrations[phone_hash] = {
+            "full_name": full_name,
+            "phone": phone,
+            "phone_hash": phone_hash,
+            "id_number_hash": id_hash,
+            "language": lang,
+            "created_at": datetime.utcnow(),
+            "ip_address": ip_address,
+            "user_agent": user_agent,
+        }
+
+        from services.otp_service import OTPDeliveryMethod, get_otp_service as _get_otp_service
+
+        otp_service = _get_otp_service()
+        otp_result = await otp_service.request_otp(
+            phone,
+            delivery_method=OTPDeliveryMethod.SMS,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        if not otp_result or not otp_result.get("success"):
+            return {
+                "success": False,
+                "error": otp_result.get("error", "otp_failed") if otp_result else "otp_failed",
+                "message": (
+                    otp_result.get("message")
+                    if otp_result
+                    else "Failed to send the SMS code."
+                ),
+                "retry_after": otp_result.get("retry_after") if otp_result else None,
+            }
+
+        self._log_audit_event(
+            "voice_registration_initiated",
+            phone_hash=phone_hash,
+            success=True,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            metadata={"otp_delivery": "sms"},
+        )
+
+        response = {
+            "success": True,
+            "message": (
+                "Nimekutumia nambari ya siri kwa SMS. Sema au bonyeza tarakimu sita."
+                if lang == "sw"
+                else "I sent a secret code by SMS. Speak or press the six digits."
+            ),
+            "requires_verification": True,
+            "expires_in": otp_result.get("expires_in", 300),
+            "phone_masked": mask_phone_number(phone),
+            "sms_sent": otp_result.get("sms_sent", True),
+            "simulated": otp_result.get("simulated", False),
+        }
+        if otp_result.get("test_mode") and otp_result.get("otp"):
+            response["otp"] = otp_result["otp"]
+            response["test_mode"] = True
+        return response
+
+    async def resend_voice_registration_otp(
+        self,
+        phone: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Resend the Africa's Talking SMS code for a spoken signup in progress."""
+        phone_hash = hash_value(phone)
+        pending = self._pending_voice_registrations.get(phone_hash)
+        if not pending:
+            return {
+                "success": False,
+                "error": "user_not_found",
+                "message": "No spoken signup is waiting. Please start again.",
+            }
+        lang = pending.get("language", "en")
+        from services.otp_service import OTPDeliveryMethod, get_otp_service as _get_otp_service
+
+        otp_service = _get_otp_service()
+        otp_result = await otp_service.request_otp(
+            phone,
+            delivery_method=OTPDeliveryMethod.SMS,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        if not otp_result or not otp_result.get("success"):
+            return {
+                "success": False,
+                "error": otp_result.get("error", "otp_failed") if otp_result else "otp_failed",
+                "message": otp_result.get("message", "Failed to resend the SMS code.") if otp_result else "Failed to resend the SMS code.",
+                "retry_after": otp_result.get("retry_after") if otp_result else None,
+            }
+        response = {
+            "success": True,
+            "message": (
+                "Nimekutumia nambari mpya kwa SMS."
+                if lang == "sw"
+                else "I sent a new code by SMS."
+            ),
+            "expires_in": otp_result.get("expires_in", 300),
+            "phone_masked": mask_phone_number(phone),
+        }
+        if otp_result.get("test_mode") and otp_result.get("otp"):
+            response["otp"] = otp_result["otp"]
+            response["test_mode"] = True
+        return response
+
+    async def verify_voice_registration(
+        self,
+        phone: str,
+        otp: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Verify the SMS OTP, create the Access account, and send a welcome SMS."""
+        phone_hash = hash_value(phone)
+        pending = self._pending_voice_registrations.get(phone_hash)
+        if not pending:
+            return {
+                "success": False,
+                "error": "user_not_found",
+                "message": "No spoken signup is waiting. Please start again.",
+            }
+
+        from services.otp_service import get_otp_service as _get_otp_service
+
+        otp_service = _get_otp_service()
+        otp_result = await otp_service.verify_otp(
+            phone,
+            otp,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        if not otp_result.get("success"):
+            return otp_result
+
+        random_password = secrets.token_urlsafe(18)
+        password_hashed = hash_password(random_password)
+        lang = pending.get("language", "en")
+        first_name = pending["full_name"].split()[0]
+
+        async with AsyncSessionLocal() as db:
+            user = DBUser(
+                phone_number_hash=pending["phone_hash"],
+                phone_number_masked=mask_phone_number(pending["phone"]),
+                email_hash=None,
+                email_masked=None,
+                password_hash=password_hashed,
+                full_name=pending["full_name"],
+                id_number_hash=pending["id_number_hash"],
+                has_disability=True,
+                auth_provider=DBAuthProvider.PHONE,
+                status=DBUserStatus.ACTIVE,
+                email_verified=False,
+                phone_verified=True,
+                preferred_language=lang,
+                last_login=datetime.utcnow(),
+            )
+            db.add(user)
+            await db.flush()
+            user_id = user.id
+            access_token = self._create_access_token(user_id)
+            session = await self._create_session(
+                db, user_id, access_token, ip_address=ip_address, user_agent=user_agent
+            )
+            session_id = session.id
+            user_dict = self._user_to_dict(user)
+            await db.commit()
+
+        self._user_conversations[user_id] = []
+        del self._pending_voice_registrations[phone_hash]
+
+        self._log_audit_event(
+            "voice_registration_complete",
+            user_id=user_id,
+            phone_hash=phone_hash,
+            success=True,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        sms_sent = False
+        try:
+            from services.sms_service import sms_service
+
+            welcome = (
+                f"Rafiki: Karibu {first_name}. Akaunti yako iko tayari. "
+                "Fungua Rafiki Ufikivu kwenye simu yako kuendelea. Usishiriki ujumbe huu."
+                if lang == "sw"
+                else (
+                    f"Rafiki: Welcome {first_name}. Your account is ready. "
+                    "Open Rafiki Access on your phone to continue. Do not share this message."
+                )
+            )
+            sms_result = await sms_service.send_sms(pending["phone"], welcome)
+            sms_sent = bool(sms_result.get("success"))
+            if not sms_sent:
+                logger.warning("Voice signup welcome SMS did not send")
+        except Exception as exc:
+            logger.warning(f"Failed to send voice signup welcome SMS: {exc}")
+
+        return {
+            "success": True,
+            "message": (
+                "Akaunti yako ya Rafiki iko tayari. Nimekutumia SMS ya kukaribisha."
+                if lang == "sw"
+                else "Your Rafiki account is ready. I sent a welcome SMS."
+            ),
+            "user_id": user_id,
+            "session_id": session_id,
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": self.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user": user_dict,
+            "sms_sent": sms_sent,
         }
 
     async def login_with_password(

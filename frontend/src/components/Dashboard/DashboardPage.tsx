@@ -75,7 +75,7 @@ import { ChatSection, type ChatBubble } from './ChatSection';
 import { VoiceSection } from './VoiceSection';
 import '../../styles/dashboard.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from '../../lib/apiBase';
 
 /* ------------------------------------------------------------------ *
  * Navigation
@@ -407,7 +407,7 @@ function DashboardInner() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchElevenLabsConfig(API_BASE)
+    fetchElevenLabsConfig(API_BASE_URL)
       .then((config) => {
         if (!cancelled) setVoiceConfig(config);
         if (config.success && config.agent_id) {
@@ -518,7 +518,7 @@ function DashboardInner() {
           return;
         }
 
-        const startRes = await fetch(`${API_BASE}/api/agencies/chat/start`, {
+        const startRes = await fetch(`${API_BASE_URL}/api/agencies/chat/start`, {
           method: 'POST',
         });
         const startData = await startRes.json();
@@ -531,7 +531,7 @@ function DashboardInner() {
           );
         }
 
-        const langRes = await fetch(`${API_BASE}/api/agencies/chat`, {
+        const langRes = await fetch(`${API_BASE_URL}/api/agencies/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -672,13 +672,13 @@ function DashboardInner() {
 
     let conversationToken: string | null = null;
     try {
-      const config = await fetchElevenLabsConfig(API_BASE);
+      const config = await fetchElevenLabsConfig(API_BASE_URL);
       setVoiceConfig(config);
     } catch (err) {
       console.warn('Could not refresh ElevenLabs config:', err);
     }
     try {
-      const res = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
+      const res = await fetch(`${API_BASE_URL}/elevenlabs/conversation-token`);
       if (res.ok) {
         const data = await res.json();
         conversationToken = readConversationToken(data);

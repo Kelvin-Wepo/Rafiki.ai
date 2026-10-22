@@ -1,6 +1,5 @@
 import { getStoredToken } from '../services/authService';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from './apiBase';
 export const AGENCY_SESSION_KEY = 'rafiki_agency_session';
 
 export type AgencyChatResponse = {
@@ -33,7 +32,7 @@ async function agencyFetch(path: string, init: RequestInit = {}) {
     ...(init.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(data.detail || data.message || `Request failed (${response.status})`);

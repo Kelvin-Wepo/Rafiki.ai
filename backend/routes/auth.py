@@ -43,6 +43,28 @@ def normalize_kenyan_phone(v: str) -> str:
     return v
 
 
+def require_kenyan_phone(v: str) -> str:
+    """Validate a Kenyan mobile number and return E.164."""
+    v = re.sub(r"[\s\-]", "", v)
+    if not re.match(r"^(\+254|254|0)?[17]\d{8}$", v):
+        raise ValueError("Invalid Kenyan phone number")
+    return normalize_kenyan_phone(v)
+
+
+def require_id_number(v: str) -> str:
+    v = re.sub(r"\s", "", str(v))
+    if not re.match(r"^\d{7,8}$", v):
+        raise ValueError("ID number must be 7-8 digits")
+    return v
+
+
+def require_otp_code(v: str) -> str:
+    v = re.sub(r"\s", "", str(v))
+    if not re.match(r"^\d{6}$", v):
+        raise ValueError("OTP must be exactly 6 digits")
+    return v
+
+
 class RegisterRequest(BaseModel):
     """User registration request."""
     full_name: str = Field(..., min_length=3, max_length=200)
@@ -121,6 +143,56 @@ class VerifyRegistrationRequest(BaseModel):
         if not re.match(r'^\d{6}$', v):
             raise ValueError('OTP must be exactly 6 digits')
         return v
+
+
+class VoiceRegisterRequest(BaseModel):
+    """Spoken Access signup — name, national ID, and phone. OTP goes by SMS."""
+    full_name: str = Field(..., min_length=3, max_length=200)
+    phone: str = Field(...)
+    id_number: str = Field(..., min_length=7, max_length=8)
+    language: str = Field(default="en")
+
+    @validator("full_name")
+    def validate_full_name(cls, v):
+        cleaned = " ".join(v.split()).strip()
+        if len(cleaned) < 3:
+            raise ValueError("Full name is required")
+        return cleaned
+
+    @validator("phone")
+    def validate_phone(cls, v):
+        return require_kenyan_phone(v)
+
+    @validator("id_number")
+    def validate_id_number(cls, v):
+        return require_id_number(v)
+
+    @validator("language")
+    def validate_language(cls, v):
+        return "sw" if str(v).lower().startswith("sw") else "en"
+
+
+class VoiceRegisterVerifyRequest(BaseModel):
+    """Verify the SMS code from spoken signup."""
+    phone: str = Field(...)
+    otp: str = Field(..., min_length=6, max_length=6)
+
+    @validator("phone")
+    def validate_phone(cls, v):
+        return require_kenyan_phone(v)
+
+    @validator("otp")
+    def validate_otp(cls, v):
+        return require_otp_code(v)
+
+
+class VoiceRegisterResendRequest(BaseModel):
+    """Resend the spoken-signup SMS code."""
+    phone: str = Field(...)
+
+    @validator("phone")
+    def validate_phone(cls, v):
+        return require_kenyan_phone(v)
 
 
 class PasswordLoginRequest(BaseModel):
@@ -384,6 +456,74 @@ async def verify_registration(
             status_code = 401
         raise HTTPException(status_code=status_code, detail=result)
     
+    return result
+
+
+@router.post("/voice-register", response_model=dict)
+async def voice_register(request: Request, body: VoiceRegisterRequest):
+    """
+    Access-mode spoken signup. Collects name, ID and phone, then sends a
+    6-digit OTP by Africa's Talking SMS. Complete with /voice-register/verify.
+    """
+    ip, user_agent = get_client_info(request)
+    auth_service = get_auth_service()
+    result = await auth_service.start_voice_registration(
+        full_name=body.full_name,
+        phone=body.phone,
+        id_number=body.id_number,
+        language=body.language,
+        ip_address=ip,
+        user_agent=user_agent,
+    )
+    if not result["success"]:
+        error = result.get("error", "registration_failed")
+        if error == "rate_limited":
+            status_code = 429
+        elif error in ["phone_exists", "id_exists"]:
+            status_code = 409
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=result)
+    return result
+
+
+@router.post("/voice-register/resend", response_model=dict)
+async def voice_register_resend(request: Request, body: VoiceRegisterResendRequest):
+    """Resend the Africa's Talking SMS code for a spoken signup in progress."""
+    ip, user_agent = get_client_info(request)
+    auth_service = get_auth_service()
+    result = await auth_service.resend_voice_registration_otp(
+        phone=body.phone,
+        ip_address=ip,
+        user_agent=user_agent,
+    )
+    if not result["success"]:
+        error = result.get("error", "otp_failed")
+        status_code = 429 if error == "rate_limited" else 400
+        raise HTTPException(status_code=status_code, detail=result)
+    return result
+
+
+@router.post("/voice-register/verify", response_model=dict)
+async def voice_register_verify(request: Request, body: VoiceRegisterVerifyRequest):
+    """Verify SMS OTP, create the Access account, and send a welcome SMS."""
+    ip, user_agent = get_client_info(request)
+    auth_service = get_auth_service()
+    result = await auth_service.verify_voice_registration(
+        phone=body.phone,
+        otp=body.otp,
+        ip_address=ip,
+        user_agent=user_agent,
+    )
+    if not result["success"]:
+        error = result.get("error", "verification_failed")
+        if error in ["account_locked", "max_attempts"]:
+            status_code = 429
+        elif error in ["otp_expired", "no_otp", "user_not_found"]:
+            status_code = 400
+        else:
+            status_code = 401
+        raise HTTPException(status_code=status_code, detail=result)
     return result
 
 

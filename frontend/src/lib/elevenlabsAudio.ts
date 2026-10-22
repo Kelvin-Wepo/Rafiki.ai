@@ -1,6 +1,4 @@
-/** Play ElevenLabs audio only. Never fall through to the browser voice. */
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from './apiBase';
 
 let current: HTMLAudioElement | null = null;
 let playGen = 0;
@@ -42,7 +40,7 @@ export async function playElevenLabsText(text: string): Promise<boolean> {
   if (!trimmed) return false;
   const gen = ++playGen;
   try {
-    const response = await fetch(`${API_BASE}/elevenlabs/tts`, {
+    const response = await fetch(`${API_BASE_URL}/elevenlabs/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: trimmed }),

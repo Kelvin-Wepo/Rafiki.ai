@@ -1,9 +1,4 @@
-/**
- * API Service for authentication and conversation management.
- * Handles all HTTP requests to the backend.
- */
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL, isUnreachableServerError, unreachableServerMessage } from '../lib/apiBase';
 
 // Token storage keys
 const TOKEN_KEY = 'rafiki_access_token';
@@ -63,6 +58,7 @@ export interface AuthResponse {
   success: boolean;
   message: string;
   user_id?: string;
+  session_id?: string;
   access_token?: string;
   token_type?: string;
   expires_in?: number;
@@ -138,6 +134,11 @@ async function apiRequest<T>(
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers,
+  }).catch((err: unknown) => {
+    if (isUnreachableServerError(err)) {
+      throw { error: 'network', message: unreachableServerMessage() };
+    }
+    throw err;
   });
   
   const data = await response.json();
@@ -401,6 +402,100 @@ export async function downloadTranscript(
   a.click();
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
+}
+
+function asAuthResult(err: unknown): AuthResponse {
+  if (isUnreachableServerError(err)) {
+    return { success: false, error: 'network', message: unreachableServerMessage() };
+  }
+  const bag = err as { detail?: AuthResponse; message?: string; error?: string; status?: number };
+  if (bag?.detail && typeof bag.detail === 'object') {
+    return {
+      ...bag.detail,
+      success: false,
+      message: bag.detail.message || 'Request failed',
+    };
+  }
+  return {
+    success: false,
+    message: bag?.message || 'Request failed',
+    error: bag?.error,
+  };
+}
+
+export interface VoiceRegisterResponse extends AuthResponse {
+  requires_verification?: boolean;
+  sms_sent?: boolean;
+  simulated?: boolean;
+  test_mode?: boolean;
+  otp?: string;
+}
+
+export async function startVoiceRegistration(
+  fullName: string,
+  phone: string,
+  idNumber: string,
+  language: 'en' | 'sw'
+): Promise<VoiceRegisterResponse> {
+  try {
+    return await apiRequest<VoiceRegisterResponse>('/auth/voice-register', {
+      method: 'POST',
+      body: JSON.stringify({
+        full_name: fullName,
+        phone,
+        id_number: idNumber,
+        language,
+      }),
+    });
+  } catch (err) {
+    return asAuthResult(err);
+  }
+}
+
+export async function resendVoiceRegistration(phone: string): Promise<VoiceRegisterResponse> {
+  try {
+    return await apiRequest<VoiceRegisterResponse>('/auth/voice-register/resend', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+  } catch (err) {
+    return asAuthResult(err);
+  }
+}
+
+export async function verifyVoiceRegistration(
+  phone: string,
+  otp: string
+): Promise<VoiceRegisterResponse> {
+  try {
+    const response = await apiRequest<VoiceRegisterResponse>('/auth/voice-register/verify', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp }),
+    });
+    if (response.success && response.access_token) {
+      storeToken(response.access_token);
+      if (response.user) storeUser(response.user);
+    }
+    return response;
+  } catch (err) {
+    return asAuthResult(err);
+  }
+}
+
+export async function startSmsLogin(phoneNumber: string): Promise<AuthResponse> {
+  try {
+    return await initiateLogin(phoneNumber, 'sms');
+  } catch (err) {
+    return asAuthResult(err);
+  }
+}
+
+export async function verifySmsLogin(phoneNumber: string, otp: string): Promise<AuthResponse> {
+  try {
+    return await verifyOTP(phoneNumber, otp);
+  } catch (err) {
+    return asAuthResult(err);
+  }
 }
 
 // ============== Audit Logs API ==============

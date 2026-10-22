@@ -27,10 +27,10 @@ import {
   type GuidedServiceSlug,
 } from '../lib/guidedServices';
 import '../styles/access.css';
+import { VoiceOnboarding, type VoiceOnboardingMode } from '../components/access/VoiceOnboarding';
+import { API_BASE_URL } from '../lib/apiBase';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-type View = 'home' | 'talk' | 'type' | 'services';
+type View = 'home' | 'talk' | 'type' | 'services' | 'signup' | 'signin';
 
 type Bubble = { id: string; sender: 'user' | 'assistant'; content: string };
 
@@ -57,10 +57,10 @@ const COPY = {
     typeSub: 'Large keyboard. Rafiki replies in this window.',
     services: 'Government services',
     servicesSub: 'Licence, passport, ID, KRA, and more.',
-    signIn: 'Sign in',
-    signInSub: 'Continue with your Rafiki account.',
-    signUp: 'Create account',
-    signUpSub: 'New here? We will set Access mode for you.',
+    signIn: 'Sign in by voice',
+    signInSub: 'Speak your phone number. We will text you a code.',
+    signUp: 'Create account by voice',
+    signUpSub: 'Say your name, ID and phone. No forms.',
     standard: 'Standard dashboard',
     standardSub: 'Leave Access and use the usual layout.',
     lang: 'Kiswahili',
@@ -96,10 +96,10 @@ const COPY = {
     typeSub: 'Kitufe kikubwa. Rafiki hujibu hapa.',
     services: 'Huduma za serikali',
     servicesSub: 'Leseni, pasipoti, kitambulisho, KRA, na zaidi.',
-    signIn: 'Ingia',
-    signInSub: 'Endelea na akaunti yako ya Rafiki.',
-    signUp: 'Fungua akaunti',
-    signUpSub: 'Mgeni? Tutawasha hali ya Ufikivu.',
+    signIn: 'Ingia kwa sauti',
+    signInSub: 'Sema nambari ya simu. Tutakutumia nambari ya siri.',
+    signUp: 'Fungua akaunti kwa sauti',
+    signUpSub: 'Sema jina, kitambulisho na simu. Hakuna fomu.',
     standard: 'Dashibodi ya kawaida',
     standardSub: 'Toka Ufikivu, tumia muundo wa kawaida.',
     lang: 'English',
@@ -176,7 +176,10 @@ function AccessInner() {
         ? `${t.title} ${t.lede}`
         : view === 'type'
           ? t.typeTitle
-          : t.servicesTitle;
+          : view === 'signup' || view === 'signin'
+            ? ''
+            : t.servicesTitle;
+    if (!intro) return;
     announce(intro);
     // Speak once per view/language, not on every announce identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,9 +198,9 @@ function AccessInner() {
       }
       enable();
       announce(t.needAccount);
-      navigate(`/login?next=/access`);
+      setView('signin');
     },
-    [announce, enable, isAuthenticated, navigate, t.needAccount]
+    [announce, enable, isAuthenticated, t.needAccount]
   );
 
   const startVoice = useCallback(async () => {
@@ -212,7 +215,7 @@ function AccessInner() {
     }
     stopSpeaking();
     try {
-      const tokenRes = await fetch(`${API_BASE}/elevenlabs/conversation-token`);
+      const tokenRes = await fetch(`${API_BASE_URL}/elevenlabs/conversation-token`);
       let conversationToken = '';
       if (tokenRes.ok) {
         const data = await tokenRes.json();
@@ -302,7 +305,7 @@ function AccessInner() {
     async (slug: GuidedServiceSlug) => {
       rememberPendingService(slug);
       if (!isAuthenticated) {
-        navigate(`/login?next=/access&service=${slug}`);
+        setView('signin');
         return;
       }
       setView('type');
@@ -374,8 +377,8 @@ function AccessInner() {
         return;
       }
       if (view === 'home') {
-        if (event.key === '1') isAuthenticated ? setView('talk') : navigate('/login?next=/access');
-        if (event.key === '2') isAuthenticated ? setView('type') : navigate('/signup?next=/access');
+        if (event.key === '1') isAuthenticated ? setView('talk') : setView('signin');
+        if (event.key === '2') isAuthenticated ? setView('type') : setView('signup');
         if (event.key === '3') isAuthenticated ? setView('services') : setView('services');
         if (event.key === '4') leaveAccess();
       } else if (view === 'talk' && event.key === '1') {
@@ -392,8 +395,8 @@ function AccessInner() {
   const homeKeys = useMemo(() => {
     if (!isAuthenticated) {
       return [
-        { n: '1', label: t.signIn, sub: t.signInSub, primary: true, onClick: () => navigate('/login?next=/access') },
-        { n: '2', label: t.signUp, sub: t.signUpSub, onClick: () => navigate('/signup?next=/access') },
+        { n: '1', label: t.signIn, sub: t.signInSub, primary: true, onClick: () => setView('signin') },
+        { n: '2', label: t.signUp, sub: t.signUpSub, onClick: () => setView('signup') },
         { n: '3', label: t.services, sub: t.servicesSub, onClick: () => setView('services') },
         { n: '4', label: language === 'sw' ? 'Tovuti ya kawaida' : 'Standard website', sub: t.standardSub, onClick: leaveAccess },
       ];
@@ -404,7 +407,7 @@ function AccessInner() {
       { n: '3', label: t.services, sub: t.servicesSub, onClick: () => setView('services') },
       { n: '4', label: t.standard, sub: t.standardSub, onClick: leaveAccess },
     ];
-  }, [isAuthenticated, language, leaveAccess, navigate, t]);
+  }, [isAuthenticated, language, leaveAccess, t]);
 
   const voiceStatus = conversation.isSpeaking ? t.speaking : connected ? t.listening : t.ready;
 
@@ -474,6 +477,16 @@ function AccessInner() {
             </div>
             <p className="ra-hint">{t.hint}</p>
           </>
+        )}
+
+        {(view === 'signup' || view === 'signin') && (
+          <VoiceOnboarding
+            mode={view as VoiceOnboardingMode}
+            language={language}
+            onCancel={() => setView('home')}
+            onFinished={() => setView('home')}
+            onAnnounce={announce}
+          />
         )}
 
         {view === 'talk' && (

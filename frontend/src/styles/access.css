@@ -346,6 +346,33 @@
   margin-bottom: 18px;
 }
 
+.ra-pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 22rem;
+}
+
+.ra-pad-key {
+  min-height: 72px;
+  border: 3px solid var(--ra-gold);
+  border-radius: 12px;
+  background: var(--ra-panel);
+  color: var(--ra-ink);
+  font: inherit;
+  font-size: 1.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ra-pad-key:hover,
+.ra-pad-key:focus-visible {
+  background: var(--ra-gold);
+  color: var(--ra-on-accent);
+  outline: 3px solid var(--ra-focus);
+  outline-offset: 2px;
+}
+
 @media (max-width: 640px) {
   .ra-page {
     font-size: 1.2rem;

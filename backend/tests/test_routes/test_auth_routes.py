@@ -205,3 +205,64 @@ class TestAuthRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["conversation_id"] == "conv_456"
+
+
+class TestVoiceRegisterRoutes:
+    """Spoken Access signup endpoints."""
+
+    def test_voice_register_sends_sms_otp(self, client, mock_auth_service):
+        mock_auth_service.start_voice_registration.return_value = {
+            "success": True,
+            "message": "I sent a secret code by SMS.",
+            "requires_verification": True,
+            "phone_masked": "+254***678",
+        }
+
+        response = client.post(
+            "/auth/voice-register",
+            json={
+                "full_name": "Jane Wanjiku",
+                "phone": "0712345678",
+                "id_number": "12345678",
+                "language": "en",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["requires_verification"] is True
+        mock_auth_service.start_voice_registration.assert_awaited()
+
+    def test_voice_register_rejects_short_id(self, client, mock_auth_service):
+        response = client.post(
+            "/auth/voice-register",
+            json={
+                "full_name": "Jane Wanjiku",
+                "phone": "0712345678",
+                "id_number": "12",
+                "language": "en",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_voice_register_verify_completes_account(self, client, mock_auth_service):
+        mock_auth_service.verify_voice_registration.return_value = {
+            "success": True,
+            "message": "Your Rafiki account is ready.",
+            "access_token": "tok",
+            "session_id": "sess",
+            "user": {"full_name": "Jane Wanjiku", "has_disability": True},
+            "sms_sent": True,
+        }
+
+        response = client.post(
+            "/auth/voice-register/verify",
+            json={"phone": "+254712345678", "otp": "123456"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["sms_sent"] is True
+        assert data["user"]["has_disability"] is True
+

@@ -4,6 +4,23 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
+const backend = 'http://127.0.0.1:8000'
+const apiProxy = {
+  '/auth': { target: backend, changeOrigin: true },
+  '/elevenlabs': { target: backend, changeOrigin: true },
+  '/api': { target: backend, changeOrigin: true },
+  '/waitlist': { target: backend, changeOrigin: true },
+  '/health': { target: backend, changeOrigin: true },
+  '/voice': { target: backend, changeOrigin: true },
+  '/booking': { target: backend, changeOrigin: true },
+  '/session': { target: backend, changeOrigin: true },
+  '/avatar': { target: backend, changeOrigin: true },
+  '/citizen': { target: backend, changeOrigin: true },
+  '/location': { target: backend, changeOrigin: true },
+  '/whatsapp': { target: backend, changeOrigin: true },
+  '/workflows': { target: backend, changeOrigin: true },
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -79,7 +96,17 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,jpeg,jpg,webp}'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [
+          /^\/api\//,
+          /^\/auth\//,
+          /^\/elevenlabs\//,
+          /^\/waitlist\//,
+          /^\/health/,
+          /^\/voice\//,
+          /^\/booking\//,
+          /^\/session\//,
+          /^\/avatar\//,
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -114,10 +141,12 @@ export default defineConfig({
       host: 'localhost',
       port: 5173,
     },
+    proxy: apiProxy,
   },
   preview: {
     host: '0.0.0.0',
     port: 5173,
+    proxy: apiProxy,
   },
   build: {
     outDir: 'dist',

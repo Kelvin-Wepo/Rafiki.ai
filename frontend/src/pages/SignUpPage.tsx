@@ -26,7 +26,7 @@ import signupBg from '../assets/signup.png';
 import rafikiAvatar from '../assets/rafiki_avatar.png';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from '../lib/apiBase';
 
 interface FormData {
   fullName: string;
@@ -245,7 +245,7 @@ export function SignUpPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -339,7 +339,7 @@ export function SignUpPage() {
     setOtpState(prev => ({ ...prev, verifying: true, error: null }));
 
     try {
-      const res = await fetch(`${API_BASE}/auth/verify-registration`, {
+      const res = await fetch(`${API_BASE_URL}/auth/verify-registration`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -370,7 +370,7 @@ export function SignUpPage() {
     setOtpState(prev => ({ ...prev, resending: true, error: null }));
 
     try {
-      const res = await fetch(`${API_BASE}/auth/resend-otp`, {
+      const res = await fetch(`${API_BASE_URL}/auth/resend-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

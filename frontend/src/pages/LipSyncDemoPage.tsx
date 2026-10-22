@@ -8,7 +8,7 @@ import TalkingAvatar from '../components/avatar/TalkingAvatar';
 import { DEFAULT_MOUTH_REGION } from '../components/avatar/lipsyncConfig';
 import type { MouthRegion, VisemeCue } from '../components/avatar/visemeShapes';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from '../lib/apiBase';
 
 const SAMPLES = [
   { id: 'hi', label: 'Greeting', text: 'Habari! Mimi ni Rafiki.' },
@@ -38,7 +38,7 @@ export default function LipSyncDemoPage() {
   const [cueCount, setCueCount] = useState(0);
 
   useEffect(() => {
-    fetch(`${API_BASE}/avatar/lipsync/config`)
+    fetch(`${API_BASE_URL}/avatar/lipsync/config`)
       .then((res) => res.json())
       .then((data) => {
         if (data?.mouth_region) setRegion(data.mouth_region);
@@ -53,7 +53,7 @@ export default function LipSyncDemoPage() {
       setBusy(true);
       setStatus(`Generating ${label}…`);
       try {
-        const res = await fetch(`${API_BASE}/avatar/lipsync/preview`, {
+        const res = await fetch(`${API_BASE_URL}/avatar/lipsync/preview`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text }),

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     
     # CORS Settings
     # Include the Vite frontend default (5173) and the common React default (3000).
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,http://localhost:3000,http://127.0.0.1:3000"
     
     # Google Gemini API
     GEMINI_API_KEY: str = ""
@@ -177,7 +177,22 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        local = self.DEBUG or self.ENVIRONMENT.lower() in {"development", "dev", "local"}
+        if local:
+            for extra in (
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:5174",
+                "http://127.0.0.1:5174",
+                "http://localhost:4173",
+                "http://127.0.0.1:4173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            ):
+                if extra not in origins:
+                    origins.append(extra)
+        return origins
 
     @property
     def email_configured(self) -> bool:
