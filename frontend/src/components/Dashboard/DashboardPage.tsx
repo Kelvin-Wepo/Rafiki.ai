@@ -376,6 +376,17 @@ function DashboardInner() {
     },
   });
 
+  const conversationRef = useRef(conversation);
+  conversationRef.current = conversation;
+  // Real-time spectrum of the agent's voice as played, so the lips follow the audio exactly.
+  const agentSpectrum = useCallback(() => {
+    try {
+      return conversationRef.current.getOutputByteFrequencyData();
+    } catch {
+      return null;
+    }
+  }, []);
+
   const isVoiceConnected = conversation.status === 'connected';
   const liveAgentId = voiceConfig?.agent_id || '';
 
@@ -902,6 +913,7 @@ function DashboardInner() {
         visemeTimeline={lipSyncClip?.visemeTimeline}
         playId={lipSyncClip?.playId}
         isSpeaking={!lipSyncClip && Boolean(conversation.isSpeaking || isSpeaking)}
+        liveSpectrum={agentSpectrum}
         className={isListening ? 'talking-avatar--listening' : undefined}
         autoPlay
         onPlay={() => setIsSpeaking(true)}

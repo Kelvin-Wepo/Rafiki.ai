@@ -23,6 +23,7 @@ import {
   resumeMouthMeter,
   type MouthMeter,
 } from './audioMouthMeter';
+import { LIVE_MOUTH_REST, liveMouthStep, type LiveMouthState } from './liveMouthShape';
 import './TalkingAvatar.css';
 
 export type TalkingAvatarProps = {
@@ -32,6 +33,12 @@ export type TalkingAvatarProps = {
   mouthRegion?: Partial<MouthRegion> | null;
   /** Pulse fallback when speaking without a timeline (live WebRTC voice). */
   isSpeaking?: boolean;
+  /**
+   * Live output spectrum of the agent's voice (ElevenLabs
+   * `getOutputByteFrequencyData`). While `isSpeaking` and no `audioUrl`, the
+   * mouth follows this instead of the generic pulse.
+   */
+  liveSpectrum?: () => Uint8Array | null | undefined;
   autoPlay?: boolean;
   className?: string;
   alt?: string;
@@ -171,6 +178,7 @@ export default function TalkingAvatar({
   visemeTimeline,
   mouthRegion,
   isSpeaking = false,
+  liveSpectrum,
   autoPlay = true,
   className,
   alt = 'Rafiki',
@@ -192,6 +200,8 @@ export default function TalkingAvatar({
   const speakingRef = useRef(isSpeaking);
   const debugRef = useRef(showDebug);
   const pulseStartRef = useRef(0);
+  const liveSpectrumRef = useRef(liveSpectrum);
+  const liveStateRef = useRef<LiveMouthState>(LIVE_MOUTH_REST);
   const meterRef = useRef<MouthMeter | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -204,6 +214,7 @@ export default function TalkingAvatar({
   regionRef.current = resolveMouthRegion(mouthRegion);
   timelineRef.current = visemeTimeline;
   speakingRef.current = isSpeaking;
+  liveSpectrumRef.current = liveSpectrum;
   debugRef.current = showDebug;
 
   const stopLoop = useCallback(() => {
@@ -330,12 +341,20 @@ export default function TalkingAvatar({
           shape = pulseShape(now);
         }
       } else if (speakingRef.current && !audioUrl) {
-        if (!pulseStartRef.current) pulseStartRef.current = now;
-        shape = pulseShape(now - pulseStartRef.current);
+        const spectrum = liveSpectrumRef.current?.();
+        if (spectrum && spectrum.length > 0) {
+          const step = liveMouthStep(spectrum, liveStateRef.current);
+          liveStateRef.current = step.state;
+          shape = step.shape;
+        } else {
+          if (!pulseStartRef.current) pulseStartRef.current = now;
+          shape = pulseShape(now - pulseStartRef.current);
+        }
       } else if (audioUrl && audio && !audio.ended) {
         shape = IDLE_SHAPE;
       } else {
         pulseStartRef.current = 0;
+        liveStateRef.current = LIVE_MOUTH_REST;
         paintIdle();
         stopLoop();
         return;
