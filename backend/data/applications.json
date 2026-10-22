@@ -302,5 +302,33 @@
     },
     "created_at": "2026-07-14T01:42:23.502938",
     "updated_at": "2026-07-14T01:42:23.502954"
+  },
+  "NTS-20260910175302-5BDD455D": {
+    "application_ref": "NTS-20260910175302-5BDD455D",
+    "session_id": "36599503-7620-4269-9793-d4d9827a2bdf",
+    "agency": "NTSA",
+    "service": "NTSA Driving Licence Renewal",
+    "status": "pending_payment",
+    "applicant": {
+      "name": "",
+      "id_number": "",
+      "phone": "0712345678",
+      "email": "",
+      "county": "",
+      "kra_pin": ""
+    },
+    "payment": {
+      "reference": "RAFIKI-NTSA_DRIVI-1789051982-C2EACE0A",
+      "amount": 1200,
+      "status": "pending",
+      "paid_at": null
+    },
+    "metadata": {
+      "id_or_dl": "12345678",
+      "mpesa": "0712345678",
+      "total": 1200
+    },
+    "created_at": "2026-09-10T17:53:02.228467",
+    "updated_at": "2026-09-10T17:53:02.228480"
   }
 }
