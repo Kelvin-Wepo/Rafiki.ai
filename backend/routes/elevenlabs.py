@@ -3,13 +3,14 @@ ElevenLabs API endpoints.
 Provides signed URL generation and TTS functionality.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from typing import Optional
 from pydantic import BaseModel
 
 from services.elevenlabs_service import elevenlabs_service
 from utils.logger import get_logger
+from utils.rate_limit_dep import rate_limit
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/elevenlabs", tags=["ElevenLabs"])
@@ -125,7 +126,8 @@ async def get_signed_url(
     "/conversation-token",
     response_model=ConversationTokenResponse,
     summary="Get WebRTC conversation token for ElevenLabs agent",
-    description="Mint a short-lived token so the browser can open a WebRTC session with a private agent"
+    description="Mint a short-lived token so the browser can open a WebRTC session with a private agent",
+    dependencies=[Depends(rate_limit(10, 60))],
 )
 async def get_conversation_token(
     agent_id: Optional[str] = Query(None, description="Optional agent ID override")
@@ -157,7 +159,8 @@ async def get_conversation_token(
     "/tts",
     response_model=TTSResponse,
     summary="Text-to-speech conversion",
-    description="Convert text to speech using ElevenLabs TTS API"
+    description="Convert text to speech using ElevenLabs TTS API",
+    dependencies=[Depends(rate_limit(20, 60))],
 )
 async def text_to_speech(request: TTSRequest):
     """

@@ -11,6 +11,9 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Run an idle-entry sweep every N checks so the tracking dict stays bounded.
+CLEANUP_EVERY = 500
+
 
 @dataclass
 class RateLimitInfo:
@@ -42,6 +45,7 @@ class RateLimiter:
         self._window_seconds = window_seconds
         self._requests: Dict[str, list] = {}
         self._lock = asyncio.Lock()
+        self._calls_since_cleanup = 0
     
     async def check_rate_limit(self, identifier: str) -> RateLimitInfo:
         """
@@ -56,6 +60,16 @@ class RateLimiter:
         async with self._lock:
             now = datetime.utcnow()
             window_start = now - timedelta(seconds=self._window_seconds)
+
+            # Idle identifiers are otherwise kept forever; prune them periodically.
+            self._calls_since_cleanup += 1
+            if self._calls_since_cleanup >= CLEANUP_EVERY:
+                self._calls_since_cleanup = 0
+                for key in [
+                    k for k, stamps in self._requests.items()
+                    if not stamps or stamps[-1] <= window_start
+                ]:
+                    del self._requests[key]
             
             # Initialize or get request list for identifier
             if identifier not in self._requests:

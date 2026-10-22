@@ -8,7 +8,7 @@ Mount this in your backend/main.py with:
     app.include_router(agencies_router, prefix="/api/agencies", tags=["agencies"])
 """
 
-from fastapi import APIRouter, HTTPException, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import json
@@ -52,6 +52,9 @@ from services.booking_service import (
 )
 from services.elevenlabs_service import elevenlabs_service
 from rafiki_settings import get_settings
+from utils.phone import normalize_kenyan_msisdn
+from utils.rate_limit_dep import rate_limit
+from utils.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -131,11 +134,18 @@ class StartServiceRequest(BaseModel):
     chat_session_id: Optional[str] = None
 
 
+# M-PESA caps a single transaction at 250,000 KES; no government fee here is near it.
+MAX_PAYMENT_KSH = 150_000
+
+# An STK prompt + SMS to someone's phone is a nuisance/cost vector if unthrottled.
+_phone_prompt_limiter = RateLimiter(max_requests=3, window_seconds=600)
+
+
 class PaymentInitRequest(BaseModel):
     session_id: str
     phone: str
-    amount_ksh: int
-    service: str
+    amount_ksh: int = Field(ge=1, le=MAX_PAYMENT_KSH)
+    service: str = Field(min_length=1, max_length=120)
     email: Optional[str] = "customer@rafiki.ai"
 
 
@@ -628,12 +638,22 @@ async def end_session(session_id: str):
     return {"message": "Session cleared."}
 
 
-@router.post("/payment/initiate")
+@router.post("/payment/initiate", dependencies=[Depends(rate_limit(5, 60))])
 async def initiate_payment(req: PaymentInitRequest):
     """
     Initiate an M-PESA STK push via Paystack.
     Call this after the user confirms their details in the chat flow.
     """
+    try:
+        phone_key = normalize_kenyan_msisdn(req.phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not (await _phone_prompt_limiter.check_rate_limit(phone_key)).allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many payment prompts for this number. Please wait a few minutes.",
+        )
+
     state = get_or_create_session(req.session_id)
     reference = generate_reference(req.session_id, req.service)
     state.payment_ref = reference
@@ -712,7 +732,9 @@ async def payment_status(session_id: str):
 
 @router.get("/session/{session_id}")
 async def get_session_info(session_id: str):
-    """Debug endpoint – returns current session state (disable in production)."""
+    """Debug endpoint – returns current session state. Hidden unless DEBUG is on."""
+    if not get_settings().DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
     state = get_or_create_session(session_id)
     return {
         "session_id": state.session_id,

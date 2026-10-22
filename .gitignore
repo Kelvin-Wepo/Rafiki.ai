@@ -133,3 +133,10 @@ docker-compose.override.yml
 backend/data/chroma_db/
 backend/data/chat_sessions.json
 backend/cache/
+
+# Editor local-history snapshots (contained .env copies with real secrets)
+.history/
+
+# Runtime data containing applicants' personal details
+backend/data/applications.json
+backend/data/agency_bookings.json
